@@ -276,16 +276,16 @@ countSubtree(t, ids): { bookmarks: number; folders: number }    // for confirmat
 - Create: `extension/src/bookmarks/search.ts`
 - Create: `extension/src/bookmarks/search.test.ts`
 
-- [ ] implement `normalize`, `createSearchIndex(tree)` and `search(index, query, { limit, kinds })` per Technical Details (token AND, title or URL, two ranking groups, folder path)
-- [ ] write tests for matching:
+- [x] implement `normalize`, `createSearchIndex(tree)` and `search(index, query, { limit, kinds })` per Technical Details (token AND, title or URL, two ranking groups, folder path)
+- [x] write tests for matching:
   - part of a title, and part of a URL (`example.org/do`);
   - case and accents (`cafe` finds `Café`);
   - a percent-encoded URL found by an accented query;
   - a ligature (`ﬁ`);
   - several words, including one token in the title and another in the URL (falls into group 2).
-- [ ] write tests for results: folders match by title only, `kinds` filtering, ranking, `limit`, and empty or whitespace-only queries
-- [ ] write a performance test: 10k bookmarks, warm up first, assert the median of 5 queries is under 50 ms (the 10 ms target is checked manually)
-- [ ] run `npm run check` - must pass before task 3
+- [x] write tests for results: folders match by title only, `kinds` filtering, ranking, `limit`, and empty or whitespace-only queries
+- [x] write a performance test: 10k bookmarks, warm up first, assert the median of 5 queries is under 50 ms (the 10 ms target is checked manually)
+- [x] run `npm run check` - must pass before task 3
 
 ### Task 3: Edit operations over the adapter
 **Files:**
