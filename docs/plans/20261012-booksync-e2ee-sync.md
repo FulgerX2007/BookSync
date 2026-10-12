@@ -577,17 +577,23 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/ui/options/options.html`
 - Create: `extension/src/ui/options/options.ts`
 
-- [ ] set up the npm project (strict TypeScript, dev deps from Context) with scripts `build`, `build:e2e`, `typecheck`, `lint`, `test`, `e2e`, `package`
-- [ ] add `src/platform/ext.ts`: `export const ext = (globalThis.browser ?? globalThis.chrome) as typeof chrome`, the single entry point to WebExtension APIs
-- [ ] add manifests:
+- [x] set up the npm project (strict TypeScript, dev deps from Context) with scripts `build`, `build:e2e`, `typecheck`, `lint`, `test`, `e2e`, `package`
+- [x] add `src/platform/ext.ts`: `export const ext = (globalThis.browser ?? globalThis.chrome) as typeof chrome`, the single entry point to WebExtension APIs
+- [x] add manifests:
   - base MV3: `bookmarks`, `storage`, `alarms`; `optional_host_permissions` for `https://*/*`, `http://localhost/*`, `http://127.0.0.1/*`; popup + options;
   - Chromium override: `background.service_worker`, `minimum_chrome_version: "120"`;
   - Firefox override: `background.scripts`; `browser_specific_settings.gecko` with id, `strict_min_version: "128.0"` and the `data_collection_permissions` declaration that current AMO policy requires (confirm with `web-ext lint`).
-- [ ] implement `scripts/manifest.mjs`: a pure deep-merge of base + browser override that stamps `version` from `package.json`; the `--e2e` flag adds `http://127.0.0.1/*` to `host_permissions` so tests skip the permission prompt
-- [ ] implement `build.mjs`: esbuild bundles of the background, popup and options entries into `dist/chromium` and `dist/firefox` (`dist-e2e/*` for the e2e build); the popup and options stubs exist from this task on, so the build and lint work immediately
-- [ ] write tests for manifest merge per target (background shape, gecko block only for Firefox, e2e host permission only with the flag, version stamped)
-- [ ] verify `npm run build` output loads and `npx web-ext lint -s dist/firefox` passes
-- [ ] run `npm run typecheck && npm run lint && npm test` - must pass before Task 12
+- [x] implement `scripts/manifest.mjs`: a pure deep-merge of base + browser override that stamps `version` from `package.json`; the `--e2e` flag adds `http://127.0.0.1/*` to `host_permissions` so tests skip the permission prompt
+- [x] implement `build.mjs`: esbuild bundles of the background, popup and options entries into `dist/chromium` and `dist/firefox` (`dist-e2e/*` for the e2e build); the popup and options stubs exist from this task on, so the build and lint work immediately
+- [x] write tests for manifest merge per target (background shape, gecko block only for Firefox, e2e host permission only with the flag, version stamped)
+- [x] verify `npm run build` output loads and `npx web-ext lint -s dist/firefox` passes
+- [x] run `npm run typecheck && npm run lint && npm test` - must pass before Task 12
+- [x] ⚠️ deviations:
+  - TypeScript is pinned to 6.0.3, because TypeScript 7 (the native port) is not yet supported by typescript-eslint.
+  - Firefox `strict_min_version` is 140, not 128, because `data_collection_permissions` needs it; `gecko_android` is set to 142 to keep `web-ext lint` clean.
+  - `ext()` is a lazy function, so tests can install fakes.
+  - Bundles are IIFE, so no module background is needed.
+  - `npm audit` flags only `web-ext`'s dev-only transitive dependencies; the shipped extension has no runtime dependencies.
 
 ### Task 12: Vault document model and tree validation
 
