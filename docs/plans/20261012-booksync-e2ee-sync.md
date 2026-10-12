@@ -767,17 +767,23 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/browser/apply.ts`
 - Create: `extension/src/browser/apply.test.ts`
 
-- [ ] implement `diffTrees(localProjection, merged) → ops`, ordered as folder creates (top-down), bookmark creates, title/url updates, per-folder moves and reorders (minimal moves), then removals bottom-up using `remove` only (no `removeTree`)
-- [ ] implement `applyOps(adapter, ops, idMap, skipped)`:
+- [x] implement `diffTrees(localProjection, merged) → ops`, ordered as folder creates (top-down), bookmark creates, title/url updates, per-folder moves and reorders (minimal moves), then removals bottom-up using `remove` only (no `removeTree`)
+- [x] implement `applyOps(adapter, ops, idMap, skipped)`:
   - persist each `idMap` entry, with `nativeUrl` read back from the browser, as soon as its call resolves;
   - a create the browser rejects goes into `skipped`, and the apply continues;
   - `remove` on a non-empty folder → `ConcurrentEditError`;
   - any other failure aborts.
-- [ ] implement `rebindPending(localNodes, pendingApply, idMap)` for crash recovery (exact match on parent GUID, kind, title, URL), and drop GUIDs from `skipped` once `merged` no longer contains them
-- [ ] write tests: op ordering (parent before child, removals last); a single reorder needs one move; applying to the Chromium and Firefox fakes, including their URL rewriting and move semantics, yields a projection `treesEqual` to `merged`
-- [ ] write tests: privileged URL on Firefox → skipped and not seen as a local deletion on the next projection; a folder that gains a child before its removal → `ConcurrentEditError` and the child survives
-- [ ] write a test for an apply stopped after k ops without throwing (discard in-memory state, rebuild from storage): `rebindPending` + re-projection yields no duplicates
-- [ ] run `npm test` - must pass before Task 21
+- [x] implement `rebindPending(localNodes, pendingApply, idMap)` for crash recovery (exact match on parent GUID, kind, title, URL), and drop GUIDs from `skipped` once `merged` no longer contains them
+- [x] write tests: op ordering (parent before child, removals last); a single reorder needs one move; applying to the Chromium and Firefox fakes, including their URL rewriting and move semantics, yields a projection `treesEqual` to `merged`
+- [x] write tests: privileged URL on Firefox → skipped and not seen as a local deletion on the next projection; a folder that gains a child before its removal → `ConcurrentEditError` and the child survives
+- [x] write a test for an apply stopped after k ops without throwing (discard in-memory state, rebuild from storage): `rebindPending` + re-projection yields no duplicates
+- [x] run `npm test` - must pass before Task 21
+- [x] ⚠️ refinement: `diffTrees` became `planOps(local, merged, hasNativeNode, skipped)`.
+  - Structure ops (creates and moves) are emitted per folder top-down in merged order. Nodes on the longest increasing subsequence of current positions stay put, so moves are minimal; then updates, then removals bottom-up.
+  - `applyOps` resolves anchors at execution time and creates absent roots via `ensureRoot`.
+  - A refused URL *update* removes the stale native copy and marks the guid skipped.
+  - `pruneSkipped` drops skipped guids that merged no longer has.
+  - Projection nodes without a browser node (carried roots) are re-created unless skipped.
 
 ### Task 21: Sync engine orchestration, guard and recovery actions
 
