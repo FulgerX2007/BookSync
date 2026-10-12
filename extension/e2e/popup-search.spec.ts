@@ -91,3 +91,30 @@ test('keeps the query and results across status updates and live bookmark change
   }, server.url);
   await expect(results).toHaveCount(2);
 });
+
+test('bookmarks the current page into a chosen folder and says where it already is', async ({ server, browserA }) => {
+  const readingId = await browserA.bookmarks(async (b) => {
+    const dev = await b.create({ parentId: '1', title: 'Dev' });
+    return (await b.create({ parentId: dev.id, title: 'Reading' })).id;
+  });
+  const url = `${server.url}/healthz?article`;
+  const page = await browserA.context.newPage();
+  await page.goto(url);
+  const popup = await browserA.openPopup(`?tab=${await browserA.tabIdOf(url)}`);
+  await expect(popup.locator('#this-page-hint')).toHaveText('');
+
+  await popup.click('#bookmark-page');
+  await expect(popup.locator('#page-folder')).toHaveValue('2'); // Other bookmarks by default
+  await popup.fill('#page-title', 'Article');
+  await popup.selectOption('#page-folder', readingId);
+  await popup.click('#page-save');
+  await expect(popup.locator('#this-page-form')).toBeHidden();
+  await expect(popup.locator('#this-page-hint')).toHaveText('Already bookmarked in Bookmarks bar › Dev › Reading');
+  expect(await browserA.bookmarks((b, id) => b.getChildren(id), readingId)).toMatchObject([{ title: 'Article', url }]);
+
+  // Reopening the popup on the same page shows where it is.
+  const again = await browserA.openPopup(`?tab=${await browserA.tabIdOf(url)}`);
+  await expect(again.locator('#this-page-hint')).toHaveText('Already bookmarked in Bookmarks bar › Dev › Reading');
+  // The search box still has the focus, not the form.
+  await expect(again.locator('#popup-search')).toBeFocused();
+});

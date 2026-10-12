@@ -1,5 +1,5 @@
-// URL normalization used only to match bookmarks when a device joins.
-// Never used to rewrite stored URLs.
+// URL normalization for matching bookmarks: when a device joins, and to find
+// where the current page is already bookmarked. Never used to rewrite stored URLs.
 
 /**
  * Key for "same bookmark" matching: the WHATWG-serialized URL, which

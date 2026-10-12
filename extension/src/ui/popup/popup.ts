@@ -7,6 +7,7 @@ import { byId, h, replace, timeAgo } from '../shared/dom';
 import { errorText } from '../shared/errors';
 import { onStatus, send } from '../shared/rpc';
 import { mountSearch } from './search';
+import { mountThisPage } from './this-page';
 
 const app = byId('status-app');
 let status: StatusView;
@@ -96,7 +97,9 @@ function render(): void {
 }
 
 async function main(): Promise<void> {
-  mountSearch(byId('search'), openBookmarks());
+  const bookmarks = openBookmarks();
+  mountSearch(byId('search'), bookmarks);
+  mountThisPage(byId('this-page'), bookmarks);
   status = await send('getStatus');
   render();
   onStatus((s) => {

@@ -22,7 +22,7 @@ describe('buildManifest', () => {
     expect(m.manifest_version).toBe(3);
     expect(m.background).toEqual({ service_worker: 'background.js' });
     expect(m.browser_specific_settings).toBeUndefined();
-    expect(m.permissions).toEqual(['bookmarks', 'storage', 'alarms']);
+    expect(m.permissions).toEqual(['bookmarks', 'storage', 'alarms', 'activeTab']);
   });
 
   it('builds a Firefox manifest with background scripts and a gecko id', () => {

@@ -388,20 +388,25 @@ countSubtree(t, ids): { bookmarks: number; folders: number }    // for confirmat
 - Modify: `extension/e2e/popup-search.spec.ts`
 - Modify: `extension/src/model/url.ts` (comment: `matchKey` also finds existing bookmarks)
 
-- [ ] add the `activeTab` permission, and update the manifest test's expected permissions
-- [ ] add the "Bookmark this page" button and form inside `#search`:
+- [x] add the `activeTab` permission, and update the manifest test's expected permissions
+- [x] add the "Bookmark this page" button and form inside `#search`:
   - the title is prefilled;
   - a folder `<select>` built from `folderOptions`, defaulting to Other Bookmarks;
   - the form holds its state across status re-renders.
-- [ ] read the tab with `tabs.query({ active: true, currentWindow: true })`, accepting `?tab=<id>` in e2e builds only. Show "Already bookmarked in …" via `matchKey`. Save with `createBookmark(…, 'end', …)`; show refusals inline.
-- [ ] add `ExtBrowser.tabIdOf(url)` to the e2e fixtures (runs `chrome.tabs.query` in the worker)
-- [ ] write e2e tests:
+- [x] read the tab with `tabs.query({ active: true, currentWindow: true })`, accepting `?tab=<id>` in e2e builds only. Show "Already bookmarked in …" via `matchKey`. Save with `createBookmark(…, 'end', …)`; show refusals inline.
+- [x] add `ExtBrowser.tabIdOf(url)` to the e2e fixtures (runs `chrome.tabs.query` in the worker)
+- [x] write e2e tests:
   - bookmark a page served by the test server into a nested folder, and check it via `chrome.bookmarks`;
   - the "already bookmarked" hint on reopening.
 
   These cover the override path; `activeTab` is checked manually.
-- [ ] write unit tests for the refusal path: the Firefox fake refuses a `file:` page through `createBookmark` and the message is readable (in `ops.test.ts`)
-- [ ] run `npm run check` and `make e2e` - must pass before task 8
+- [x] write unit tests for the refusal path: the Firefox fake refuses a `file:` page through `createBookmark` and the message is readable (in `ops.test.ts`)
+- [x] run `npm run check` and `make e2e` - must pass before task 8
+- [x] ➕ The form lives in `src/ui/popup/this-page.ts` (`mountThisPage`) and its own `#this-page` section. The unit test for the refusal path already existed in `ops.test.ts` (Task 3).
+- [x] ⚠️ Running the full e2e suite exposed an existing race in the test harness:
+  - **Symptom:** the first `bookmarks()` call failed about 1 time in 20 with "reading 'create'" on undefined.
+  - **Cause:** Playwright reports the service worker before Chromium installs its extension APIs. Four launches in parallel reproduced it 6 times in 60.
+  - **Fix:** `e2e/fixtures.ts` now waits for `chrome.bookmarks`. After that, the sync spec passed 24/24 with `--repeat-each=4`, and the full suite 38/38.
 
 ### Task 8: Manager page shell, live tree and selection
 **Files:**
