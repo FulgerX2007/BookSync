@@ -1021,8 +1021,8 @@ CREATE TABLE vault_versions (
 - [x] ➕ Actions are pinned to the current majors (checkout/setup-go/setup-node/upload-artifact v7, golangci-lint-action v9 running golangci-lint v2.14.0). The e2e job installs Playwright's Chromium; locally the fixture falls back to `/opt/pw-browsers/chromium` or `CHROMIUM_PATH`. Every CI command was run locally. `make test` runs `npm run check` for the extension.
 
 ### Task 29: Verify acceptance criteria
-- [ ] verify all eight acceptance criteria from the Overview are implemented, each mapped to at least one automated test (criterion 8 → `docker-smoke`)
-- [ ] verify edge cases:
+- [x] verify all eight acceptance criteria from the Overview are implemented, each mapped to at least one automated test (criterion 8 → `docker-smoke`)
+- [x] verify edge cases:
   - separators, privileged URLs, URL canonicalization;
   - the menu folder on Chromium (deleted, rediscovered); account-storage and native-sync roots;
   - rollback after a server backup restore;
@@ -1031,9 +1031,21 @@ CREATE TABLE vault_versions (
   - an apply interrupted mid-way;
   - a 401 followed by re-login;
   - key rotation.
-- [ ] run the full test suite: `make test`
-- [ ] run the e2e tests: `make e2e`
-- [ ] verify coverage: `go test -cover ./...` ≥ 80 % for `internal/...`; `npx vitest run --coverage` ≥ 90 % for `src/sync`, `src/crypto` and `src/browser`
+- [x] run the full test suite: `make test`
+- [x] run the e2e tests: `make e2e`
+- [x] verify coverage: `go test -cover ./...` ≥ 80 % for `internal/...`; `npx vitest run --coverage` ≥ 90 % for `src/sync`, `src/crypto` and `src/browser`
+- [x] ➕ Criteria → tests:
+  1. e2e `registers, shows the SyncID once and downloads the emergency kit`; `account.test.ts` registration.
+  2. `engine.test.ts` `joins a second device without duplicates` (Chromium + Firefox fakes); e2e `joins a second profile without duplicates` (real Chromium).
+  3. e2e `propagates creates, renames, moves and deletes`, `reorders with real Chromium move semantics…`, `uploads a local change by itself` (debounce → upload, no manual sync); `scheduler.test.ts` (3 s debounce, 1 min poll alarm).
+  4. `convergence.property.test.ts` (mixed Chromium/Firefox devices; converged, then zero writes and zero uploads); `engine.test.ts` `makes no browser writes and no upload when nothing changed`.
+  5. e2e `stores only ciphertext on the server`; `account.test.ts` `rejects a wrong password, a wrong SyncID and a mistyped SyncID`; `auth_handlers_test.go` `TestLoginFailuresAreIndistinguishable`.
+  6. `engine.test.ts` mass-deletion guard suite; e2e `asks before a mass deletion…`; `vault_test.go` `TestVaultRetention`; e2e `restores an earlier version from the history`.
+  7. e2e `lists devices and signs another browser out`, `rotates keys on password change…`; `account_handlers_test.go` `TestDeleteAccount`, `TestChangePasswordWithRotation`; `users_test.go` `TestDeleteUserCascades`.
+  8. `deploy/smoke.sh` (`docker-smoke` CI job).
+- [x] ➕ Edge cases: each has a named test (separators and privileged URLs in `firefox.test.ts`; canonical URLs in `apply.test.ts` and e2e; menu folder deleted/rediscovered in `chromium.test.ts`; account-storage and native-sync roots in `chromium.test.ts` and `engine.test.ts`; rollback suite and stale confirmation in `engine.test.ts`; 412 retry and `gives up after repeated conflicts` plus scheduler backoff; interrupted apply in `apply.test.ts` and `engine.test.ts`; 401 then re-login in `engine.test.ts` and `account.test.ts`; key rotation in `account.test.ts` and e2e).
+- [x] ➕ Results: `make test` (Go `-race` + 314 vitest), `make lint` and `make e2e` (14 tests) pass. Coverage: Go `internal/api` 88.1 %, `auth` 96.2 %, `config` 97.2 %, `store` 80.6 %; vitest statements `src/sync` 98.7 %, `src/crypto` 98.5 %, `src/browser` 95.3 % (branches 92.7 / 90.9 / 84.0 %).
+- [x] ⚠️ `go test ./...` walked into `extension/node_modules` (npm's `flatted` ships a Go package). `go.mod` now has `ignore ./extension` (Go 1.25+).
 
 ### Task 30: [Final] Update documentation
 - [ ] write `README.md`:
