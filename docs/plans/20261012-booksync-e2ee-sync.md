@@ -543,18 +543,19 @@ CREATE TABLE vault_versions (
 - Create: `cmd/booksync-server/healthcheck_test.go`
 - Modify: `cmd/booksync-server/main.go`
 
-- [ ] add multi-stage `Dockerfile`:
+- [x] add multi-stage `Dockerfile`:
   - build stage: `golang:1.27` with `CGO_ENABLED=0 -trimpath -ldflags "-s -w -X main.version=…"`, plus `mkdir /data`;
   - final stage: `gcr.io/distroless/static-debian12:nonroot` with `COPY --from=build --chown=65532:65532 /data /data`, so named volumes inherit nonroot ownership; `VOLUME /data`; `EXPOSE 8080`.
-- [ ] add `booksync-server healthcheck` subcommand (GET `/healthz` on the local port, exit 0/1) used by Docker `HEALTHCHECK`, since distroless has no curl
-- [ ] add `docker-compose.yml` and `Caddyfile`:
+- [x] add `booksync-server healthcheck` subcommand (GET `/healthz` on the local port, exit 0/1) used by Docker `HEALTHCHECK`, since distroless has no curl
+- [x] add `docker-compose.yml` and `Caddyfile`:
   - `booksync` only `expose`s 8080 and publishes no host port, so traffic must go through Caddy;
   - `caddy` publishes 80/443 with automatic HTTPS for `${BOOKSYNC_DOMAIN}`;
   - named volumes, `restart: unless-stopped`, `BOOKSYNC_TRUST_PROXY_HEADERS=true`.
-- [ ] add `.env.example` documenting every `BOOKSYNC_*` variable, incl. "set `BOOKSYNC_ALLOW_REGISTRATION=false` after creating your accounts"
-- [ ] add `deploy/smoke.sh`: `docker compose up -d` with a local domain (`tls internal`), wait for healthy, curl `/healthz` and register one user through Caddy, `docker compose down -v`
-- [ ] write tests for the healthcheck subcommand against httptest servers (200 → exit 0; 500 or unreachable → exit 1)
-- [ ] run `deploy/smoke.sh` if Docker is available locally (it always runs in CI, Task 28); run `go test -race ./...` - must pass before Task 11
+- [x] add `.env.example` documenting every `BOOKSYNC_*` variable, incl. "set `BOOKSYNC_ALLOW_REGISTRATION=false` after creating your accounts"
+- [x] add `deploy/smoke.sh`: `docker compose up -d` with a local domain (`tls internal`), wait for healthy, curl `/healthz` and register one user through Caddy, `docker compose down -v`
+- [x] write tests for the healthcheck subcommand against httptest servers (200 → exit 0; 500 or unreachable → exit 1)
+- [x] run `deploy/smoke.sh` if Docker is available locally (it always runs in CI, Task 28); run `go test -race ./...` - must pass before Task 11
+- [x] ⚠️ in this dev environment the egress proxy re-signs TLS, so the image was built from a scratch copy of the Dockerfile that trusts the proxy CA, then `SMOKE_BUILD=0 deploy/smoke.sh` passed (health via the Docker healthcheck, TLS through Caddy, registration). ➕ `smoke.sh` gained `SMOKE_BUILD=0` to reuse a prebuilt image
 
 ### Task 11: Extension project scaffold and dual-browser build
 

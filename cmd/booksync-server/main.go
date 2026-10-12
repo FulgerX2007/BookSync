@@ -25,8 +25,16 @@ var version = "dev"
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, os.Getenv, os.Stderr); err != nil {
+
+	cmd := run
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		cmd = func(ctx context.Context, getenv func(string) string, _ io.Writer) error {
+			return healthcheck(ctx, getenv)
+		}
+	}
+	if err := cmd(ctx, os.Getenv, os.Stderr); err != nil {
 		fmt.Fprintln(os.Stderr, "booksync-server:", err)
+		stop()
 		os.Exit(1)
 	}
 }
