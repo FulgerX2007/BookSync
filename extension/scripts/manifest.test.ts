@@ -50,3 +50,12 @@ describe('composeManifest', () => {
     expect(m).toEqual({ host_permissions: ['https://a/*', E2E_HOST_PERMISSION], version: '1.2.3' });
   });
 });
+
+describe('packageFileName', () => {
+  it('names store zips by target and version', async () => {
+    const { packageFileName } = await import('./package.mjs');
+    expect(packageFileName('chromium', '1.2.3')).toBe('booksync-chromium-1.2.3.zip');
+    expect(packageFileName('firefox', '0.1.0')).toBe('booksync-firefox-0.1.0.zip');
+    expect(() => packageFileName('firefox', 'dev')).toThrow();
+  });
+});

@@ -1009,15 +1009,16 @@ CREATE TABLE vault_versions (
 - Modify: `extension/package.json`
 - Modify: `extension/scripts/manifest.test.ts`
 
-- [ ] add CI jobs:
+- [x] add CI jobs:
   - `go`: gofmt check, `go vet`, golangci-lint, `go test -race ./...`;
   - `extension`: `npm ci`, typecheck, lint, test, build, `web-ext lint`;
   - `e2e`: needs both; Playwright Chromium + the Go toolchain;
   - `docker-smoke`: runs `deploy/smoke.sh`.
-- [ ] add `make test` (Go + extension unit tests), `make e2e`, and `make package`, which produces `booksync-chromium-<ver>.zip` and `booksync-firefox-<ver>.zip` (via `web-ext build`)
-- [ ] make `package.json` the single source of the extension version; the server version comes from the git tag via `-X main.version`
-- [ ] write tests: manifest version stamping and package naming in `manifest.test.ts`
-- [ ] run `make test` locally - must pass before Task 29
+- [x] add `make test` (Go + extension unit tests), `make e2e`, and `make package`, which produces `booksync-chromium-<ver>.zip` and `booksync-firefox-<ver>.zip` (via `web-ext build`)
+- [x] make `package.json` the single source of the extension version; the server version comes from the git tag via `-X main.version`
+- [x] write tests: manifest version stamping and package naming in `manifest.test.ts`
+- [x] run `make test` locally - must pass before Task 29
+- [x] ➕ Actions are pinned to the current majors (checkout/setup-go/setup-node/upload-artifact v7, golangci-lint-action v9 running golangci-lint v2.14.0). The e2e job installs Playwright's Chromium; locally the fixture falls back to `/opt/pw-browsers/chromium` or `CHROMIUM_PATH`. Every CI command was run locally. `make test` runs `npm run check` for the extension.
 
 ### Task 29: Verify acceptance criteria
 - [ ] verify all eight acceptance criteria from the Overview are implemented, each mapped to at least one automated test (criterion 8 → `docker-smoke`)
