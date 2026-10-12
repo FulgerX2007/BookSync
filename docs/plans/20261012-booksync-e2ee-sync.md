@@ -753,13 +753,13 @@ CREATE TABLE vault_versions (
 - Create: `extension/test/fakes/server.ts`
 - Create: `extension/test/fakes/server.test.ts`
 
-- [ ] define the `ApiClient` interface for every endpoint in the Server API table (incl. password `rotation`), and implement `HttpApiClient(baseUrl, getToken)` with binary vault bodies as `Uint8Array`
-- [ ] implement `getVault(ifNoneMatch?)` → `ok | not_modified | empty`, and `putVault(body, expected: number | 'none')` → `{version} | {conflict}`
-- [ ] map errors to typed `ApiError` (`unauthorized`, `invalid_credentials`, `rate_limited` + `retryAfter`, `version_conflict`, `too_large`, `network`, `server`); refuse non-HTTPS server URLs except `localhost`/`127.0.0.1`
-- [ ] implement `test/fakes/server.ts`: in-memory `ApiClient` with users, devices, versioned vault, 304/412 semantics, retention-free history and rotation
-- [ ] write tests (mocked `fetch`): method, path, headers and body per endpoint; ETag round trip; 304/404/412 handling; error mapping incl. `Retry-After`; non-HTTPS rejection
-- [ ] write tests for the fake server's conflict, history and rotation semantics, so later tests rely on correct behavior
-- [ ] run `npm test` - must pass before Task 20
+- [x] define the `ApiClient` interface for every endpoint in the Server API table (incl. password `rotation`), and implement `HttpApiClient(baseUrl, getToken)` with binary vault bodies as `Uint8Array`
+- [x] implement `getVault(ifNoneMatch?)` → `ok | not_modified | empty`, and `putVault(body, expected: number | 'none')` → `{version} | {conflict}`
+- [x] map errors to typed `ApiError` (`unauthorized`, `invalid_credentials`, `rate_limited` + `retryAfter`, `version_conflict`, `too_large`, `network`, `server`); refuse non-HTTPS server URLs except `localhost`/`127.0.0.1`
+- [x] implement `test/fakes/server.ts`: in-memory `ApiClient` with users, devices, versioned vault, 304/412 semantics, retention-free history and rotation
+- [x] write tests (mocked `fetch`): method, path, headers and body per endpoint; ETag round trip; 304/404/412 handling; error mapping incl. `Retry-After`; non-HTTPS rejection
+- [x] write tests for the fake server's conflict, history and rotation semantics, so later tests rely on correct behavior
+- [x] run `npm test` - must pass before Task 20
 
 ### Task 20: Applying the merged tree to the browser
 
