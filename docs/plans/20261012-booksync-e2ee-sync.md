@@ -462,12 +462,12 @@ CREATE TABLE vault_versions (
 - Create: `internal/api/account_handlers_test.go`
 - Modify: `internal/api/server.go`
 
-- [ ] implement `requireDevice` middleware: Bearer `bst_…` token → device + user in the request context; 401 `unauthorized` when missing, unknown or expired; `TouchDevice` at most once per hour
-- [ ] implement `POST /v1/auth/logout`, `GET /v1/devices` (with `current` flag), `DELETE /v1/devices/{id}` (own devices only, otherwise 404)
-- [ ] implement `POST /v1/account/delete`: verify `authKey`, delete the user (cascade)
-- [ ] write table-driven middleware tests: no header, wrong scheme/prefix, revoked, expired, valid
-- [ ] write tests: device list/revoke incl. cross-user isolation (404); account delete removes all rows; wrong key → 401
-- [ ] run `go test -race ./...` - must pass before Task 6
+- [x] implement `requireDevice` middleware: Bearer `bst_…` token → device + user in the request context; 401 `unauthorized` when missing, unknown or expired; `TouchDevice` at most once per hour
+- [x] implement `POST /v1/auth/logout`, `GET /v1/devices` (with `current` flag), `DELETE /v1/devices/{id}` (own devices only, otherwise 404)
+- [x] implement `POST /v1/account/delete`: verify `authKey`, delete the user (cascade)
+- [x] write table-driven middleware tests: no header, wrong scheme/prefix, revoked, expired, valid
+- [x] write tests: device list/revoke incl. cross-user isolation (404); account delete removes all rows; wrong key → 401
+- [x] run `go test -race ./...` - must pass before Task 6
 
 ### Task 6: Vault version storage with retention
 

@@ -49,6 +49,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /v1/auth/prelogin", s.handlePrelogin)
 	s.mux.HandleFunc("POST /v1/auth/register", s.handleRegister)
 	s.mux.HandleFunc("POST /v1/auth/login", s.handleLogin)
+	s.mux.HandleFunc("POST /v1/auth/logout", s.requireDevice(s.handleLogout))
+	s.mux.HandleFunc("GET /v1/devices", s.requireDevice(s.handleListDevices))
+	s.mux.HandleFunc("DELETE /v1/devices/{id}", s.requireDevice(s.handleRevokeDevice))
+	s.mux.HandleFunc("POST /v1/account/delete", s.requireDevice(s.handleDeleteAccount))
 }
 
 // internalError logs err and answers with a generic 500.
