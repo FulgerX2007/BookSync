@@ -2,7 +2,38 @@ body {
   width: 320px;
 }
 main {
-  padding: 14px 16px 16px;
+  padding: 10px 16px 16px;
+}
+#search {
+  padding: 14px 16px 0;
+}
+.results {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.result {
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.result:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.result[aria-selected='true'] {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.result-title,
+.result-meta {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.result-meta,
+.small {
+  font-size: 12px;
 }
 .top {
   display: flex;

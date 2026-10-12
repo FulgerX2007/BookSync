@@ -367,16 +367,17 @@ countSubtree(t, ids): { bookmarks: number; folders: number }    // for confirmat
 - Modify: `extension/src/ui/popup/popup.css`
 - Create: `extension/e2e/popup-search.spec.ts`
 
-- [ ] split the popup into `#search`, built once, and `#status-app`. `render()` only touches `#status-app` and keeps the existing ids, so `e2e/popup.spec.ts` still passes unchanged.
-- [ ] add a search box (focused on open) and a results list of bookmarks only. Each result shows the title, the muted URL host and the folder path; long titles end in an ellipsis, with the full text in a tooltip.
-- [ ] Up/Down move the selection, and Enter or a click opens the bookmark in a new tab (`tabs.create`) and closes the popup. Escape clears the box. A refused URL (e.g. `javascript:`) shows its error inline.
-- [ ] search works signed out (it doesn't depend on `getStatus`); the index is rebuilt when `onChange` fires
-- [ ] write e2e tests:
+- [x] split the popup into `#search`, built once, and `#status-app`. `render()` only touches `#status-app` and keeps the existing ids, so `e2e/popup.spec.ts` still passes unchanged.
+- [x] add a search box (focused on open) and a results list of bookmarks only. Each result shows the title, the muted URL host and the folder path; long titles end in an ellipsis, with the full text in a tooltip.
+- [x] Up/Down move the selection, and Enter or a click opens the bookmark in a new tab (`tabs.create`) and closes the popup. Escape clears the box. A refused URL (e.g. `javascript:`) shows its error inline.
+- [x] search works signed out (it doesn't depend on `getStatus`); the index is rebuilt when `onChange` fires
+- [x] write e2e tests:
   - seed bookmarks, then search by part of a title, part of a URL, mixed case and accents, and two words;
   - Up/Down then Enter opens the expected URL in a new page;
   - the no-results message.
-- [ ] write an e2e test that the query and results survive a status re-render (type, then click `#sync-now`)
-- [ ] run `npm run check` and `make e2e` - must pass before task 7
+- [x] write an e2e test that the query and results survive a status re-render (type, then click `#sync-now`)
+- [x] run `npm run check` and `make e2e` - must pass before task 7
+- [x] ➕ The search lives in `src/ui/popup/search.ts` (`mountSearch`), and the status container is now `#status-app`. After opening a tab the popup closes itself, and the e2e test asserts that. A refused URL (`javascript:`) gets its own e2e test. The suite was stable across `--repeat-each=2`.
 
 ### Task 7: Bookmark this page
 **Files:**
