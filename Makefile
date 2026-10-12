@@ -1,4 +1,5 @@
 GO      ?= go
+GOLANGCI_LINT ?= golangci-lint
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
@@ -17,7 +18,7 @@ test-go:
 	$(GO) test -race ./...
 
 lint:
-	golangci-lint run ./...
+	$(GOLANGCI_LINT) run ./...
 
 fmt:
 	gofmt -w cmd internal

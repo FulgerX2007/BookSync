@@ -15,6 +15,7 @@ import (
 
 	"github.com/FulgerX2007/BookSync/internal/api"
 	"github.com/FulgerX2007/BookSync/internal/config"
+	"github.com/FulgerX2007/BookSync/internal/store"
 )
 
 // version is set at build time with -ldflags "-X main.version=...".
@@ -38,9 +39,15 @@ func run(ctx context.Context, getenv func(string) string, logOut io.Writer) erro
 	logHandler := slog.NewJSONHandler(logOut, &slog.HandlerOptions{Level: cfg.LogLevel})
 	log := slog.New(logHandler)
 
+	st, err := store.Open(ctx, cfg.DBPath)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = st.Close() }()
+
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           api.NewServer(cfg, api.Deps{Logger: log}),
+		Handler:           api.NewServer(cfg, api.Deps{Logger: log, Ping: st.Ping}),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
 		WriteTimeout:      60 * time.Second,

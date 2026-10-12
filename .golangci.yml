@@ -12,10 +12,11 @@ linters:
     - unconvert
   exclusions:
     rules:
-      # Tests build fixtures with fixed inputs; gosec findings there are noise.
+      # Tests use fixed inputs and httptest.NewRequest idiomatically.
       - path: _test\.go
         linters:
           - gosec
+          - noctx
 
 formatters:
   enable:

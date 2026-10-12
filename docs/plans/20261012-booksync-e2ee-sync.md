@@ -28,7 +28,8 @@
 
 ## Context (from discovery)
 - **Repository:** empty apart from this plan. Branch `claude/epic-ride-n5y2t8`; remote `github.com/FulgerX2007/BookSync`.
-- **Toolchains available:** Go 1.24.7; Node 22 / npm 10; Chromium preinstalled for Playwright (`/opt/pw-browsers`).
+- **Toolchains available:** Go 1.24.7 locally (the module pins `toolchain go1.27.2`, fetched automatically); Node 22 / npm 10; Chromium preinstalled for Playwright (`/opt/pw-browsers`).
+- ⚠️ **Go version changed during Task 2:** `modernc.org/sqlite` v1.60 needs Go ≥ 1.26, and Go 1.24 is out of support. `go.mod` now says `go 1.26.0` + `toolchain go1.27.2`. golangci-lint must be v2.14+ built with Go 1.27 (`GOLANGCI_LINT` in the Makefile).
 - **Existing patterns:** none yet. Conventions this plan establishes:
   - Go: standard `cmd/` + `internal/` layout, stdlib `net/http` with Go 1.22+ pattern routing, `log/slog`, table-driven tests with stdlib `testing` + `net/http/httptest`, real SQLite in `t.TempDir()` instead of store mocks.
   - Extension: TypeScript (strict), Manifest V3, one codebase built twice (Chromium and Firefox), vitest + fast-check, Playwright for e2e.
@@ -386,7 +387,7 @@ CREATE TABLE vault_versions (
 - Create: `.golangci.yml`
 - Create: `.gitignore`
 
-- [x] init module `github.com/FulgerX2007/BookSync` (`go 1.24`); add `Makefile` targets `build`, `run`, `test`, `lint`, and `.golangci.yml` (default linters + gofmt, errcheck, staticcheck)
+- [x] init module `github.com/FulgerX2007/BookSync` (`go 1.24`, later raised to 1.26, see Context); add `Makefile` targets `build`, `run`, `test`, `lint`, and `.golangci.yml` (default linters + gofmt, errcheck, staticcheck)
 - [x] implement `config.Load(getenv func(string) string) (Config, error)` reading the `BOOKSYNC_*` variables with defaults and validation (see Server configuration)
 - [x] implement `api.NewServer(cfg, deps) http.Handler`: Go 1.22 pattern routing, JSON error helper in `respond.go`, slog request logging, `GET /healthz`, JSON 404/405
 - [x] wire `main.go`: load config, build handler, `http.Server` with timeouts (ReadHeader 10 s, Read/Write 60 s, Idle 120 s), graceful shutdown on SIGINT/SIGTERM via `signal.NotifyContext`
@@ -406,14 +407,14 @@ CREATE TABLE vault_versions (
 - Create: `internal/store/users_test.go`
 - Modify: `cmd/booksync-server/main.go`
 
-- [ ] implement `store.Open(ctx, path)` with `modernc.org/sqlite`, setting pragmas through the DSN (`_pragma=foreign_keys(1)`, `_pragma=busy_timeout(5000)`, `_pragma=journal_mode(WAL)`, `_txlock=immediate`) so every pooled connection gets them; `Close()`
-- [ ] implement migration runner: `embed` `migrations/*.sql`, apply in order inside a tx, track in `schema_migrations`, idempotent on re-open
-- [ ] add `0001_init.sql` with `users`, `devices`, `vault_versions` (see Database schema)
-- [ ] implement users repo: `CreateUser`, `UserByUsername`, `UserByID`, `DeleteUser`; sentinel errors `ErrNotFound`, `ErrUsernameTaken`
-- [ ] wire `store.Open`/`Close` into `main.go`
-- [ ] write tests: migrations idempotent on re-open; user CRUD success against a real DB in `t.TempDir()`
-- [ ] write tests: duplicate username → `ErrUsernameTaken`; missing user → `ErrNotFound`; `DeleteUser` cascades to `devices` and `vault_versions`; with `SetMaxOpenConns(4)` and several connections held at once, `PRAGMA foreign_keys` returns 1 on each
-- [ ] run `go test -race ./...` - must pass before Task 3
+- [x] implement `store.Open(ctx, path)` with `modernc.org/sqlite`, setting pragmas through the DSN (`_pragma=foreign_keys(1)`, `_pragma=busy_timeout(5000)`, `_pragma=journal_mode(WAL)`, `_txlock=immediate`) so every pooled connection gets them; `Close()`
+- [x] implement migration runner: `embed` `migrations/*.sql`, apply in order inside a tx, track in `schema_migrations`, idempotent on re-open
+- [x] add `0001_init.sql` with `users`, `devices`, `vault_versions` (see Database schema)
+- [x] implement users repo: `CreateUser`, `UserByUsername`, `UserByID`, `DeleteUser`; sentinel errors `ErrNotFound`, `ErrUsernameTaken`
+- [x] wire `store.Open`/`Close` into `main.go`
+- [x] write tests: migrations idempotent on re-open; user CRUD success against a real DB in `t.TempDir()`
+- [x] write tests: duplicate username → `ErrUsernameTaken`; missing user → `ErrNotFound`; `DeleteUser` cascades to `devices` and `vault_versions`; with `SetMaxOpenConns(4)` and several connections held at once, `PRAGMA foreign_keys` returns 1 on each
+- [x] run `go test -race ./...` - must pass before Task 3
 
 ### Task 3: Credential hashing and device tokens
 
@@ -540,7 +541,7 @@ CREATE TABLE vault_versions (
 - Modify: `cmd/booksync-server/main.go`
 
 - [ ] add multi-stage `Dockerfile`:
-  - build stage: `golang:1.24` with `CGO_ENABLED=0 -trimpath -ldflags "-s -w -X main.version=…"`, plus `mkdir /data`;
+  - build stage: `golang:1.27` with `CGO_ENABLED=0 -trimpath -ldflags "-s -w -X main.version=…"`, plus `mkdir /data`;
   - final stage: `gcr.io/distroless/static-debian12:nonroot` with `COPY --from=build --chown=65532:65532 /data /data`, so named volumes inherit nonroot ownership; `VOLUME /data`; `EXPOSE 8080`.
 - [ ] add `booksync-server healthcheck` subcommand (GET `/healthz` on the local port, exit 0/1) used by Docker `HEALTHCHECK`, since distroless has no curl
 - [ ] add `docker-compose.yml` and `Caddyfile`:
