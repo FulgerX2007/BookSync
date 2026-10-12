@@ -1,0 +1,46 @@
+body {
+  width: 320px;
+}
+main {
+  padding: 14px 16px 16px;
+}
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.top h1 {
+  font-size: 16px;
+  margin: 0;
+}
+.status {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 6px 0 4px;
+}
+.dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 5px;
+  background: var(--muted);
+}
+.dot.ok {
+  background: var(--ok);
+}
+.dot.warn {
+  background: var(--warn);
+}
+.dot.bad {
+  background: var(--danger);
+}
+.row button {
+  flex: 1;
+}
+a.settings {
+  color: var(--muted);
+  font-size: 12px;
+}

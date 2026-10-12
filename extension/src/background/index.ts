@@ -11,6 +11,7 @@ import { ext } from '../platform/ext';
 import { StateStore } from '../storage/state';
 import { syncOnce } from '../sync/engine';
 import { Account, registerAccountHandlers } from './account';
+import { badgeFor } from './badge';
 import { Router } from './router';
 import { SyncScheduler, registerSyncHandlers, statusView } from './scheduler';
 
@@ -27,7 +28,11 @@ export async function serverClient(): Promise<ApiClient | null> {
 }
 
 async function publishStatus(): Promise<void> {
-  await api.storage.session.set({ status: await statusView(state) });
+  const view = await statusView(state);
+  await api.storage.session.set({ status: view });
+  const badge = badgeFor(view);
+  await api.action.setBadgeText({ text: badge.text });
+  await api.action.setBadgeBackgroundColor({ color: badge.color });
 }
 
 const scheduler: SyncScheduler = new SyncScheduler({
@@ -49,6 +54,7 @@ const account = new Account({
   clientFor: (serverUrl, token) => new HttpApiClient(serverUrl, token),
   sync: (opts) => scheduler.requestSync(opts),
   now: Date.now,
+  publish: publishStatus,
 });
 
 const router = new Router();

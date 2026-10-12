@@ -13,6 +13,8 @@ export interface StatusView {
   paused: boolean;
   lastSyncAt: number | null;
   lastError: string | null;
+  /** Server vault version this browser last synced with. */
+  version: number | null;
   nextAttemptAt: number;
   pendingConfirmation: PendingConfirmation | null;
   nativeSyncAck: boolean;

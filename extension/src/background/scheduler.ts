@@ -91,6 +91,11 @@ export class SyncScheduler {
 
   readonly eventCount = (): number => this.events;
 
+  /** Pushes the current status to the UI. */
+  publish(): Promise<void> {
+    return this.deps.publish();
+  }
+
   readonly onBookmarkEvent = (): void => {
     this.events++;
     if (this.importing) return;
@@ -189,6 +194,7 @@ export async function statusView(state: Pick<StateStore, 'getSync' | 'getSession
     paused: st.paused,
     lastSyncAt: st.lastSyncAt,
     lastError: st.lastError,
+    version: st.version,
     nextAttemptAt: st.nextAttemptAt,
     pendingConfirmation: st.pendingConfirmation,
     nativeSyncAck: st.nativeSyncAck,
@@ -206,6 +212,7 @@ export function registerSyncHandlers(router: Router, scheduler: SyncScheduler, s
   router.register('syncNow', () => run({}));
   router.register('pauseSync', async () => {
     await state.updateSync({ paused: true });
+    await scheduler.publish();
     return view();
   });
   router.register('resumeSync', async () => {

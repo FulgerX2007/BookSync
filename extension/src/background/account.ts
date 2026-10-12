@@ -40,6 +40,8 @@ export interface AccountDeps {
   sync: (opts: SyncOptions) => Promise<SyncResult | undefined>;
   now: () => number;
   kdf?: KdfPolicy;
+  /** Refreshes the published status (popup, badge) after account changes. */
+  publish?: () => Promise<void>;
 }
 
 export class Account {
@@ -138,6 +140,7 @@ export class Account {
       await client.logout().catch(() => undefined);
     }
     await this.deps.state.clearAccount();
+    await this.deps.publish?.();
     return statusView(this.deps.state);
   }
 
@@ -203,6 +206,7 @@ export class Account {
     const { authKey } = await this.derive(session.username, req.password, session.syncId, session.iterations);
     await client.deleteAccount(authKey);
     await this.deps.state.clearAccount();
+    await this.deps.publish?.();
     return statusView(this.deps.state);
   }
 

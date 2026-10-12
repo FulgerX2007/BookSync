@@ -942,7 +942,7 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/ui/popup/popup.css`
 - Create: `extension/e2e/popup.spec.ts`
 
-- [ ] render the popup states:
+- [x] render the popup states:
   - signed out (button opening the options page);
   - syncing;
   - ok ("last synced 2 min ago");
@@ -951,11 +951,12 @@ CREATE TABLE vault_versions (
   - `needs_confirmation` (counts per direction, with Confirm and Pause sync);
   - `rollback_detected` ("Use this browser's bookmarks" / "Accept server version", with an explanation);
   - `native_sync_detected` and `roots_changed` (link to options).
-- [ ] add "Sync now" and "Pause/Resume" buttons, with live updates via `storage.onChanged`
-- [ ] set the toolbar badge `!` on error or any state needing action; clear it on `ok`
-- [ ] write e2e tests: popup shows ok after the sign-in sync; Sync now triggers a sync (server version increments); Pause stops syncing until Resume
-- [ ] write an e2e test for mass deletion: seed 40 bookmarks, sync, delete 30 via the service worker → popup asks for confirmation → Confirm applies and the server reflects it
-- [ ] run `npm test && npm run e2e` - must pass before Task 26
+- [x] add "Sync now" and "Pause/Resume" buttons, with live updates via `storage.onChanged`
+- [x] set the toolbar badge `!` on error or any state needing action; clear it on `ok`
+- [x] write e2e tests: popup shows ok after the sign-in sync; Sync now triggers a sync (server version increments); Pause stops syncing until Resume
+- [x] write an e2e test for mass deletion: seed 40 bookmarks, sync, delete 30 via the service worker → popup asks for confirmation → Confirm applies and the server reflects it
+- [x] run `npm test && npm run e2e` - must pass before Task 26
+- [x] ➕ `badge.ts` (pure, unit-tested) shows `!` when the user is needed and `‖` when paused. `StatusView` gained `version`. Pausing and account changes now publish status immediately (`scheduler.publish()`, `Account.publish`). The e2e login helper waits for the page to settle; an earlier race made it flaky.
 
 ### Task 26: Version history and restore
 

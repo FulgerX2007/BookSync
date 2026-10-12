@@ -106,6 +106,12 @@ export class ExtBrowser {
     return w.evaluate(`(${fn.toString()})(chrome.bookmarks)`) as Promise<T>;
   }
 
+  /** The toolbar badge text. */
+  async badge(): Promise<string> {
+    const w = await this.worker();
+    return w.evaluate('chrome.action.getBadgeText({})') as Promise<string>;
+  }
+
   async close(): Promise<void> {
     await this.context.close();
     rmSync(this.userDataDir, { recursive: true, force: true });
@@ -136,12 +142,29 @@ export async function registerViaUi(page: Page, server: SyncServer, username = '
 
 /** Signs in through the UI (connect step included unless already shown). */
 export async function loginViaUi(page: Page, server: SyncServer, syncId: string, username = 'alice', password = PASSWORD): Promise<void> {
+  // Either the connect step or the sign-in form, whichever the page shows once it settles.
+  await expect(page.locator('#server-url, #tab-login').first()).toBeVisible();
   if (await page.locator('#server-url').isVisible()) await connect(page, server);
   await page.click('#tab-login');
   await page.fill('#login-username', username);
   await page.fill('#login-password', password);
   await page.fill('#login-syncid', syncId);
   await page.click('#login-submit');
+}
+
+/** The background's status, read from an extension page. */
+export async function status(page: Page): Promise<{ status: string; version: number | null; paused: boolean; pendingConfirmation: unknown }> {
+  return page.evaluate(async () => {
+    const res = (await chrome.runtime.sendMessage({ type: 'getStatus' })) as { ok: boolean; data: never };
+    return res.data;
+  });
+}
+
+/** Waits until the background reports a server version above `than`. */
+export async function waitForVersionAbove(page: Page, than: number): Promise<number> {
+  let v = 0;
+  await expect.poll(async () => (v = (await status(page)).version ?? 0), { timeout: 20_000 }).toBeGreaterThan(than);
+  return v;
 }
 
 export const test = base.extend<{ server: SyncServer; browserA: ExtBrowser }>({
