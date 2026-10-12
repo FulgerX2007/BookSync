@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FakeBookmarks } from '../../test/fakes/bookmarks';
 import { ROOT_MENU, ROOT_MOBILE, ROOT_OTHER, ROOT_TOOLBAR } from '../model/vault';
-import { BookmarkRejectedError, NonEmptyFolderError, type RootResolution } from './adapter';
+import { AnchorMissingError, BookmarkRejectedError, NonEmptyFolderError, type RootResolution } from './adapter';
 import { ChromiumAdapter, MENU_FOLDER_TITLE } from './chromium';
 
 const setup = (opts = {}) => {
@@ -173,5 +173,17 @@ describe('ChromiumAdapter tree and writes', () => {
     const { adapter } = setup();
     expect(adapter.changeEvents()).toHaveLength(5);
     expect(adapter.importEvents()).not.toBeNull();
+  });
+});
+
+describe('ChromiumAdapter anchors', () => {
+  it('raises AnchorMissingError when the anchor vanished from the folder', async () => {
+    const { fake, adapter } = setup();
+    const toolbar = fake.roots().toolbar;
+    const a = await fake.addBookmark(toolbar, 'a', 'https://a.example/');
+    const gone = await fake.addBookmark(toolbar, 'gone', 'https://gone.example/');
+    await fake.remove(gone.id);
+    await expect(adapter.moveAfter(a.id, toolbar, gone.id)).rejects.toBeInstanceOf(AnchorMissingError);
+    await expect(adapter.create(toolbar, gone.id, { title: 'n' })).rejects.toThrow(/no longer in the folder/);
   });
 });

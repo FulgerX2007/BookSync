@@ -294,23 +294,24 @@ countSubtree(t, ids): { bookmarks: number; folders: number }    // for confirmat
 - Create: `extension/src/bookmarks/ops.ts`
 - Create: `extension/src/bookmarks/ops.test.ts`
 
-- [ ] add a typed `AnchorMissingError` to `adapter.ts`, thrown by `anchorPosition`. Keep the message text, and check that nothing in `src/sync` or `src/browser` matches on it.
-- [ ] implement `createBookmark`, `createFolder` (`'end'` placement), `rename` and `setUrl` (absolute-URL validation, `BookmarkRejectedError` → readable message). All four refuse root ids with `RootLockedError`.
-- [ ] implement `moveMany` (anchor chain keeps relative order) and `deleteMany` (`[...subtreeIds(id), id]` bottom-up, never `removeTree`, stop at the first failure). Map stale-tree failures to `StaleTreeError`.
-- [ ] write tests against `test/fakes/bookmarks.ts` in **both** flavors:
+- [x] add a typed `AnchorMissingError` to `adapter.ts`, thrown by `anchorPosition`. Keep the message text, and check that nothing in `src/sync` or `src/browser` matches on it.
+- [x] implement `createBookmark`, `createFolder` (`'end'` placement), `rename` and `setUrl` (absolute-URL validation, `BookmarkRejectedError` → readable message). All four refuse root ids with `RootLockedError`.
+- [x] implement `moveMany` (anchor chain keeps relative order) and `deleteMany` (`[...subtreeIds(id), id]` bottom-up, never `removeTree`, stop at the first failure). Map stale-tree failures to `StaleTreeError`.
+- [x] write tests against `test/fakes/bookmarks.ts` in **both** flavors:
   - moves down and up within a folder (Chromium pre-removal index vs Firefox final index);
   - moves into another folder, and to the first position;
   - a multi-move keeps relative order and skips descendants of selected folders;
   - a multi-move whose anchor is one of the dragged nodes.
-- [ ] write the Firefox and Chromium specifics as tests:
+- [x] write the Firefox and Chromium specifics as tests:
   - a Firefox separator stays put, and "before X" across a separator lands after P;
   - the Chromium menu folder works as a target and can't be renamed, moved or deleted.
-- [ ] write tests for error cases:
+- [x] write tests for error cases:
   - a privileged or `file:` URL refused on Firefox, and an invalid URL;
   - a vanished anchor, a vanished parent, and a vanished moved node all give `StaleTreeError`;
   - a folder that gains a child during `deleteMany`: the captured descendants are gone, the folder and the late child survive, the later top-level items are untouched, and the error is `StaleTreeError`;
   - a root id given to every operation.
-- [ ] run `npm run check` - must pass before task 4
+- [x] run `npm run check` - must pass before task 4
+- [x] ➕ `ops.ts` also exports `InvalidUrlError` (unparseable or browser-refused URL) and `parseUrl`. "Not found" errors from the browser (`/not found|can't find|no bookmarks? found/i`, which covers Chromium's and Firefox's wording) become `StaleTreeError`. Asking for a folder's URL, or using a bookmark as a parent, is a plain error, not a stale tree.
 
 ### Task 4: Selection and drop rules
 **Files:**
