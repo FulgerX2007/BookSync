@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { ExtBrowser, PASSWORD, expect, loginViaUi, registerViaUi, status, test, waitForVersionAbove, type SyncServer } from './fixtures';
+import { ExtBrowser, PASSWORD, expect, loginViaUi, managerRow, registerViaUi, status, test, waitForVersionAbove, type SyncServer } from './fixtures';
 import type { Page } from '@playwright/test';
 
 /** Clicks "Sync now" and waits until the background is idle again. */
@@ -112,6 +112,28 @@ test('reorders with real Chromium move semantics and canonicalized URLs, then se
     await syncNow(pageB);
     expect((await status(pageA)).version).toBe(vA);
     expect((await status(pageB)).version).toBe(vB);
+  } finally {
+    await browserB.close();
+  }
+});
+
+test('a drag and drop in the manager reaches the other profile, whose open manager refreshes by itself', async ({ server, browserA }) => {
+  const { pageA, browserB, pageB } = await pair(server, browserA);
+  try {
+    const managerB = await browserB.openManager();
+    const managerA = await browserA.openManager();
+    await managerRow(managerA, 'News').locator('.twisty').click();
+    // Paper out of News to the top of the bar: "after" an expanded root is its first child.
+    const bar = managerRow(managerA, 'Bookmarks bar');
+    const box = (await bar.boundingBox())!;
+    await managerRow(managerA, 'Paper').dragTo(bar, { targetPosition: { x: box.width / 3, y: box.height - 3 } });
+    await expect.poll(() => browserA.bookmarks(async (b) => (await b.getChildren('1')).map((c) => c.title))).toEqual(['Paper', 'Example', 'News']);
+
+    await syncNow(pageA);
+    await syncNow(pageB);
+    expect(await browserB.snapshot()).toEqual(await browserA.snapshot());
+    await expect(managerRow(managerB, 'Paper')).toBeVisible();
+    await expect(managerRow(managerB, 'News').locator('.count')).toHaveText('0');
   } finally {
     await browserB.close();
   }

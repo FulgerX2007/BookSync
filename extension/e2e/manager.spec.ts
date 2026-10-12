@@ -1,8 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, test } from './fixtures';
-
-/** A tree row by its exact title. */
-const row = (page: Page, title: string) => page.locator('.node-row').filter({ has: page.locator('.title', { hasText: new RegExp(`^${title}$`) }) });
+import { expect, managerRow as row, test } from './fixtures';
 
 test('opens from the popup and shows the synced roots as a tree', async ({ browserA }) => {
   await browserA.bookmarks(async (b) => {
@@ -222,4 +219,88 @@ test('opens with ?reveal=<id> showing that node', async ({ browserA }) => {
   const manager = await browserA.openManager(`?reveal=${deepId}`);
   await expect(row(manager, 'Deep')).toHaveClass(/selected/);
   await expect(row(manager, 'Deep')).toBeInViewport();
+});
+
+/** Drags a row onto another: near its top edge, bottom edge, or middle. */
+async function dragOnto(page: Page, source: string, target: string, where: 'before' | 'after' | 'inside'): Promise<void> {
+  const box = (await row(page, target).boundingBox())!;
+  const y = where === 'before' ? 3 : where === 'after' ? box.height - 3 : box.height / 2;
+  await row(page, source).dragTo(row(page, target), { targetPosition: { x: box.width / 3, y } });
+}
+
+/** Bookmarks bar: List/{a, b, c, d}, Box/{}, Parent/{Child/{}};  Other bookmarks: z */
+async function dndTree(browser: import('./fixtures').ExtBrowser): Promise<{ list: string; box: string; parent: string }> {
+  return browser.bookmarks(async (b) => {
+    const list = await b.create({ parentId: '1', title: 'List' });
+    for (const t of ['a', 'b', 'c', 'd']) await b.create({ parentId: list.id, title: t, url: `https://${t}.example/` });
+    const box = await b.create({ parentId: '1', title: 'Box' });
+    const parent = await b.create({ parentId: '1', title: 'Parent' });
+    await b.create({ parentId: parent.id, title: 'Child' });
+    await b.create({ parentId: '2', title: 'z', url: 'https://z.example/' });
+    return { list: list.id, box: box.id, parent: parent.id };
+  });
+}
+
+const titles = (browser: import('./fixtures').ExtBrowser, parentId: string) =>
+  browser.bookmarks(async (b, id) => (await b.getChildren(id)).map((c) => c.title), parentId);
+
+test('reorders inside a folder by drag and drop, down and up', async ({ browserA }) => {
+  const ids = await dndTree(browserA);
+  const manager = await browserA.openManager();
+  await row(manager, 'List').locator('.twisty').click();
+  await dragOnto(manager, 'a', 'c', 'after');
+  await expect.poll(() => titles(browserA, ids.list)).toEqual(['b', 'c', 'a', 'd']);
+  await dragOnto(manager, 'd', 'b', 'before');
+  await expect.poll(() => titles(browserA, ids.list)).toEqual(['d', 'b', 'c', 'a']);
+  // The moved row stays selected.
+  await expect(row(manager, 'd')).toHaveClass(/selected/);
+});
+
+test('moves into a collapsed folder and into a root', async ({ browserA }) => {
+  const ids = await dndTree(browserA);
+  const manager = await browserA.openManager();
+  await dragOnto(manager, 'z', 'Box', 'inside');
+  await expect.poll(() => titles(browserA, ids.box)).toEqual(['z']);
+  await expect(row(manager, 'z')).toBeVisible(); // Box opened to show it
+
+  await dragOnto(manager, 'Box', 'Other bookmarks', 'inside');
+  await expect.poll(() => titles(browserA, '2')).toEqual(['Box']);
+  await expect.poll(() => titles(browserA, '1')).toEqual(['List', 'Parent']);
+});
+
+test('drags a multi-selection together, keeping its order', async ({ browserA }) => {
+  const ids = await dndTree(browserA);
+  const manager = await browserA.openManager();
+  await row(manager, 'List').locator('.twisty').click();
+  await row(manager, 'd').click();
+  await row(manager, 'b').click({ modifiers: ['ControlOrMeta'] });
+  await expect(manager.locator('#selection-count')).toHaveText('2 selected');
+  await dragOnto(manager, 'd', 'Box', 'inside');
+  await expect.poll(() => titles(browserA, ids.box)).toEqual(['b', 'd']);
+  await expect.poll(() => titles(browserA, ids.list)).toEqual(['a', 'c']);
+  await expect(row(manager, 'b')).toHaveClass(/selected/);
+  await expect(row(manager, 'd')).toHaveClass(/selected/);
+});
+
+test('selects ranges with Shift and deletes the whole selection after confirming', async ({ browserA }) => {
+  const ids = await dndTree(browserA);
+  const manager = await browserA.openManager();
+  await row(manager, 'List').locator('.twisty').click();
+  await row(manager, 'a').click();
+  await row(manager, 'c').click({ modifiers: ['Shift'] });
+  await expect(manager.locator('#selection-count')).toHaveText('3 selected');
+  await manager.click('#delete-selected');
+  await expect(manager.locator('#confirm-question')).toHaveText('Delete 3 bookmarks?');
+  await manager.click('#confirm-ok');
+  await expect.poll(() => titles(browserA, ids.list)).toEqual(['d']);
+});
+
+test('refuses to drop a folder into its own child', async ({ browserA }) => {
+  const ids = await dndTree(browserA);
+  const manager = await browserA.openManager();
+  await row(manager, 'Parent').locator('.twisty').click();
+  await dragOnto(manager, 'Parent', 'Child', 'inside');
+  await manager.waitForTimeout(500);
+  expect(await titles(browserA, ids.parent)).toEqual(['Child']);
+  expect(await titles(browserA, '1')).toEqual(['List', 'Box', 'Parent']);
 });

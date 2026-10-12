@@ -189,6 +189,11 @@ export class ExtBrowser {
   }
 }
 
+/** A row of the bookmark manager's tree, by its exact title. */
+export function managerRow(page: Page, title: string) {
+  return page.locator('.node-row').filter({ has: page.locator('.title', { hasText: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) }) });
+}
+
 /** Fills the connect step of the options page. */
 export async function connect(page: Page, server: SyncServer): Promise<void> {
   await page.fill('#server-url', server.url);

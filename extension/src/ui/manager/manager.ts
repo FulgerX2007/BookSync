@@ -4,8 +4,9 @@
 // Anything that edits holds the refresh gate, so a refresh never destroys
 // an inline rename, an open dialog or one of our own multi-step operations.
 import type { LocalTree } from '../../browser/adapter';
-import { createBookmark, createFolder, deleteMany, rename, setUrl, type Position } from '../../bookmarks/ops';
-import { createRefreshGate } from '../../bookmarks/refresh';
+import { resolveDrop, zoneAt, type Zone } from '../../bookmarks/drop';
+import { createBookmark, createFolder, deleteMany, moveMany, rename, setUrl, type Position } from '../../bookmarks/ops';
+import { createRefreshGate, type Release } from '../../bookmarks/refresh';
 import { createSearchIndex, search, type SearchIndex } from '../../bookmarks/search';
 import { emptySelection, pruneSelection, select, type Selection } from '../../bookmarks/selection';
 import { countSubtree, isRootId, normalizeSelection, rootIds, visibleOrder } from '../../bookmarks/tree';
@@ -78,6 +79,7 @@ function nodeItem(t: LocalTree, id: string): HTMLLIElement {
       'data-id': id,
       'data-kind': n.kind,
       title: n.url !== undefined ? `${title}\n${n.url}` : title,
+      draggable: root ? undefined : 'true',
     },
     folder
       ? h('button', { class: 'twisty', type: 'button', 'data-toggle': id, 'aria-expanded': String(open), 'aria-label': `${open ? 'Collapse' : 'Expand'} ${title}` }, open ? '▾' : '▸')
@@ -356,7 +358,8 @@ const newFolderButton = h('button', { id: 'new-folder', type: 'button', onclick:
 const newBookmarkButton = h('button', { id: 'new-bookmark', type: 'button', onclick: () => void newBookmark() }, 'New bookmark');
 const editButton = h('button', { id: 'edit-selected', type: 'button', onclick: () => editSelected() }, 'Edit');
 const deleteButton = h('button', { id: 'delete-selected', type: 'button', class: 'danger', onclick: () => void deleteNodes(selection.selected) }, 'Delete');
-replace(toolbar, searchInput, newFolderButton, newBookmarkButton, editButton, deleteButton);
+const selectionCount = h('span', { id: 'selection-count', class: 'muted small', 'aria-live': 'polite' });
+replace(toolbar, searchInput, newFolderButton, newBookmarkButton, editButton, deleteButton, selectionCount);
 
 function editableSelection(): string | null {
   if (!tree || selection.selected.size !== 1) return null;
@@ -375,6 +378,7 @@ function updateToolbar(): void {
   newBookmarkButton.disabled = !loaded;
   editButton.disabled = editableSelection() === null;
   deleteButton.disabled = !tree || normalizeSelection(tree, selection.selected).length === 0;
+  selectionCount.textContent = selection.selected.size > 1 ? `${selection.selected.size} selected` : '';
 }
 
 // ---- events ---------------------------------------------------------------------
@@ -397,7 +401,8 @@ main.addEventListener('click', (ev) => {
   const action = target.closest<HTMLElement>('[data-action]')?.dataset.action;
   if (action === 'edit') return edit(id);
   if (action === 'delete') return void deleteNodes([id]);
-  selection = select(selection, id, {}, visibleOrder(tree, expanded));
+  // On click, not mousedown: starting a drag must not collapse a multi-selection.
+  selection = select(selection, id, { ctrl: ev.ctrlKey || ev.metaKey, shift: ev.shiftKey }, visibleOrder(tree, expanded));
   paintSelection();
 });
 
@@ -414,6 +419,78 @@ main.addEventListener('dblclick', (ev) => {
     if (target.closest('.title') && tree && !isRootId(tree, n.id)) startRename(n.id);
     else toggle(n.id);
   }
+});
+
+// ---- drag and drop ----------------------------------------------------------------
+
+/** The nodes being dragged and the refresh hold kept for the whole drag. */
+let drag: { ids: string[]; release: Release } | null = null;
+let indicator: HTMLElement | null = null;
+
+function clearIndicator(): void {
+  indicator?.classList.remove('drop-before', 'drop-after', 'drop-inside');
+  indicator = null;
+}
+
+/** Where a drop on the row under the pointer would land, or null when refused or a no-op. */
+function dropAt(ev: DragEvent): { row: HTMLElement; zone: Zone; parentId: string; afterId: string | null } | null {
+  const row = (ev.target as HTMLElement).closest<HTMLElement>('.node-row');
+  if (!drag || !row || !tree || !expanded) return null;
+  const rect = row.getBoundingClientRect();
+  const zone = zoneAt(ev.clientY - rect.top, rect.height, row.dataset.kind === 'folder');
+  const r = resolveDrop(tree, drag.ids, row.dataset.id!, zone, expanded);
+  return 'parentId' in r ? { row, zone, parentId: r.parentId, afterId: r.afterId } : null;
+}
+
+main.addEventListener('dragstart', (ev) => {
+  const row = (ev.target as HTMLElement).closest<HTMLElement>('.node-row');
+  const id = row?.dataset.id;
+  if (!row || !id || !tree || isRootId(tree, id) || !ev.dataTransfer) {
+    ev.preventDefault();
+    return;
+  }
+  const ids = selection.selected.has(id) ? [...selection.selected] : [id];
+  // Firefox starts no drag without data.
+  ev.dataTransfer.setData('text/plain', ids.join('\n'));
+  ev.dataTransfer.effectAllowed = 'move';
+  drag = { ids, release: gate.hold() };
+  for (const d of ids) rowOf(d)?.classList.add('dragging');
+});
+
+main.addEventListener('dragover', (ev) => {
+  const at = dropAt(ev);
+  if (indicator && indicator !== at?.row) clearIndicator();
+  if (!at) return; // not preventing default: the browser shows "no drop" here
+  ev.preventDefault();
+  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+  clearIndicator();
+  indicator = at.row;
+  indicator.classList.add(`drop-${at.zone}`);
+});
+
+main.addEventListener('dragleave', (ev) => {
+  if (indicator && !indicator.contains(ev.relatedTarget as Node | null)) clearIndicator();
+});
+
+main.addEventListener('drop', (ev) => {
+  ev.preventDefault(); // Firefox would otherwise navigate to the dragged text
+  const at = dropAt(ev);
+  clearIndicator();
+  const t = tree;
+  if (!at || !drag || !t) return;
+  const ids = drag.ids;
+  void run(async () => {
+    const moved = await moveMany(bookmarks.adapter, t, ids, at.parentId, at.afterId);
+    expanded?.add(at.parentId);
+    selection = moved.length > 0 ? { selected: new Set(moved), anchor: moved[0]! } : selection;
+  });
+});
+
+main.addEventListener('dragend', () => {
+  clearIndicator();
+  for (const el of main.querySelectorAll('.node-row.dragging')) el.classList.remove('dragging');
+  drag?.release();
+  drag = null;
 });
 
 updateToolbar();

@@ -185,3 +185,22 @@ dialog::backdrop {
   text-overflow: ellipsis;
   font-size: 12px;
 }
+.node-row[draggable='true'] {
+  cursor: grab;
+}
+.node-row.dragging {
+  opacity: 0.45;
+}
+.node-row.drop-before {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.node-row.drop-after {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.node-row.drop-inside {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.small {
+  font-size: 12px;
+}

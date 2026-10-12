@@ -475,24 +475,25 @@ countSubtree(t, ids): { bookmarks: number; folders: number }    // for confirmat
 - Modify: `extension/e2e/manager.spec.ts`
 - Modify: `extension/e2e/sync.spec.ts`
 
-- [ ] wire Ctrl/Cmd and Shift clicks to `select()`, show the selection count in the toolbar, and make "Delete" act on the whole selection
-- [ ] add HTML5 drag-and-drop on rows:
+- [x] wire Ctrl/Cmd and Shift clicks to `select()`, show the selection count in the toolbar, and make "Delete" act on the whole selection
+- [x] add HTML5 drag-and-drop on rows:
   - dragging a selected row drags the whole selection; dragging an unselected row drags only that row;
   - `dragstart` calls `dataTransfer.setData('text/plain', ids)` (Firefox won't start a drag without it) and holds the refresh gate;
   - `dragover` calls `preventDefault()` only on allowed targets and sets `dropEffect`;
   - `drop` always calls `preventDefault()`, so Firefox doesn't navigate to the dragged text;
   - `dragend` releases the gate.
-- [ ] show a drop-indicator line for `before`/`after` and a highlight for `inside`, with no indicator on refused targets. On drop, call `resolveDrop`, then `moveMany` unless it is a no-op, then keep the moved items selected and visible.
-- [ ] write e2e tests for drag and drop (real Chromium move semantics):
+- [x] show a drop-indicator line for `before`/`after` and a highlight for `inside`, with no indicator on refused targets. On drop, call `resolveDrop`, then `moveMany` unless it is a no-op, then keep the moved items selected and visible.
+- [x] write e2e tests for drag and drop (real Chromium move semantics):
   - reorder down and up inside a folder;
   - move into a collapsed folder;
   - move into a root;
   - drag two non-adjacent bookmarks, selected with Ctrl, into a folder: their order is kept;
   - a folder can't be dropped into its own child, and nothing changes.
-- [ ] write e2e tests for selection and sync:
+- [x] write e2e tests for selection and sync:
   - Ctrl-select two items and delete them: the confirmation counts are correct, and both are gone;
   - **two profiles:** a drag-and-drop move made in profile A's manager arrives in profile B, and B's open manager refreshes by itself (one test, added to `e2e/sync.spec.ts`).
-- [ ] run `npm run check` and `make e2e` - must pass before task 12
+- [x] run `npm run check` and `make e2e` - must pass before task 12
+- [x] ➕ Also tested: a Shift-range selection deleted after confirming. `managerRow()` moved to `e2e/fixtures.ts` so the manager and sync specs share it. In the two-profile test, Paper goes to the top of the bar via "after" an expanded root, which exercises that drop rule in real Chromium. The full suite passed 74/74 with `--repeat-each=2`.
 
 ### Task 12: Verify acceptance criteria
 - [ ] verify all seven acceptance criteria from the Overview, each mapped to at least one automated test
