@@ -496,17 +496,36 @@ countSubtree(t, ids): { bookmarks: number; folders: number }    // for confirmat
 - [x] ➕ Also tested: a Shift-range selection deleted after confirming. `managerRow()` moved to `e2e/fixtures.ts` so the manager and sync specs share it. In the two-profile test, Paper goes to the top of the bar via "after" an expanded root, which exercises that drop rule in real Chromium. The full suite passed 74/74 with `--repeat-each=2`.
 
 ### Task 12: Verify acceptance criteria
-- [ ] verify all seven acceptance criteria from the Overview, each mapped to at least one automated test
-- [ ] verify edge cases:
+- [x] verify all seven acceptance criteria from the Overview, each mapped to at least one automated test
+- [x] verify edge cases:
   - Firefox separators and privileged URLs (unit tests over the fake);
   - the Chromium menu folder as a target, and locked against rename, move and delete;
   - a menu folder not yet pinned shows as a root;
   - an empty Mobile root is hidden;
   - a stale tree after a concurrent change;
   - very long titles and URLs.
-- [ ] run the full test suite: `make test`
-- [ ] run the e2e tests: `make e2e`
-- [ ] verify coverage: `npx vitest run --coverage` ≥ 90 % statements for `src/bookmarks` (and unchanged ≥ 90 % for `src/sync`, `src/crypto`, `src/browser`)
+- [x] run the full test suite: `make test`
+- [x] run the e2e tests: `make e2e`
+- [x] verify coverage: `npx vitest run --coverage` ≥ 90 % statements for `src/bookmarks` (and unchanged ≥ 90 % for `src/sync`, `src/crypto`, `src/browser`)
+- [x] ➕ Criteria → tests:
+  1. `popup-search.spec.ts` "finds bookmarks by any part of the title or URL…" and "opens the selected result in a new tab with the keyboard"; `search.test.ts`.
+  2. `manager.spec.ts` "opens from the popup and shows the synced roots as a tree", "creates a folder whose name sticks…", "adds a bookmark into the selected folder and edits it…", "renames a folder inline…", "deletes a folder with its contents only after confirming the counts", "finds a deeply nested bookmark… reveals it", "finds folders by name…".
+  3. `manager.spec.ts` "reorders inside a folder…", "moves into a collapsed folder and into a root", "refuses to drop a folder into its own child", "…never offers to edit or delete a root"; `drop.test.ts`; `ops.test.ts` "roots are locked".
+  4. `manager.spec.ts` "drags a multi-selection together, keeping its order", "selects ranges with Shift and deletes the whole selection…"; `selection.test.ts`.
+  5. `popup-search.spec.ts` "bookmarks the current page into a chosen folder and says where it already is".
+  6. `sync.spec.ts` "a drag and drop in the manager reaches the other profile, whose open manager refreshes by itself"; `manager.spec.ts` "refreshes live, keeping expanded folders and the selection"; `popup-search.spec.ts` "keeps the query and results across status updates and live bookmark changes"; `refresh.test.ts`. Most manager and popup tests run signed out.
+  7. `ops.test.ts` runs every operation on both fakes, including Firefox separators and privileged/`file:` URLs; `tree.test.ts`, `drop.test.ts` and `background/bookmarks.test.ts` cover both flavors.
+- [x] ➕ Edge cases:
+  - **Firefox separators and privileged URLs:** `ops.test.ts` "Firefox specifics".
+  - **Chromium menu folder:** as a target and locked in `ops.test.ts` "Chromium specifics"; an unpinned one shows as a root in `background/bookmarks.test.ts`.
+  - **Empty Mobile root hidden:** `tree.test.ts`.
+  - **Stale tree:** `ops.test.ts` "stale trees".
+  - **Long titles:** ellipsis plus tooltip, in `manager.spec.ts` "shows long titles in full in a tooltip".
+- [x] ➕ Results:
+  - `make test` passes: Go `-race`, 438 vitest tests.
+  - `make lint` passes.
+  - `make e2e` passes 74/74 with `--repeat-each=2`, for 37 e2e tests in all.
+  - Coverage: `src/bookmarks` 97.65 % statements; `src/sync` 98.68 %, `src/crypto` 98.46 %, `src/browser` 96.57 % (up from 95.33 %); Go `internal/` unchanged at 80.6–97.2 %.
 
 ### Task 13: [Final] Update documentation
 - [ ] update README.md:
