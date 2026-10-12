@@ -13,6 +13,7 @@ import { syncOnce } from '../sync/engine';
 import { restoreVersion } from '../sync/restore';
 import { Account, registerAccountHandlers } from './account';
 import { badgeFor } from './badge';
+import { registerBookmarkHandlers } from './bookmarks';
 import { RequestError, Router } from './router';
 import { SyncScheduler, registerSyncHandlers, statusView } from './scheduler';
 
@@ -61,6 +62,7 @@ const account = new Account({
 const router = new Router();
 registerSyncHandlers(router, scheduler, state);
 registerAccountHandlers(router, account);
+registerBookmarkHandlers(router, { adapter, state });
 router.register('listVersions', async () => {
   const client = await serverClient();
   if (!client) throw new RequestError('not_signed_in', 'this browser is not signed in');

@@ -344,20 +344,21 @@ countSubtree(t, ids): { bookmarks: number; folders: number }    // for confirmat
 - Create: `extension/src/bookmarks/refresh.test.ts`
 - Create: `extension/src/ui/shared/bookmarks.ts`
 
-- [ ] add `bookmarkRoots` to `Protocol`. Implement `registerBookmarkHandlers(router, { adapter, state })` per Technical Details, and call it from `index.ts`.
-- [ ] implement `createRefreshGate` with injectable timers. Implement `openBookmarks()` in `src/ui/shared/bookmarks.ts`: `load()` re-fetches pins every call, and `onChange` uses the adapter's `changeEvents()`.
-- [ ] write handler tests over `FakeBookmarks` in both flavors:
+- [x] add `bookmarkRoots` to `Protocol`. Implement `registerBookmarkHandlers(router, { adapter, state })` per Technical Details, and call it from `index.ts`.
+- [x] implement `createRefreshGate` with injectable timers. Implement `openBookmarks()` in `src/ui/shared/bookmarks.ts`: `load()` re-fetches pins every call, and `onChange` uses the adapter's `changeEvents()`.
+- [x] write handler tests over `FakeBookmarks` in both flavors:
   - stored pins are returned;
   - a menu folder that isn't pinned yet shows up as the menu root;
   - it works signed out;
   - `roots_changed` gives a `RequestError`;
   - the handler never writes sync state.
-- [ ] write refresh-gate tests:
+- [x] write refresh-gate tests:
   - a debounce coalesces bursts;
   - a hold defers, and releasing it refreshes once only if the tree is dirty;
   - nested holds;
   - no refresh after release when nothing changed.
-- [ ] run `npm run check` - must pass before task 6
+- [x] run `npm run check` - must pass before task 6
+- [x] ➕ The refresh gate also serializes refreshes, so an older read can never overwrite a newer one. `release(true)` forces one refresh, for an operation that failed without firing any event. `openBookmarks()` itself is thin glue, so the e2e tests in Tasks 6 and 8 cover it.
 
 ### Task 6: Popup search
 **Files:**
