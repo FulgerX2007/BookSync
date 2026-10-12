@@ -733,15 +733,17 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/browser/projection.ts`
 - Create: `extension/src/browser/projection.test.ts`
 
-- [ ] implement `project(adapter, idMap, base, skipped, pins) → VaultDoc`:
+- [x] implement `project(adapter, idMap, base, skipped, pins) → VaultDoc`:
   - map roots to canonical GUIDs;
   - map local ids to GUIDs, allocating and persisting new ones;
   - exclude the pinned menu folder from Other's children and project it as `menu________`.
-- [ ] when the pinned menu folder is missing, carry the `menu________` subtree over from `base` (never a deletion); re-insert `skipped` nodes from `base` after their base predecessor
-- [ ] emit the vault URL whenever the native URL equals the entry's `nativeUrl` (canonicalization is not an edit)
-- [ ] write tests: stable GUIDs across repeated projections; new local nodes get fresh GUIDs; the menu folder maps to `menu________` on Chromium; deleting the menu folder yields no deletions of menu content
-- [ ] write tests: skipped node re-inserted at the right position; skipped node whose parent vanished is dropped; a browser-rewritten URL projects as the vault URL while a real user URL edit is still detected; output passes `validateTree` for both flavors
-- [ ] run `npm test` - must pass before Task 19
+- [x] when the pinned menu folder is missing, carry the `menu________` subtree over from `base` (never a deletion); re-insert `skipped` nodes from `base` after their base predecessor
+- [x] emit the vault URL whenever the native URL equals the entry's `nativeUrl` (canonicalization is not an edit)
+- [x] write tests: stable GUIDs across repeated projections; new local nodes get fresh GUIDs; the menu folder maps to `menu________` on Chromium; deleting the menu folder yields no deletions of menu content
+- [x] write tests: skipped node re-inserted at the right position; skipped node whose parent vanished is dropped; a browser-rewritten URL projects as the vault URL while a real user URL edit is still detected; output passes `validateTree` for both flavors
+- [x] run `npm test` - must pass before Task 19
+- [x] ➕ `project()` takes the `LocalTree` the adapter already read, so it stays nearly pure. New GUID bindings are persisted in one transaction (`IdMap.setMany`). Any root absent locally is carried from `base`, not only the menu, and a carried node the browser shows elsewhere is not duplicated.
+- [x] ➕ `matchKey` ignores an empty trailing `#`, so browsers that disagree about it still dedupe on join
 
 ### Task 19: Typed API client and fake server
 

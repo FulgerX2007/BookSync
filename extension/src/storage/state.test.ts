@@ -124,6 +124,20 @@ describe('IdMap', () => {
     expect((await s.loadIdMap()).size).toBe(0);
   });
 
+  it('binds many entries in one batch, replacing clashing bindings', async () => {
+    const s = await fresh();
+    const m = await s.loadIdMap();
+    await m.set({ localId: 'old', guid: 'g1' });
+    await m.setMany([
+      { localId: '1', guid: 'g1' },
+      { localId: '2', guid: 'g2' },
+    ]);
+    expect(m.localIdOf('g1')).toBe('1');
+    const reloaded = await s.loadIdMap();
+    expect(reloaded.size).toBe(2);
+    expect(reloaded.guidOf('old')).toBeUndefined();
+  });
+
   it('works without persistence for in-memory use', async () => {
     const m = new IdMap([{ localId: '1', guid: 'a' }]);
     await m.set({ localId: '2', guid: 'b' });

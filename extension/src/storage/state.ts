@@ -143,6 +143,19 @@ export class StateStore {
     });
   }
 
+  /** Binds many new entries in one transaction (first projection of a large tree). */
+  async putIdMapEntries(entries: readonly IdMapEntry[]): Promise<void> {
+    if (entries.length === 0) return;
+    await this.db.write(STORE_IDMAP, async (tx) => {
+      const store = tx.objectStore(STORE_IDMAP);
+      for (const entry of entries) {
+        const clash = (await idbRequest(store.index(INDEX_GUID).getKey(entry.guid))) as string | undefined;
+        if (clash !== undefined && clash !== entry.localId) store.delete(clash);
+        store.put(entry);
+      }
+    });
+  }
+
   async deleteIdMapEntry(localId: string): Promise<void> {
     await this.db.write(STORE_IDMAP, (tx) => void tx.objectStore(STORE_IDMAP).delete(localId));
   }
@@ -172,6 +185,7 @@ export class StateStore {
 
 export interface IdMapPersistence {
   putIdMapEntry(entry: IdMapEntry): Promise<void>;
+  putIdMapEntries(entries: readonly IdMapEntry[]): Promise<void>;
   deleteIdMapEntry(localId: string): Promise<void>;
 }
 
@@ -213,6 +227,12 @@ export class IdMap {
   async set(entry: IdMapEntry): Promise<void> {
     this.bind({ ...entry });
     await this.persistence?.putIdMapEntry({ ...entry });
+  }
+
+  /** Binds several entries, persisted in one transaction. */
+  async setMany(entries: readonly IdMapEntry[]): Promise<void> {
+    for (const e of entries) this.bind({ ...e });
+    await this.persistence?.putIdMapEntries(entries.map((e) => ({ ...e })));
   }
 
   async remove(localId: string): Promise<void> {

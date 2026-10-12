@@ -11,6 +11,8 @@ describe('matchKey', () => {
     ['  https://example.com/  ', 'https://example.com/'],
     ['https://bücher.example/', 'https://xn--bcher-kva.example/'],
     ['HTTPS://EXAMPLE.COM/?q=A', 'https://example.com/?q=A'],
+    ['https://example.com/#', 'https://example.com/'],
+    ['https://example.com/#top', 'https://example.com/#top'],
   ])('%s → %s', (input, want) => {
     expect(matchKey(input)).toBe(want);
   });
