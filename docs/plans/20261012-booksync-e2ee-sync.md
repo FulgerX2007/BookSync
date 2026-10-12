@@ -794,32 +794,35 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/sync/guard.test.ts`
 - Create: `extension/src/sync/convergence.property.test.ts`
 
-- [ ] implement `syncOnce(deps, {confirmation?})` exactly as in the Sync algorithm (steps 0–9, budget of 3 restarts), returning and persisting `SyncResult` (`ok`, `needs_confirmation`, `conflict_exhausted`, `rollback_detected`, `roots_changed`, `native_sync_detected`, `error`)
-- [ ] implement `guard.ts`: block when deletions in either direction exceed 25 % of nodes **and** number at least 20; produce `pendingConfirmation = {remoteVersion, deletionsToLocal, deletionsToRemote}`; accept a confirmation only for the same `remoteVersion` and no more deletions than confirmed
-- [ ] implement recovery actions:
+- [x] implement `syncOnce(deps, {confirmation?})` exactly as in the Sync algorithm (steps 0–9, budget of 3 restarts), returning and persisting `SyncResult` (`ok`, `needs_confirmation`, `conflict_exhausted`, `rollback_detected`, `roots_changed`, `native_sync_detected`, `error`)
+- [x] implement `guard.ts`: block when deletions in either direction exceed 25 % of nodes **and** number at least 20; produce `pendingConfirmation = {remoteVersion, deletionsToLocal, deletionsToRemote}`; accept a confirmation only for the same `remoteVersion` and no more deletions than confirmed
+- [x] implement recovery actions:
   - `useLocalVersion()` and `acceptServerVersion()` for `rollback_detected`;
   - `rejoin()` for `roots_changed`: re-pin, discard `base`, run `firstSync`.
-- [ ] write tests:
+- [x] write tests:
   - first-device bootstrap and second-device join (no duplicates);
   - local-only change uploads, remote-only change applies;
   - a 304 makes no PUT;
   - 412 retry, then success, and `conflict_exhausted` after 3 restarts.
-- [ ] write tests:
+- [x] write tests:
   - lower `seq` → `rollback_detected`, and both recovery actions;
   - empty vault after a previous sync → `rollback_detected`;
   - the guard blocks in both directions;
   - a confirmation reused against a different remote version asks again;
   - an event-counter change before apply restarts the run and no user edit is lost.
-- [ ] write tests:
+- [x] write tests:
   - `pendingApply` crash recovery;
   - re-login with the same `userId` and an existing `base` uses `merge3`, so deletions made before the revocation are not undone;
   - `roots_changed` → `rejoin` never deletes.
-- [ ] write the convergence property test:
+- [x] write the convergence property test:
   - 2–3 simulated devices (Chromium and Firefox fakes with URL rewriting) against one fake server;
   - random interleavings of edits and syncs;
   - after a final round, every projection is `treesEqual` and valid;
   - **settle:** one more round produces zero browser ops and zero PUTs.
-- [ ] run `npm test` - must pass before Task 22
+- [x] run `npm test` - must pass before Task 22
+- [x] ➕ `test/harness.ts` (`World`/`Device`): one fake server plus N simulated browsers with real IndexedDB state.
+- [x] ➕ The convergence property was mutation-tested: disabling the projection's URL-rewrite handling makes it fail, shrinking to "one bookmark ending in `#`, two devices". It also passes 300 runs (about 20 user edits per run, up to 22 nodes).
+- [x] ➕ Recovery is passed as options to `syncOnce` (`recovery: 'use_local' | 'accept_remote'`, `rejoin`, `confirmation`, `force`) rather than as separate functions. A `roots_changed` state resolves itself when the pinned roots reappear.
 
 ### Task 22: Background scheduler and message bus
 

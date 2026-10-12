@@ -285,7 +285,11 @@ export class FakeBookmarks implements NativeBookmarksApi {
   dropRoot(id: string): void {
     const parent = this.must(this.rootId);
     parent.children = parent.children!.filter((c) => c !== id);
-    this.nodes.delete(id);
+    const drop = (g: string) => {
+      for (const c of this.nodes.get(g)?.children ?? []) drop(c);
+      this.nodes.delete(g);
+    };
+    drop(id);
   }
 
   // ---- internals -----------------------------------------------------------
