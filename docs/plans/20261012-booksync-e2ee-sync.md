@@ -603,13 +603,14 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/model/url.ts`
 - Create: `extension/src/model/url.test.ts`
 
-- [ ] define `VaultDoc`, `VNode`, root GUID constants, `emptyDoc()`, `newGuid()` (12-char base64url)
-- [ ] implement `validateTree(doc)` → violations list (missing roots, unreachable/duplicate-parented nodes, cycles, dangling child refs, bookmark without url, folder without children)
-- [ ] implement `treesEqual(a, b)` (ignores `seq`, `writtenBy`, `writtenAt`), `countNodes`, `serializeVaultDoc`/`parseVaultDoc` (bytes ↔ doc), with unknown `format` → `unsupported_format`
-- [ ] implement `url.ts` `matchKey(url)` for dedupe (WHATWG `URL.href`, lowercase host, default port dropped; invalid URLs fall back to the trimmed string)
-- [ ] write tests: `validateTree` detects each violation type and accepts valid trees
-- [ ] write tests: `treesEqual` ignores metadata but detects title/url/parent/order changes; `parseVaultDoc` errors; `matchKey` normalization cases
-- [ ] run `npm test` - must pass before Task 13
+- [x] define `VaultDoc`, `VNode`, root GUID constants, `emptyDoc()`, `newGuid()` (12-char base64url)
+- [x] implement `validateTree(doc)` → violations list (missing roots, unreachable/duplicate-parented nodes, cycles, dangling child refs, bookmark without url, folder without children)
+- [x] implement `treesEqual(a, b)` (ignores `seq`, `writtenBy`, `writtenAt`), `countNodes`, `serializeVaultDoc`/`parseVaultDoc` (bytes ↔ doc), with unknown `format` → `unsupported_format`
+- [x] implement `url.ts` `matchKey(url)` for dedupe (WHATWG `URL.href`, lowercase host, default port dropped; invalid URLs fall back to the trimmed string)
+- [x] write tests: `validateTree` detects each violation type and accepts valid trees
+- [x] write tests: `treesEqual` ignores metadata but detects title/url/parent/order changes; `parseVaultDoc` errors; `matchKey` normalization cases
+- [x] run `npm test` - must pass before Task 13
+- [x] ➕ `extension/test/builders.ts`: compact `doc()` tree builder and `outline()` renderer shared by the tests that follow
 
 ### Task 13: Client crypto: SyncID, key derivation, key wrapping, vault cipher
 
