@@ -206,7 +206,11 @@ interface VaultDoc {
   - After each create or update, the applier stores the URL as read back from the browser (`nativeUrl`) in the node's `idMap` entry.
   - When the native URL still equals `nativeUrl`, projection emits the vault URL. Rewrites therefore never look like local edits and never ping-pong between browsers.
 - **Firefox separators** are filtered out on read and never synced.
-- **Skipped nodes** are bookmarks a browser refuses to create (e.g. Firefox rejects privileged URL schemes such as `javascript:` or `chrome:`). Their GUIDs go into `skipped`, and the projection re-inserts them from `base`, so they never look like local deletions.
+- **Skipped nodes** are bookmarks a browser refuses to create (e.g. Firefox rejects privileged URL schemes such as `javascript:` or `chrome:`) or cannot place (their folder is in an unavailable root).
+  - Their GUIDs go into `skipped`, and the projection re-inserts them from `base`, so they never look like local deletions.
+  - They are retried on every apply, so they appear once they become placeable.
+  - A native node that the merged tree moves into an unavailable folder is removed from the browser and becomes skipped.
+- **Chromium Mobile bookmarks** is hidden by desktop Chromium while empty, and the API can then neither read nor write it. It is synced only while visible; otherwise it is carried from `base`, like a missing root.
 
 ### Server API
 Binary fields in JSON (`authKey`, `wrappedVaultKey`, `vault`) use base64url without padding. Errors look like `{"error":{"code":"…","message":"…"}}`. Device auth uses `Authorization: Bearer bst_<base64url 32 B>`. JSON bodies are capped at 64 KiB, except a password change carrying a rotation, which is capped at `BOOKSYNC_MAX_VAULT_BYTES × 4/3 + 64 KiB`.
@@ -902,13 +906,13 @@ CREATE TABLE vault_versions (
 - Create: `extension/e2e/fixtures.ts`
 - Create: `extension/e2e/options.spec.ts`
 
-- [ ] build the server step: validate the URL (HTTPS unless localhost); call `permissions.request` for the origin **synchronously at the top of the click handler, before any `await`**, or Firefox loses the user gesture; then probe `/healthz`
-- [ ] build the sign-up form:
+- [x] build the server step: validate the URL (HTTPS unless localhost); call `permissions.request` for the origin **synchronously at the top of the click handler, before any `await`**, or Firefox loses the user gesture; then probe `/healthz`
+- [x] build the sign-up form:
   - show the SyncID once;
   - offer "Download emergency kit" (.txt);
   - require the "I saved my SyncID" checkbox before continuing.
-- [ ] build the sign-in form: username, password, SyncID with live format validation, pre-filled after a 401 sign-out
-- [ ] build the signed-in view:
+- [x] build the sign-in form: username, password, SyncID with live format validation, pre-filled after a 401 sign-out
+- [x] build the signed-in view:
   - account info and "Show SyncID / download kit";
   - native-sync warning with acknowledgment (Chromium);
   - "Re-pin and rejoin" when roots changed;
@@ -916,13 +920,19 @@ CREATE TABLE vault_versions (
   - change password, with an "a device was lost — rotate keys" option;
   - delete account (type the username to confirm);
   - logout.
-- [ ] implement the Playwright fixture: `go build` the server → spawn it on a free port with a temp DB → launch a Chromium persistent context with `dist-e2e/chromium` → resolve the extension id from the service worker URL
-- [ ] write e2e tests:
+- [x] implement the Playwright fixture: `go build` the server → spawn it on a free port with a temp DB → launch a Chromium persistent context with `dist-e2e/chromium` → resolve the extension id from the service worker URL
+- [x] write e2e tests:
   - registration shows the SyncID and the kit downloads;
   - after logout, sign-in with a wrong SyncID shows an error and the correct one succeeds;
   - the devices list shows the current device, and revoking a device works.
-- [ ] write an e2e test: change password with rotation → logout → sign-in needs the new SyncID and the bookmarks are intact
-- [ ] run `npm test && npm run e2e` - must pass before Task 25
+- [x] write an e2e test: change password with rotation → logout → sign-in needs the new SyncID and the bookmarks are intact
+- [x] run `npm test && npm run e2e` - must pass before Task 25
+- [x] ⚠️ **Real Chromium finding.** Desktop Chromium hides "Mobile bookmarks" while it is empty, and the API can then neither read nor write it. Mobile is therefore optional on Chromium (toolbar and other remain required), and the fake now reproduces the hiding.
+- [x] ⚠️ The convergence property (run up to 3,000 times) then found four real bugs around unavailable roots, all fixed:
+  - (a) a native node moved into an unavailable folder must be dropped and marked skipped, not left in place;
+  - (b) a native node placed under a skipped folder needs the same treatment;
+  - (c) stale id-map bindings of user-deleted bookmarks are now pruned at projection;
+  - (d) "skipped" is no longer permanent: virtual nodes are retried on every apply, so they appear once they become placeable.
 
 ### Task 25: Toolbar popup: status, sync now, confirmations
 

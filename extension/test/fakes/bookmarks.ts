@@ -72,6 +72,12 @@ export class FakeBookmarks implements NativeBookmarksApi {
   readonly onImportBegan?: FakeEvent;
   readonly onImportEnded?: FakeEvent;
 
+  /**
+   * Desktop Chromium hides "Mobile bookmarks" (id 3) from the API while it is
+   * empty: getTree omits it and get/create/move fail with "not found".
+   */
+  private readonly hiddenWhenEmpty = new Set<string>();
+
   /** Number of write calls, to assert minimal operations. */
   writes = 0;
   /** Makes the next create/update/move/remove call (or the nth, 1-based) fail. */
@@ -108,10 +114,12 @@ export class FakeBookmarks implements NativeBookmarksApi {
           ...(modern ? { folderType, syncing: options.nativeSync === true } : {}),
         });
       }
+      this.hiddenWhenEmpty.add('3');
       if (options.accountStorage) {
         permanent.forEach(([, title, folderType], i) =>
           this.putChild({ id: String(4 + i), parentId: '0', title, type: 'folder', children: [], folderType, syncing: true }),
         );
+        this.hiddenWhenEmpty.add('6');
       }
       if (options.managed) {
         this.putChild({ id: '50', parentId: '0', title: 'Managed', type: 'folder', children: [], folderType: 'managed', syncing: false, unmodifiable: 'managed' });
@@ -273,7 +281,7 @@ export class FakeBookmarks implements NativeBookmarksApi {
   dump(id = this.rootId, depth = 0): string {
     const n = this.must(id);
     const line = `${'  '.repeat(depth)}${n.type === 'folder' ? '+' : n.type === 'separator' ? '|' : '-'} ${n.title}${n.url && n.type === 'bookmark' ? ` <${n.url}>` : ''}`;
-    return [line, ...(n.children ?? []).map((c) => this.dump(c, depth + 1))].join('\n');
+    return [line, ...(n.children ?? []).filter((c) => !this.isHidden(c)).map((c) => this.dump(c, depth + 1))].join('\n');
   }
 
   /** Simulates a native-sync account flag change on a root. */
@@ -320,11 +328,24 @@ export class FakeBookmarks implements NativeBookmarksApi {
 
   private must(id: string): FNode {
     const n = this.nodes.get(id);
-    if (!n) throw new Error(this.flavor === 'chromium' ? "Can't find bookmark for id." : `Bookmark not found: ${id}`);
+    if (!n || this.isHidden(id)) throw new Error(this.flavor === 'chromium' ? "Can't find bookmark for id." : `Bookmark not found: ${id}`);
     return n;
   }
 
+  private isHidden(id: string): boolean {
+    return this.hiddenWhenEmpty.has(id) && (this.nodes.get(id)?.children?.length ?? 0) === 0;
+  }
+
+  /** Simulates the browser's own sync putting a bookmark into Mobile bookmarks (which reveals it). */
+  revealMobile(title: string, url: string): string {
+    const id = this.newId();
+    this.put({ id, parentId: '3', title, url: this.canonicalize(url), type: 'bookmark' });
+    this.nodes.get('3')!.children!.push(id);
+    return id;
+  }
+
   private mustFolder(id: string): FNode {
+    if (this.isHidden(id)) throw new Error("Can't find parent bookmark for id.");
     const n = this.must(id);
     if (n.type !== 'folder') throw new Error("Can't find parent bookmark for id.");
     return n;
@@ -369,7 +390,7 @@ export class FakeBookmarks implements NativeBookmarksApi {
       ...(n.unmodifiable !== undefined ? { unmodifiable: n.unmodifiable } : {}),
       ...(this.flavor === 'firefox' ? { type: n.type } : {}),
     };
-    if (deep && n.children) out.children = n.children.map((c) => this.toNative(c, true));
+    if (deep && n.children) out.children = n.children.filter((c) => !this.isHidden(c)).map((c) => this.toNative(c, true));
     return out;
   }
 }

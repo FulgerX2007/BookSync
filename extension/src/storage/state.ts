@@ -167,6 +167,14 @@ export class StateStore {
     });
   }
 
+  async deleteIdMapEntries(localIds: readonly string[]): Promise<void> {
+    if (localIds.length === 0) return;
+    await (await this.dbp).write(STORE_IDMAP, (tx) => {
+      const store = tx.objectStore(STORE_IDMAP);
+      for (const id of localIds) store.delete(id);
+    });
+  }
+
   async deleteIdMapEntry(localId: string): Promise<void> {
     await (await this.dbp).write(STORE_IDMAP, (tx) => void tx.objectStore(STORE_IDMAP).delete(localId));
   }
@@ -198,6 +206,7 @@ export interface IdMapPersistence {
   putIdMapEntry(entry: IdMapEntry): Promise<void>;
   putIdMapEntries(entries: readonly IdMapEntry[]): Promise<void>;
   deleteIdMapEntry(localId: string): Promise<void>;
+  deleteIdMapEntries(localIds: readonly string[]): Promise<void>;
 }
 
 /**
@@ -247,11 +256,22 @@ export class IdMap {
   }
 
   async remove(localId: string): Promise<void> {
+    if (!this.unbind(localId)) return;
+    await this.persistence?.deleteIdMapEntry(localId);
+  }
+
+  /** Removes several entries, persisted in one transaction. */
+  async removeMany(localIds: readonly string[]): Promise<void> {
+    const removed = localIds.filter((id) => this.unbind(id));
+    await this.persistence?.deleteIdMapEntries(removed);
+  }
+
+  private unbind(localId: string): boolean {
     const e = this.byLocal.get(localId);
-    if (!e) return;
+    if (!e) return false;
     this.byLocal.delete(localId);
     if (this.byGuid.get(e.guid) === e) this.byGuid.delete(e.guid);
-    await this.persistence?.deleteIdMapEntry(localId);
+    return true;
   }
 
   private bind(e: IdMapEntry): void {

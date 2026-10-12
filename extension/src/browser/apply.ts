@@ -29,21 +29,24 @@ export class ConcurrentEditError extends Error {
 }
 
 /**
- * @param local    the browser's projection (may contain virtual nodes carried from base)
+ * Nodes without a browser node (virtual: skipped earlier, or carried from
+ * base) are always (re)tried: a skipped node becomes creatable once another
+ * device moves it somewhere this browser can show. A refused create costs
+ * one quick failed call, and only when the tree changed.
+ *
+ * @param local    the browser's projection (may contain virtual nodes)
  * @param merged   the tree to reach
  * @param hasNativeNode whether a guid has a real browser node
- * @param skipped  guids the browser refused; never re-created
  */
-export function planOps(local: VaultDoc, merged: VaultDoc, hasNativeNode: (g: Guid) => boolean, skipped: ReadonlySet<Guid>): Op[] {
+export function planOps(local: VaultDoc, merged: VaultDoc, hasNativeNode: (g: Guid) => boolean): Op[] {
   // A browser node always appears in the projection; guard against callers that disagree.
   const isNative = (g: Guid) => local.nodes[g] !== undefined && hasNativeNode(g);
   const structure: Op[] = [];
   const updates: Op[] = [];
   const lParents = parentsOf(local);
-  const willExist = (g: Guid) => isNative(g) || !skipped.has(g);
 
   const visit = (folder: Guid) => {
-    const desired = (merged.nodes[folder]?.children ?? []).filter(willExist);
+    const desired = merged.nodes[folder]?.children ?? [];
     const current = (local.nodes[folder]?.children ?? []).filter((g) => isNative(g) && !isRoot(g));
     const stable = stableSet(desired, current);
     desired.forEach((g, i) => {
@@ -186,8 +189,31 @@ export async function applyOps(ops: readonly Op[], ctx: ApplyContext): Promise<A
       }
       case 'move': {
         const id = idMap.localIdOf(op.guid);
+        if (id === undefined) break;
         const parent = await folderId(op.parent);
-        if (id === undefined || parent === undefined) break;
+        if (parent === undefined) {
+          // Moved into a folder this browser cannot show (e.g. a hidden
+          // Mobile bookmarks root): the native copy must go, or it would read
+          // as a local move back. The vault keeps it; projection carries it.
+          const ids = [...(await adapter.subtreeIds(id)), id];
+          for (const nid of ids) {
+            const g = idMap.guidOf(nid);
+            if (g === undefined) continue;
+            skipped.add(g);
+            unavailable.add(g);
+            await idMap.remove(nid);
+          }
+          for (const nid of ids) {
+            try {
+              await adapter.remove(nid);
+            } catch (e) {
+              if (e instanceof NonEmptyFolderError) throw new ConcurrentEditError(`folder ${op.guid} gained children during sync`);
+              throw e;
+            }
+            writes++;
+          }
+          break;
+        }
         await adapter.moveAfter(id, parent, anchor(op.after));
         writes++;
         break;

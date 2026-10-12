@@ -2,7 +2,7 @@
 //   node build.mjs          -> dist/chromium, dist/firefox
 //   node build.mjs --e2e    -> dist-e2e/chromium, dist-e2e/firefox (test host permission granted)
 import { build } from 'esbuild';
-import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { buildManifest } from './scripts/manifest.mjs';
 
 const e2e = process.argv.includes('--e2e');
@@ -14,7 +14,11 @@ const entryPoints = {
   popup: 'src/ui/popup/popup.ts',
   options: 'src/ui/options/options.ts',
 };
-const staticFiles = ['src/ui/popup/popup.html', 'src/ui/options/options.html'];
+// Every page and stylesheet under src/ui is copied flat next to the bundles.
+const staticFiles = readdirSync('src/ui', { recursive: true })
+  .map(String)
+  .filter((f) => f.endsWith('.html') || f.endsWith('.css'))
+  .map((f) => `src/ui/${f}`);
 
 rmSync(outRoot, { recursive: true, force: true });
 for (const target of targets) {

@@ -167,7 +167,7 @@ async function run(deps: SyncDeps, opts: SyncOptions): Promise<SyncResult> {
     if (!treesEqual(local, merged)) {
       if (deps.eventCount() !== events) continue; // the user edited meanwhile
       await state.updateSync({ pendingApply: merged });
-      const ops = planOps(local, merged, (g) => idMap.localIdOf(g) !== undefined, skipped);
+      const ops = planOps(local, merged, (g) => idMap.localIdOf(g) !== undefined);
       try {
         const res = await applyOps(ops, { adapter, tree, idMap, pins, skipped });
         pins = res.pins;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FakeBookmarks } from '../../test/fakes/bookmarks';
 import { ROOT_MENU, ROOT_MOBILE, ROOT_OTHER, ROOT_TOOLBAR } from '../model/vault';
-import { NonEmptyFolderError, type RootResolution } from './adapter';
+import { BookmarkRejectedError, NonEmptyFolderError, type RootResolution } from './adapter';
 import { ChromiumAdapter, MENU_FOLDER_TITLE } from './chromium';
 
 const setup = (opts = {}) => {
@@ -18,13 +18,25 @@ describe('ChromiumAdapter roots', () => {
   it('resolves the permanent folders by folderType', async () => {
     const { adapter } = setup();
     const r = ok(await adapter.resolveRoots(null));
-    expect(r.pins).toEqual({ [ROOT_TOOLBAR]: '1', [ROOT_OTHER]: '2', [ROOT_MOBILE]: '3' });
+    expect(r.pins).toEqual({ [ROOT_TOOLBAR]: '1', [ROOT_OTHER]: '2' });
     expect(r.nativeSyncDetected).toBe(false);
   });
 
-  it('falls back to the legacy ids 1/2/3', async () => {
+  it('falls back to the legacy ids 1/2', async () => {
     const { adapter } = setup({ legacy: true });
-    expect(ok(await adapter.resolveRoots(null)).pins).toEqual({ [ROOT_TOOLBAR]: '1', [ROOT_OTHER]: '2', [ROOT_MOBILE]: '3' });
+    expect(ok(await adapter.resolveRoots(null)).pins).toEqual({ [ROOT_TOOLBAR]: '1', [ROOT_OTHER]: '2' });
+  });
+
+  it('syncs Mobile bookmarks only while Chromium shows it', async () => {
+    const { fake, adapter } = setup();
+    const hidden = ok(await adapter.resolveRoots(null));
+    expect(hidden.pins[ROOT_MOBILE]).toBeUndefined();
+    await expect(adapter.ensureRoot(ROOT_MOBILE, hidden.pins)).rejects.toBeInstanceOf(BookmarkRejectedError);
+    fake.revealMobile('From phone', 'https://phone.example/');
+    const shown = ok(await adapter.resolveRoots(hidden.pins));
+    expect(shown.pins[ROOT_MOBILE]).toBe('3');
+    const tree = await adapter.readTree(shown.pins);
+    expect(tree.nodes.get('3')!.children).toHaveLength(1);
   });
 
   it('prefers local folders over Google-account folders', async () => {
@@ -119,7 +131,7 @@ describe('ChromiumAdapter tree and writes', () => {
     expect(tree.nodes.get(f.id)).toMatchObject({ kind: 'folder', parentId: '1', title: 'Work' });
     expect(tree.nodes.has('50')).toBe(false);
     expect(tree.nodes.has('51')).toBe(false);
-    expect(tree.roots).toEqual({ [ROOT_TOOLBAR]: '1', [ROOT_OTHER]: '2', [ROOT_MOBILE]: '3' });
+    expect(tree.roots).toEqual({ [ROOT_TOOLBAR]: '1', [ROOT_OTHER]: '2' });
   });
 
   it('positions creates and moves by anchor, honoring Chromium move semantics', async () => {

@@ -1,0 +1,56 @@
+main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 28px 16px 48px;
+}
+header {
+  margin-bottom: 18px;
+}
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.tabs button[aria-selected='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.syncid {
+  font-family: var(--mono);
+  font-size: 18px;
+  letter-spacing: 0.04em;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  text-align: center;
+  word-break: break-all;
+  user-select: all;
+}
+ul.devices {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+ul.devices li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+ul.devices li:last-child {
+  border-bottom: 0;
+}
+table.history {
+  width: 100%;
+  border-collapse: collapse;
+}
+table.history td,
+table.history th {
+  text-align: left;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}

@@ -25,3 +25,4 @@ deploy/.env
 .idea/
 .vscode/
 .DS_Store
+extension/e2e-bin/

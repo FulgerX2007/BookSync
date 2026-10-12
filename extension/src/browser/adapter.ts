@@ -101,6 +101,8 @@ export interface BookmarksAdapter {
   moveAfter(id: string, parentId: string, afterId: string | null): Promise<void>;
   /** Removes a bookmark or an empty folder; NonEmptyFolderError otherwise. */
   remove(id: string): Promise<void>;
+  /** All native descendants of a folder (separators included), children before parents. */
+  subtreeIds(id: string): Promise<string[]>;
   /** Events that signal a bookmark change by the user (or by us). */
   changeEvents(): EventLike[];
   /** Chromium's bulk-import bracket events, if available. */
@@ -204,6 +206,15 @@ export abstract class NativeAdapter implements BookmarksAdapter {
       if (/non-empty/i.test(message(e))) throw new NonEmptyFolderError(message(e));
       throw e;
     }
+  }
+
+  async subtreeIds(id: string): Promise<string[]> {
+    const out: string[] = [];
+    for (const c of await this.api.getChildren(id)) {
+      if (c.url === undefined && c.type !== 'separator') out.push(...(await this.subtreeIds(c.id)));
+      out.push(c.id);
+    }
+    return out;
   }
 
   changeEvents(): EventLike[] {

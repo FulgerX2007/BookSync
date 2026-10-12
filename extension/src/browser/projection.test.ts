@@ -110,6 +110,17 @@ describe('project', () => {
     expect((await projectNow(adapter, pins, idMap, base)).nodes.x!.url).toBe('https://edited.example/');
   });
 
+  it('forgets id-map bindings of bookmarks the user deleted', async () => {
+    const { fake, adapter, pins, idMap } = await setup('chromium');
+    const gone = await fake.addBookmark('1', 'gone', 'https://g.example/');
+    const kept = await fake.addBookmark('1', 'kept', 'https://k.example/');
+    await projectNow(adapter, pins, idMap);
+    await fake.remove(gone.id);
+    await projectNow(adapter, pins, idMap);
+    expect(idMap.guidOf(gone.id)).toBeUndefined();
+    expect(idMap.guidOf(kept.id)).toBeDefined();
+  });
+
   it('ignores Firefox separators and keeps sibling order', async () => {
     const { fake, adapter, pins, idMap } = await setup('firefox');
     await fake.addBookmark('toolbar_____', 'a', 'https://a.example/');

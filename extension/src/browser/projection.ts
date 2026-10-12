@@ -60,6 +60,10 @@ export async function project({ tree, idMap, base, skipped }: ProjectionInput): 
   }
 
   await idMap.setMany(fresh);
+  // Forget bindings whose browser node is gone (deleted by the user, or now
+  // outside the synced roots): otherwise a later removal would target a
+  // node that no longer exists.
+  await idMap.removeMany(idMap.entries().filter((e) => !tree.nodes.has(e.localId)).map((e) => e.localId));
 
   if (base) {
     for (const root of absent) carryFromBase(doc, base, root);

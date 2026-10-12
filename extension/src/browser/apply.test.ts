@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { doc, outline, type Spec } from '../../test/builders';
 import { FakeBookmarks } from '../../test/fakes/bookmarks';
-import { ROOT_MENU, ROOT_OTHER, ROOT_TOOLBAR, treesEqual, validateTree, type Guid, type VaultDoc } from '../model/vault';
+import { ROOT_MENU, ROOT_MOBILE, ROOT_OTHER, ROOT_TOOLBAR, treesEqual, validateTree, type Guid, type VaultDoc } from '../model/vault';
 import { IdMap, StateStore, type RootPins } from '../storage/state';
 import type { BookmarksAdapter } from './adapter';
 import { ConcurrentEditError, applyOps, planOps, pruneSkipped, rebindPending } from './apply';
@@ -38,7 +38,7 @@ async function projectNow(e: Env, base: VaultDoc | null) {
 /** Applies merged and returns the ops and writes; asserts the browser now projects to merged. */
 async function applyMerged(e: Env, merged: VaultDoc, base: VaultDoc | null = null) {
   const { tree: t, local } = await projectNow(e, base);
-  const ops = planOps(local, merged, (g) => e.idMap.localIdOf(g) !== undefined, e.skipped);
+  const ops = planOps(local, merged, (g) => e.idMap.localIdOf(g) !== undefined);
   const res = await applyOps(ops, { adapter: e.adapter, tree: t, idMap: e.idMap, pins: e.pins, skipped: e.skipped });
   e.pins = res.pins;
   e.skipped = pruneSkipped(res.skipped, merged);
@@ -60,22 +60,22 @@ describe('planOps', () => {
     const local = tree([{ f: 'old', children: [{ b: 'y' }] }]);
     const merged = tree([{ f: 'new', children: [{ b: 'b' }] }]);
     const native = new Set(['old', 'y']);
-    const ops = planOps(local, merged, (g) => native.has(g), new Set());
+    const ops = planOps(local, merged, (g) => native.has(g));
     expect(ops.map((o) => `${o.kind}:${o.guid}`)).toEqual(['create:new', 'create:b', 'remove:y', 'remove:old']);
   });
 
   it('needs a single move for a single reorder', () => {
     const local = tree([{ b: 'a' }, { b: 'b' }, { b: 'c' }, { b: 'd' }]);
     const merged = tree([{ b: 'b' }, { b: 'c' }, { b: 'a' }, { b: 'd' }]);
-    const ops = planOps(local, merged, () => true, new Set());
+    const ops = planOps(local, merged, () => true);
     expect(ops).toEqual([{ kind: 'move', guid: 'a', parent: T, after: ['c', 'b'] }]);
   });
 
-  it('never re-creates skipped nodes', () => {
+  it('retries virtual nodes, which may have become creatable', () => {
     const local = tree([{ b: 's', url: 'javascript:x()' }]);
     const merged = tree([{ b: 's', url: 'javascript:x()' }, { b: 'n' }]);
-    const ops = planOps(local, merged, (g) => g !== 's', new Set(['s']));
-    expect(ops.map((o) => `${o.kind}:${o.guid}`)).toEqual(['create:n']);
+    const ops = planOps(local, merged, (g) => g !== 's');
+    expect(ops.map((o) => `${o.kind}:${o.guid}`)).toEqual(['create:s', 'create:n']);
   });
 });
 
@@ -131,8 +131,12 @@ describe('applyOps edge cases', () => {
     await applyMerged(e, merged);
     expect(e.skipped).toEqual(new Set(['js']));
     expect(e.fake.findByTitle('js')).toBeUndefined();
-    const { ops } = await applyMerged(e, merged, merged);
-    expect(ops).toEqual([]);
+    // The projection already equals merged (so the engine would not apply);
+    // even a forced re-apply only retries the refused create, writing nothing.
+    const { local } = await projectNow(e, merged);
+    expect(treesEqual(local, merged)).toBe(true);
+    const { res } = await applyMerged(e, merged, merged);
+    expect(res.writes).toBe(0);
   });
 
   it('drops the native copy when Firefox refuses a URL update', async () => {
@@ -150,6 +154,41 @@ describe('applyOps edge cases', () => {
     await applyMerged(e, merged);
     await applyMerged(e, tree([]), merged);
     expect(e.skipped.size).toBe(0);
+  });
+
+  it('removes and skips nodes moved into a root this browser cannot show', async () => {
+    const e = await env('chromium'); // Mobile bookmarks is hidden while empty
+    const start = tree([{ b: 'x' }, { f: 'f', children: [{ b: 'y' }] }]);
+    await applyMerged(e, start);
+    const merged = doc({ [T]: [], [ROOT_MOBILE]: [{ b: 'x' }, { f: 'f', children: [{ b: 'y' }, { b: 'z' }] }] });
+    await applyMerged(e, merged, start);
+    expect(e.skipped).toEqual(new Set(['x', 'f', 'y', 'z']));
+    expect(e.fake.childIds('1')).toEqual([]);
+    const { local } = await projectNow(e, merged); // settled: no ping-pong
+    expect(treesEqual(local, merged)).toBe(true);
+    expect((await applyMerged(e, merged, merged)).res.writes).toBe(0);
+  });
+
+  it('drops a native node moved into a folder this browser skipped', async () => {
+    const e = await env('chromium');
+    const start = doc({ [T]: [{ b: 'x' }], [ROOT_MOBILE]: [{ f: 'm' }] });
+    await applyMerged(e, start); // m lands in skipped (Mobile is hidden)
+    expect(e.skipped).toEqual(new Set(['m']));
+    const merged = doc({ [T]: [], [ROOT_MOBILE]: [{ f: 'm', children: [{ b: 'x' }] }] });
+    await applyMerged(e, merged, start);
+    expect(e.skipped).toEqual(new Set(['m', 'x']));
+    expect(e.fake.childIds('1')).toEqual([]);
+  });
+
+  it('creates a skipped folder once another device moves it somewhere this browser can show', async () => {
+    const e = await env('chromium');
+    const start = doc({ [ROOT_MOBILE]: [{ f: 'n' }] });
+    await applyMerged(e, start);
+    expect(e.skipped).toEqual(new Set(['n']));
+    const merged = doc({ [ROOT_MENU]: [{ f: 'n', children: [{ b: 'inside' }] }] });
+    await applyMerged(e, merged, start);
+    expect(e.skipped.size).toBe(0);
+    expect(e.fake.findByTitle('inside')).toBeDefined();
   });
 
   it('recreates the Chromium menu folder when the merged tree has menu content', async () => {
@@ -183,7 +222,7 @@ describe('applyOps edge cases', () => {
     await applyMerged(e, start);
     const { tree: t, local } = await projectNow(e, start);
     const merged = tree([]);
-    const ops = planOps(local, merged, (g) => e.idMap.localIdOf(g) !== undefined, e.skipped);
+    const ops = planOps(local, merged, (g) => e.idMap.localIdOf(g) !== undefined);
     // The user drops a new bookmark into f after we projected.
     await e.fake.addBookmark(e.idMap.localIdOf('f')!, 'user-added', 'https://u.example/');
     await expect(applyOps(ops, { adapter: e.adapter, tree: t, idMap: e.idMap, pins: e.pins, skipped: e.skipped })).rejects.toBeInstanceOf(ConcurrentEditError);
@@ -204,7 +243,7 @@ describe('applyOps edge cases', () => {
       return r;
     };
     const { tree: t, local } = await projectNow(e, null);
-    const ops = planOps(local, merged, (g) => e.idMap.localIdOf(g) !== undefined, e.skipped);
+    const ops = planOps(local, merged, (g) => e.idMap.localIdOf(g) !== undefined);
     await expect(applyOps(ops, { adapter: e.adapter, tree: t, idMap: e.idMap, pins: e.pins, skipped: e.skipped })).rejects.toThrow('worker killed');
     e.adapter.create = realCreate;
 
