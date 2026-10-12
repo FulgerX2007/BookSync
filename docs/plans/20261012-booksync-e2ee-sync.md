@@ -386,13 +386,14 @@ CREATE TABLE vault_versions (
 - Create: `.golangci.yml`
 - Create: `.gitignore`
 
-- [ ] init module `github.com/FulgerX2007/BookSync` (`go 1.24`); add `Makefile` targets `build`, `run`, `test`, `lint`, and `.golangci.yml` (default linters + gofmt, errcheck, staticcheck)
-- [ ] implement `config.Load(getenv func(string) string) (Config, error)` reading the `BOOKSYNC_*` variables with defaults and validation (see Server configuration)
-- [ ] implement `api.NewServer(cfg, deps) http.Handler`: Go 1.22 pattern routing, JSON error helper in `respond.go`, slog request logging, `GET /healthz`, JSON 404/405
-- [ ] wire `main.go`: load config, build handler, `http.Server` with timeouts (ReadHeader 10 s, Read/Write 60 s, Idle 120 s), graceful shutdown on SIGINT/SIGTERM via `signal.NotifyContext`
-- [ ] write table-driven tests for config defaults and env overrides
-- [ ] write tests for invalid config values (bad duration, negative retention, non-numeric size) and for `/healthz` + unknown route → JSON 404 via httptest
-- [ ] run `go test -race ./...` and `make lint` - must pass before Task 2
+- [x] init module `github.com/FulgerX2007/BookSync` (`go 1.24`); add `Makefile` targets `build`, `run`, `test`, `lint`, and `.golangci.yml` (default linters + gofmt, errcheck, staticcheck)
+- [x] implement `config.Load(getenv func(string) string) (Config, error)` reading the `BOOKSYNC_*` variables with defaults and validation (see Server configuration)
+- [x] implement `api.NewServer(cfg, deps) http.Handler`: Go 1.22 pattern routing, JSON error helper in `respond.go`, slog request logging, `GET /healthz`, JSON 404/405
+- [x] wire `main.go`: load config, build handler, `http.Server` with timeouts (ReadHeader 10 s, Read/Write 60 s, Idle 120 s), graceful shutdown on SIGINT/SIGTERM via `signal.NotifyContext`
+- [x] write table-driven tests for config defaults and env overrides
+- [x] write tests for invalid config values (bad duration, negative retention, non-numeric size) and for `/healthz` + unknown route → JSON 404 via httptest
+- [x] run `go test -race ./...` and `make lint` - must pass before Task 2
+- [x] ➕ added `internal/api/helpers_test.go` and `cmd/booksync-server/main_test.go` (run starts and shuts down on cancel; invalid config rejected)
 
 ### Task 2: SQLite store, embedded migrations and users repository
 
