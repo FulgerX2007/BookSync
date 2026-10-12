@@ -103,7 +103,7 @@ async function run(deps: SyncDeps, opts: SyncOptions): Promise<SyncResult> {
     await rebindPending(await adapter.readTree(pins), st.pendingApply, idMap);
   }
 
-  let base = st.base;
+  const base = st.base;
   let lastSeq = st.lastSeq;
   let skipped = new Set(st.skipped);
 
