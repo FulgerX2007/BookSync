@@ -73,7 +73,8 @@ jobs:
           cache: npm
           cache-dependency-path: extension/package-lock.json
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      # Full Chromium only: the headless shell cannot load extensions.
+      - run: npx playwright install --with-deps --no-shell chromium
       - run: npm run e2e
         env:
           CI: 'true'
