@@ -74,12 +74,23 @@ export class ExtBrowser {
 
   static async launch(): Promise<ExtBrowser> {
     const userDataDir = mkdtempSync(join(tmpdir(), 'booksync-e2e-profile-'));
+    const executablePath = chromiumPath();
     const context = await chromium.launchPersistentContext(userDataDir, {
       headless: true,
-      ...(chromiumPath() ? { executablePath: chromiumPath() } : {}),
+      // Without a channel, headless Playwright runs its headless shell, which
+      // cannot load extensions; channel "chromium" is the full browser.
+      ...(executablePath ? { executablePath } : { channel: 'chromium' }),
       args: [`--disable-extensions-except=${extensionDir}`, `--load-extension=${extensionDir}`],
     });
-    const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+    let worker = context.serviceWorkers()[0];
+    if (!worker) {
+      try {
+        worker = await context.waitForEvent('serviceworker', { timeout: 20_000 });
+      } catch {
+        await context.close();
+        throw new Error(`the extension's service worker never started: is ${extensionDir} built, and is this a full Chromium rather than the headless shell?`);
+      }
+    }
     return new ExtBrowser(context, new URL(worker.url()).host, userDataDir);
   }
 

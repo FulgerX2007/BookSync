@@ -1,0 +1,142 @@
+name: Release
+
+# Pushing a tag vX.Y.Z (or vX.Y.Z-rc.1, published as a pre-release) builds
+# everything, runs the full CI as a gate, then publishes:
+#   * a GitHub Release with server archives for every OS/arch, both extension
+#     zips, a source archive and SHA256SUMS (`make dist`);
+#   * the server image ghcr.io/<owner>/booksync-server for linux/amd64 and arm64.
+# The tag's X.Y.Z must equal extension/package.json's version.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Check version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: v
+        name: Match the tag against extension/package.json
+        run: |
+          tag="$GITHUB_REF_NAME"
+          if ! [[ "$tag" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::tag $tag is not vX.Y.Z or vX.Y.Z-suffix"
+            exit 1
+          fi
+          base="${BASH_REMATCH[1]}" suffix="${BASH_REMATCH[2]}"
+          ext="$(jq -r .version extension/package.json)"
+          if [[ "$base" != "$ext" ]]; then
+            echo "::error::tag $tag does not match extension/package.json version $ext"
+            exit 1
+          fi
+          echo "version=${tag#v}" >>"$GITHUB_OUTPUT"
+          echo "prerelease=$([[ -n "$suffix" ]] && echo true || echo false)" >>"$GITHUB_OUTPUT"
+
+  ci:
+    name: CI
+    needs: version
+    uses: ./.github/workflows/ci.yml
+
+  dist:
+    name: Build artifacts
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: extension
+      - run: make dist VERSION="${{ needs.version.outputs.version }}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  image:
+    name: Server image
+    needs: [version, ci]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      name: ${{ steps.image.outputs.name }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/booksync-server" >>"$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.image.outputs.name }}
+          # X.Y.Z, plus X.Y and latest for non-pre-releases.
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          build-args: VERSION=${{ needs.version.outputs.version }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release:
+    name: GitHub Release
+    needs: [version, ci, dist, image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.version.outputs.version }}
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
+          IMAGE: ${{ needs.image.outputs.name }}
+        run: |
+          notes="$(cat <<EOF
+          **Server image:** \`$IMAGE:$VERSION\` (linux/amd64, linux/arm64). Set \`BOOKSYNC_IMAGE\` in \`deploy/.env\` to use it with the compose bundle.
+
+          **Extension:** \`booksync-chromium-${VERSION%%-*}.zip\` and \`booksync-firefox-${VERSION%%-*}.zip\` (stores need a plain X.Y.Z version); see "Installing the extension" in the README.
+
+          Verify downloads with \`sha256sum -c SHA256SUMS\`.
+          EOF
+          )"
+          flags=(--verify-tag --title "BookSync $VERSION" --generate-notes --notes "$notes")
+          [[ "$PRERELEASE" == true ]] && flags+=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" dist/* "${flags[@]}"

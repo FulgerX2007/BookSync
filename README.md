@@ -113,6 +113,24 @@ curl https://booksync.example.com/healthz # → {"status":"ok"}
 - **Updating.** `git pull` and run the same `docker compose … up -d --build`. Database
   migrations run on start.
 
+### Using a released image
+
+Each release publishes the server image `ghcr.io/fulgerx2007/booksync-server` for
+linux/amd64 and linux/arm64. It is tagged `X.Y.Z`, `X.Y` and `latest`. To run the
+compose bundle with it instead of building from source, set the image in `deploy/.env`
+and pull it:
+
+```sh
+echo BOOKSYNC_IMAGE=ghcr.io/fulgerx2007/booksync-server:0.1.0 >> deploy/.env
+docker compose -f deploy/docker-compose.yml pull booksync
+docker compose -f deploy/docker-compose.yml up -d --no-build
+```
+
+To update, change the tag and repeat. Each
+[release](https://github.com/FulgerX2007/BookSync/releases) also carries standalone
+server binaries for Linux, macOS and Windows. They read the same environment variables
+and belong behind a TLS-terminating proxy, as in the compose bundle.
+
 ### Configuration
 
 Every setting is an environment variable in `deploy/.env`
@@ -185,7 +203,9 @@ undoing your recent changes. To recover:
 ## Installing the extension
 
 BookSync is not yet listed on the Chrome Web Store, Edge Add-ons or Firefox Add-ons.
-Until it is, build it from source (Node.js 22 or newer):
+Until it is, download `booksync-chromium-X.Y.Z.zip` and `booksync-firefox-X.Y.Z.zip`
+from the [releases](https://github.com/FulgerX2007/BookSync/releases), or build them
+from source (Node.js 22 or newer):
 
 ```sh
 cd extension
@@ -197,13 +217,14 @@ npm run build            # → dist/chromium and dist/firefox
 
 1. Open `chrome://extensions` (or `edge://extensions`, `brave://extensions`, …).
 2. Enable **Developer mode**.
-3. Click **Load unpacked** and select `extension/dist/chromium`.
+3. Click **Load unpacked** and select `extension/dist/chromium`, or the folder you
+   unzipped `booksync-chromium-X.Y.Z.zip` into.
 
 **Firefox 140+**
 
 - For a quick try: open `about:debugging#/runtime/this-firefox`, click **Load Temporary
-  Add-on…** and select `extension/dist/firefox/manifest.json`. The add-on is removed
-  when Firefox restarts.
+  Add-on…** and select `extension/dist/firefox/manifest.json` or
+  `booksync-firefox-X.Y.Z.zip`. The add-on is removed when Firefox restarts.
 - For a permanent install, sign the build for self-distribution on
   [addons.mozilla.org](https://addons.mozilla.org/developers/) (`npx web-ext sign`).
   Alternatively, use Firefox Developer Edition or Nightly with
@@ -296,6 +317,7 @@ Plain HTTP is accepted only for `localhost` and `127.0.0.1`.
 | `make e2e` | Playwright: two Chromium profiles syncing through a real server built from this repo |
 | `make docker-smoke` | builds the image, starts the compose stack and checks TLS, health and registration |
 | `make package` | store-ready extension zips |
+| `make dist` | every release artifact in `dist/` (see below) |
 
 In `extension/`:
 
@@ -306,3 +328,41 @@ In `extension/`:
 
 CI (`.github/workflows/ci.yml`) runs the Go, extension, e2e and docker-smoke jobs on
 pushes to `main` and on pull requests.
+
+### Releasing
+
+Pushing a tag `vX.Y.Z` builds and publishes everything:
+
+1. Set the extension version. Browser stores need a plain `X.Y.Z`, and the tag must
+   match it:
+
+   ```sh
+   cd extension && npm version --no-git-tag-version 0.2.0
+   ```
+
+2. Commit the change, then tag and push:
+
+   ```sh
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+The Release workflow (`.github/workflows/release.yml`) then:
+
+1. checks the tag against `extension/package.json`;
+2. runs the whole CI as a gate;
+3. runs `make dist` and publishes a GitHub Release with:
+   - server archives for linux, darwin (amd64 and arm64) and windows (amd64);
+   - both extension zips;
+   - a source archive (Firefox Add-ons asks for one when reviewing);
+   - `SHA256SUMS`;
+4. pushes the multi-arch image to GHCR with tags `0.2.0`, `0.2` and `latest`.
+
+A tag such as `v0.2.0-rc.1` publishes a pre-release. It gets no `0.2` or `latest`
+image tag, and its extension zips still carry `0.2.0`.
+
+`make dist` builds the same artifacts locally. `make dist VERSION=0.2.0` also runs the
+version check.
+
+The first release creates the GHCR package. If anonymous pulls fail, make the package
+public in its settings (your profile → **Packages** → `booksync-server`).

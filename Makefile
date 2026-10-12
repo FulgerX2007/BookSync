@@ -3,7 +3,7 @@ GOLANGCI_LINT ?= golangci-lint
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build run test test-go test-ext lint fmt e2e package docker-smoke
+.PHONY: build run test test-go test-ext lint fmt e2e package dist docker-smoke
 
 build:
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/booksync-server ./cmd/booksync-server
@@ -26,6 +26,12 @@ e2e:
 # Store-ready zips in extension/dist/packages (version from extension/package.json).
 package:
 	cd extension && npm run package
+
+# Every release artifact in dist/: server archives for each OS/arch, both
+# extension zips, a source archive and SHA256SUMS. `make dist VERSION=1.2.3`
+# (as the release workflow runs it) also checks extension/package.json.
+dist:
+	scripts/dist.sh
 
 docker-smoke:
 	deploy/smoke.sh
