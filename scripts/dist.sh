@@ -5,18 +5,19 @@
 #   booksync-<version>-source.tar.gz               (git archive of HEAD, e.g. for AMO review)
 #   SHA256SUMS
 #
-# VERSION defaults to `git describe`; a leading "v" is dropped. An explicit
-# release VERSION (X.Y.Z or X.Y.Z-suffix) must have X.Y.Z equal to
-# extension/package.json's version, which is what the browser stores see.
+# VERSION defaults to `git describe`; a leading "v" is dropped. For a release
+# version (X.Y.Z or X.Y.Z-suffix, e.g. from the tag) the extension gets X.Y.Z,
+# since browser stores accept only plain numbers; other versions (a bare
+# commit hash) fall back to extension/package.json's.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 version="${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}"
 version="${version#v}"
-ext_version="$(node -p 'require("./extension/package.json").version')"
-if [[ -n "${VERSION:-}" && "$version" =~ ^([0-9]+\.[0-9]+\.[0-9]+)(-[0-9A-Za-z.-]+)?$ && "${BASH_REMATCH[1]}" != "$ext_version" ]]; then
-	echo "version $version does not match extension/package.json ($ext_version); bump it first" >&2
-	exit 1
+if [[ "$version" =~ ^([0-9]+\.[0-9]+\.[0-9]+)(-[0-9A-Za-z.-]+)?$ ]]; then
+	ext_version="${BASH_REMATCH[1]}"
+else
+	ext_version="$(node -p 'require("./extension/package.json").version')"
 fi
 
 targets=(linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64)
@@ -44,7 +45,7 @@ for t in "${targets[@]}"; do
 done
 
 [[ -d extension/node_modules ]] || (cd extension && npm ci --no-audit --no-fund)
-(cd extension && npm run package)
+(cd extension && BOOKSYNC_VERSION="$ext_version" npm run package)
 cp extension/dist/packages/booksync-{chromium,firefox}-"$ext_version".zip "$out/"
 
 git archive --format=tar.gz --prefix="booksync-$version/" -o "$out/booksync-$version-source.tar.gz" HEAD

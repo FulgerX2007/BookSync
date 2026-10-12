@@ -5,7 +5,9 @@ name: Release
 #   * a GitHub Release with server archives for every OS/arch, both extension
 #     zips, a source archive and SHA256SUMS (`make dist`);
 #   * the server image ghcr.io/<owner>/booksync-server for linux/amd64 and arm64.
-# The tag's X.Y.Z must equal extension/package.json's version.
+# The tag is the version: the server gets X.Y.Z[-suffix], the extension X.Y.Z
+# (stores need plain numbers). Creating a release in the GitHub UI pushes its
+# tag too; the workflow then attaches the artifacts to that release.
 on:
   push:
     tags: ['v*']
@@ -19,27 +21,20 @@ concurrency:
 
 jobs:
   version:
-    name: Check version
+    name: Read version from tag
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.v.outputs.version }}
       prerelease: ${{ steps.v.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v7
       - id: v
-        name: Match the tag against extension/package.json
         run: |
           tag="$GITHUB_REF_NAME"
           if ! [[ "$tag" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)(-[0-9A-Za-z.-]+)?$ ]]; then
             echo "::error::tag $tag is not vX.Y.Z or vX.Y.Z-suffix"
             exit 1
           fi
-          base="${BASH_REMATCH[1]}" suffix="${BASH_REMATCH[2]}"
-          ext="$(jq -r .version extension/package.json)"
-          if [[ "$base" != "$ext" ]]; then
-            echo "::error::tag $tag does not match extension/package.json version $ext"
-            exit 1
-          fi
+          suffix="${BASH_REMATCH[2]}"
           echo "version=${tag#v}" >>"$GITHUB_OUTPUT"
           echo "prerelease=$([[ -n "$suffix" ]] && echo true || echo false)" >>"$GITHUB_OUTPUT"
 
@@ -137,6 +132,16 @@ jobs:
           Verify downloads with \`sha256sum -c SHA256SUMS\`.
           EOF
           )"
-          flags=(--verify-tag --title "BookSync $VERSION" --generate-notes --notes "$notes")
-          [[ "$PRERELEASE" == true ]] && flags+=(--prerelease)
-          gh release create "$GITHUB_REF_NAME" dist/* "${flags[@]}"
+          tag="$GITHUB_REF_NAME"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            # Made in the GitHub UI (or by an earlier run): keep its title and
+            # notes, (re)attach the artifacts, and add our notes if it has none.
+            gh release upload "$tag" dist/* --clobber
+            if [[ -z "$(gh release view "$tag" --json body --jq .body)" ]]; then
+              gh release edit "$tag" --notes "$notes"
+            fi
+          else
+            flags=(--verify-tag --title "BookSync $VERSION" --generate-notes --notes "$notes")
+            [[ "$PRERELEASE" == true ]] && flags+=(--prerelease)
+            gh release create "$tag" dist/* "${flags[@]}"
+          fi

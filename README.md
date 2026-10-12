@@ -331,38 +331,31 @@ pushes to `main` and on pull requests.
 
 ### Releasing
 
-Pushing a tag `vX.Y.Z` builds and publishes everything:
+The tag is the version; nothing needs bumping by hand. Release either way:
 
-1. Set the extension version. Browser stores need a plain `X.Y.Z`, and the tag must
-   match it:
-
-   ```sh
-   cd extension && npm version --no-git-tag-version 0.2.0
-   ```
-
-2. Commit the change, then tag and push:
-
-   ```sh
-   git tag v0.2.0
-   git push origin v0.2.0
-   ```
+- push a tag: `git tag v0.2.0 && git push origin v0.2.0`;
+- or create a release with a new tag `v0.2.0` in the GitHub UI, which pushes the
+  tag too.
 
 The Release workflow (`.github/workflows/release.yml`) then:
 
-1. checks the tag against `extension/package.json`;
+1. reads the version from the tag (`vX.Y.Z` or `vX.Y.Z-suffix`);
 2. runs the whole CI as a gate;
-3. runs `make dist` and publishes a GitHub Release with:
+3. runs `make dist VERSION=0.2.0`, which stamps the version into the server and both
+   extension manifests;
+4. pushes the multi-arch image to GHCR with tags `0.2.0`, `0.2` and `latest`;
+5. publishes the GitHub Release, or attaches to the one you created in the UI:
    - server archives for linux, darwin (amd64 and arm64) and windows (amd64);
    - both extension zips;
    - a source archive (Firefox Add-ons asks for one when reviewing);
-   - `SHA256SUMS`;
-4. pushes the multi-arch image to GHCR with tags `0.2.0`, `0.2` and `latest`.
+   - `SHA256SUMS`.
 
 A tag such as `v0.2.0-rc.1` publishes a pre-release. It gets no `0.2` or `latest`
-image tag, and its extension zips still carry `0.2.0`.
+image tag, and its extension carries `0.2.0`, because browser stores accept only plain
+numbers.
 
-`make dist` builds the same artifacts locally. `make dist VERSION=0.2.0` also runs the
-version check.
+`make dist` builds the same artifacts locally. Without `VERSION` it uses `git describe`;
+`extension/package.json`'s version only applies to builds that aren't from a tag.
 
 The first release creates the GHCR package. If anonymous pulls fail, make the package
 public in its settings (your profile → **Packages** → `booksync-server`).
