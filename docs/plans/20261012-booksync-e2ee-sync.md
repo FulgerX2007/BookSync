@@ -197,7 +197,7 @@ interface VaultDoc {
   - Discovery: before creating the folder, look for an existing folder titled "Bookmarks Menu" directly under Other bookmarks and reuse it.
   - The folder's native id is pinned with the roots.
   - If the pinned folder is missing (the user deleted it), the projection carries the `menu________` subtree over from `base`, so it never counts as a deletion, and the next apply recreates the folder.
-- **Index translation.** Adapters take **sync-space** indices (positions within the vault `children` list) and translate them to native indices. The translation:
+- **Index translation.** Adapters position writes by anchor ("after sibling P") and compute the native index from the folder's current children at write time. The translation:
   - skips GUIDs in `skipped` (present in the vault, absent from the browser);
   - skips native-only nodes: Firefox separators and the Chromium menu folder under Other bookmarks;
   - applies Chrome's same-parent `move` rule, where the index counts positions before the node is removed, so moving down needs `+1`. Firefox treats the index as the final position.
@@ -705,15 +705,15 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/browser/firefox.test.ts`
 - Create: `extension/test/fakes/bookmarks.ts`
 
-- [ ] define the `BookmarksAdapter` interface (`flavor`, `readTree`, `resolveRoots(pins)`, `create`, `update`, `move`, `remove`, `events`) and the `LocalNode` type. Write positions are sync-space indices plus the target folder's sync children; the adapter does the index translation (see Browser mapping).
-- [ ] implement the Chromium adapter:
+- [x] define the `BookmarksAdapter` interface (`flavor`, `readTree`, `resolveRoots(pins)`, `create`, `update`, `move`, `remove`, `events`) and the `LocalNode` type. Write positions are sync-space indices plus the target folder's sync children; the adapter does the index translation (see Browser mapping).
+- [x] implement the Chromium adapter:
   - resolve roots by `folderType`, preferring `syncing !== true`, with fallback to ids `1/2/3`;
   - check pins: a missing pinned root → `roots_changed`; a pinned root with `syncing === true` → `nativeSyncDetected`;
   - skip `managed` folders;
   - discover or create the "Bookmarks Menu" folder and pin it;
   - apply Chrome's same-parent `move` +1 rule.
-- [ ] implement the Firefox adapter: fixed root GUIDs; separators filtered on read; sync ↔ native index translation around separators; `events` built only from APIs that exist (Firefox lacks `onChildrenReordered`, `onImportBegan`, `onImportEnded`)
-- [ ] implement `test/fakes/bookmarks.ts` with fidelity per flavor:
+- [x] implement the Firefox adapter: fixed root GUIDs; separators filtered on read; sync ↔ native index translation around separators; `events` built only from APIs that exist (Firefox lacks `onChildrenReordered`, `onImportBegan`, `onImportEnded`)
+- [x] implement `test/fakes/bookmarks.ts` with fidelity per flavor:
   - root ids;
   - Chrome's pre-removal index for same-parent `move`, versus Firefox's final index;
   - URL canonicalization on save (trailing slash for bare hosts, lowercase host, punycode);
@@ -721,9 +721,11 @@ CREATE TABLE vault_versions (
   - Firefox separators and privileged-URL rejection;
   - an unmodifiable Chromium managed folder;
   - each flavor's own event set.
-- [ ] write tests (Chromium): root resolution for legacy, `folderType`, and local + account storage variants; missing pin → `roots_changed`; `syncing` flip → `nativeSyncDetected`; menu folder rediscovered rather than duplicated; same-parent moves up and down land at the intended sync index
-- [ ] write tests (Firefox): separators hidden from reads; creates and moves land at the correct native index with separators present; privileged URL create rejects with a recognizable error; missing event APIs don't throw
-- [ ] run `npm test` - must pass before Task 18
+- [x] write tests (Chromium): root resolution for legacy, `folderType`, and local + account storage variants; missing pin → `roots_changed`; `syncing` flip → `nativeSyncDetected`; menu folder rediscovered rather than duplicated; same-parent moves up and down land at the intended sync index
+- [x] write tests (Firefox): separators hidden from reads; creates and moves land at the correct native index with separators present; privileged URL create rejects with a recognizable error; missing event APIs don't throw
+- [x] run `npm test` - must pass before Task 18
+- [x] ⚠️ refinement: writes are positioned by **anchor** (`create(parent, afterId)` / `moveAfter(id, parent, afterId)`), and the adapter computes the native index from the folder's current children at write time. That covers separators, skipped nodes, the menu folder and both move semantics without a separate sync↔native index mapping. Firefox's final-position semantics were confirmed in its Places implementation.
+- [x] ➕ a root this Firefox lacks is left unpinned and carried from `base` like the Chromium menu folder; `ensureRoot` rejects writes into it with `BookmarkRejectedError`
 
 ### Task 18: Local tree projection
 
