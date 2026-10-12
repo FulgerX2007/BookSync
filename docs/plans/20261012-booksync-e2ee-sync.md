@@ -151,7 +151,7 @@ server    : stores Argon2id(authKey, salt = random 16 B, m = 19 MiB, t = 2, p = 
   - The server replaces the history, since the new key can't decrypt the old versions, and revokes all other devices.
   - The user receives a new emergency kit.
 - **Downgrade protection.** The client accepts only `kdf = "pbkdf2-sha256"` with `iterations ≥ 600000` from prelogin and login. A malicious server cannot weaken derivation.
-- **SyncID display format:** `BS1-` + Crockford base32 of the 16 bytes (26 chars) + 1 check char, grouped for readability.
+- **SyncID display format:** `BS1-` + Crockford base32 of the 16 bytes (26 chars) + 2 check chars (value mod 1021), in seven groups of four.
   - The parser tolerates case, spaces and dashes, and maps I/L→1 and O→0.
   - The check char catches typos before a wasted login round-trip.
 - **Why PBKDF2 and not Argon2id on the client:** PBKDF2 is WebCrypto-native with no WASM, and the SyncID's 128 bits already make offline attacks infeasible. The KDF name and iteration count are stored per user, so moving to Argon2id later is a migration, not a redesign.
@@ -622,24 +622,26 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/crypto/vault-cipher.ts`
 - Create: `extension/src/crypto/vault-cipher.test.ts`
 
-- [ ] implement `syncid.ts`: `generateSyncId()`, `formatSyncId()` (`BS1-` + Crockford base32 + check char, grouped), `parseSyncId()` (tolerant input, typed `invalid_checksum` / `invalid_format` errors)
-- [ ] implement `keys.ts`:
+- [x] implement `syncid.ts`: `generateSyncId()`, `formatSyncId()` (`BS1-` + Crockford base32 + check char, grouped), `parseSyncId()` (tolerant input, typed `invalid_checksum` / `invalid_format` errors)
+- [x] implement `keys.ts`:
   - `normalizeUsername`;
   - `assertKdfParams(kdf, iterations)` (downgrade guard);
   - `deriveKeys(username, password, syncId, iterations)` → `{authKey, kek}` per the Cryptography spec;
   - `createVaultKey(kek, username)` → `{key: non-extractable CryptoKey, wrapped: Uint8Array}`;
   - `unwrapVaultKey(wrapped, kek, username)` → non-extractable key;
   - `rewrapVaultKey(wrapped, oldKek, newKek, username)` → new wrapped bytes, with the temporary raw key discarded.
-- [ ] implement `vault-cipher.ts`: `encryptVault(doc, vaultKey, username)` → `BSV1 ‖ iv ‖ ct` over gzip (`CompressionStream`) of `serializeVaultDoc`, with AAD; `decryptVault` with typed errors `bad_magic`, `auth_failed`, plus `parseVaultDoc` errors
-- [ ] write tests: SyncID round trip, case/dash/space/I-L-O tolerance; property test that any single-character typo fails the checksum
-- [ ] write tests for keys:
+- [x] implement `vault-cipher.ts`: `encryptVault(doc, vaultKey, username)` → `BSV1 ‖ iv ‖ ct` over gzip (`CompressionStream`) of `serializeVaultDoc`, with AAD; `decryptVault` with typed errors `bad_magic`, `auth_failed`, plus `parseVaultDoc` errors
+- [x] write tests: SyncID round trip, case/dash/space/I-L-O tolerance; property test that any single-character typo fails the checksum
+- [x] write tests for keys:
   - `deriveKeys` matches a pinned vector (iterations = 1000, test-only bypass of the minimum);
   - a different SyncID or password yields a different authKey;
   - `assertKdfParams` rejects a low iteration count or an unknown KDF;
   - wrapping, starting from a vault key that exists only as a non-extractable `CryptoKey` plus its wrapped bytes: `rewrapVaultKey` succeeds, and the key unwrapped under the new kek decrypts data encrypted with the original key;
   - a wrong kek or username fails.
-- [ ] write tests: vault encrypt/decrypt round trip; fresh IV per call; one flipped byte → `auth_failed`; wrong-username AAD → `auth_failed`; bad magic
-- [ ] run `npm test` - must pass before Task 14
+- [x] write tests: vault encrypt/decrypt round trip; fresh IV per call; one flipped byte → `auth_failed`; wrong-username AAD → `auth_failed`; bad magic
+- [x] run `npm test` - must pass before Task 14
+- [x] ⚠️ the SyncID has **two** check characters (value mod 1021, a prime): one base32 character cannot detect every typo, and this avoids Crockford's `*~$=` symbols. The format is `BS1-` + seven groups of four.
+- [x] ➕ the derivation test vector was computed independently (Python `hashlib.pbkdf2_hmac` + RFC 5869 HKDF), not copied from WebCrypto output. Passwords are NFC-normalized before PBKDF2.
 
 ### Task 14: Three-way merge engine
 
