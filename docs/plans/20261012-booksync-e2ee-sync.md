@@ -443,14 +443,15 @@ CREATE TABLE vault_versions (
 - Create: `internal/api/auth_handlers_test.go`
 - Modify: `internal/api/server.go`
 
-- [ ] implement devices repo: `CreateDevice`, `DeviceByTokenHash`, `TouchDevice` (sliding expiry), `ListDevices`, `DeleteDevice`
-- [ ] implement validation in `validate.go`: username (trim + lowercase, `[a-z0-9._-]{3,64}`), authKey (32 B), `kdf == "pbkdf2-sha256"`, iterations ≥ 600000, wrappedVaultKey ≤ 256 B, deviceName 1–64 chars
-- [ ] implement `GET /v1/auth/prelogin`: returns the stored KDF params, or the identical defaults for unknown usernames
-- [ ] implement `POST /v1/auth/register` (403 `registration_closed` when disabled; 409 `username_taken`) → 201 `{userId, deviceId, deviceToken}`
-- [ ] implement `POST /v1/auth/login` → 200 with token, `wrappedVaultKey` and KDF params; unknown user or wrong key → 401 `invalid_credentials`, using `DummyVerify` for unknown users
-- [ ] write tests: devices repo CRUD + expiry; register → prelogin → login happy path; prelogin response shape identical for known and unknown users
-- [ ] write table-driven tests for validation errors, duplicate username 409, wrong authKey 401, registration closed 403
-- [ ] run `go test -race ./...` - must pass before Task 5
+- [x] implement devices repo: `CreateDevice`, `DeviceByTokenHash`, `TouchDevice` (sliding expiry), `ListDevices`, `DeleteDevice`
+- [x] implement validation in `validate.go`: username (trim + lowercase, `[a-z0-9._-]{3,64}`), authKey (32 B), `kdf == "pbkdf2-sha256"`, iterations ≥ 600000, wrappedVaultKey ≤ 256 B, deviceName 1–64 chars
+- [x] implement `GET /v1/auth/prelogin`: returns the stored KDF params, or the identical defaults for unknown usernames
+- [x] implement `POST /v1/auth/register` (403 `registration_closed` when disabled; 409 `username_taken`) → 201 `{userId, deviceId, deviceToken}`
+- [x] implement `POST /v1/auth/login` → 200 with token, `wrappedVaultKey` and KDF params; unknown user or wrong key → 401 `invalid_credentials`, using `DummyVerify` for unknown users
+- [x] write tests: devices repo CRUD + expiry; register → prelogin → login happy path; prelogin response shape identical for known and unknown users
+- [x] write table-driven tests for validation errors, duplicate username 409, wrong authKey 401, registration closed 403
+- [x] run `go test -race ./...` - must pass before Task 5
+- [x] ➕ `decodeJSON` (64 KiB cap → 413, unknown fields and trailing data → 400) and `auth.NewTestHasher()` (cheap params under an id production hashers reject) were added here; `Deps` carries `Store`, `Hasher` and a `Now` clock
 
 ### Task 5: Auth middleware, devices, logout and account deletion
 

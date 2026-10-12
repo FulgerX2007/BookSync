@@ -59,6 +59,15 @@ func NewHasher(concurrency int) *Hasher {
 	return newHasher(concurrency, currentParams)
 }
 
+// testParams are deliberately cheap. Their id is unknown to NewHasher, so a
+// hash produced in tests can never verify on a production hasher.
+var testParams = argonParams{id: 0xff, memory: 64, time: 1, threads: 1, keyLen: 32}
+
+// NewTestHasher returns a cheap Hasher for tests in other packages.
+func NewTestHasher() *Hasher {
+	return newHasher(4, testParams)
+}
+
 func newHasher(concurrency int, p argonParams) *Hasher {
 	if concurrency < 1 {
 		concurrency = 1

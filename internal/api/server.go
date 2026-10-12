@@ -8,14 +8,18 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/FulgerX2007/BookSync/internal/auth"
 	"github.com/FulgerX2007/BookSync/internal/config"
+	"github.com/FulgerX2007/BookSync/internal/store"
 )
 
 // Deps are the collaborators the HTTP layer needs.
 type Deps struct {
 	Logger *slog.Logger
-	// Ping reports storage health for /healthz. Nil means always healthy.
-	Ping func(context.Context) error
+	Store  *store.Store
+	Hasher *auth.Hasher
+	// Now is the clock used for token expiry; defaults to time.Now.
+	Now func() time.Time
 }
 
 // Server routes and serves API requests.
@@ -32,6 +36,9 @@ func NewServer(cfg config.Config, deps Deps) http.Handler {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
+	if deps.Now == nil {
+		deps.Now = time.Now
+	}
 	s := &Server{cfg: cfg, deps: deps, log: log, mux: http.NewServeMux()}
 	s.routes()
 	return s.recoverPanics(s.logRequests(http.HandlerFunc(s.dispatch)))
@@ -39,6 +46,15 @@ func NewServer(cfg config.Config, deps Deps) http.Handler {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
+	s.mux.HandleFunc("GET /v1/auth/prelogin", s.handlePrelogin)
+	s.mux.HandleFunc("POST /v1/auth/register", s.handleRegister)
+	s.mux.HandleFunc("POST /v1/auth/login", s.handleLogin)
+}
+
+// internalError logs err and answers with a generic 500.
+func (s *Server) internalError(w http.ResponseWriter, r *http.Request, err error) {
+	s.log.ErrorContext(r.Context(), "internal error", "err", err, "method", r.Method, "path", r.URL.Path)
+	writeError(w, http.StatusInternalServerError, codeInternal, "internal error")
 }
 
 // dispatch serves matched routes through the mux and turns the mux's
@@ -68,10 +84,10 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	if s.deps.Ping != nil {
+	if s.deps.Store != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		defer cancel()
-		if err := s.deps.Ping(ctx); err != nil {
+		if err := s.deps.Store.Ping(ctx); err != nil {
 			s.log.Error("health check failed", "err", err)
 			writeError(w, http.StatusServiceUnavailable, codeUnavailable, "storage unavailable")
 			return

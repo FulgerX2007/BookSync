@@ -106,6 +106,17 @@ func TestSemaphoreHonorsContext(t *testing.T) {
 	}
 }
 
+func TestTestHasherHashesRejectedByProduction(t *testing.T) {
+	ctx := context.Background()
+	hash, salt, err := NewTestHasher().Hash(ctx, key(5))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewHasher(1).Verify(ctx, key(5), hash, salt); err == nil {
+		t.Fatal("production hasher accepted a test-parameter hash")
+	}
+}
+
 func TestDummyVerify(t *testing.T) {
 	if err := newHasher(1, fastParams).DummyVerify(context.Background()); err != nil {
 		t.Fatalf("DummyVerify: %v", err)

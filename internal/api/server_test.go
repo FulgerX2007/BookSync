@@ -1,9 +1,7 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -33,9 +31,9 @@ func TestHealthz(t *testing.T) {
 }
 
 func TestHealthzStorageDown(t *testing.T) {
-	h := NewServer(config.Default(), Deps{Ping: func(context.Context) error { return errors.New("disk gone") }})
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	e := newTestEnv(t)
+	_ = e.st.Close()
+	rec := e.do(http.MethodGet, "/healthz", nil)
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503", rec.Code)
 	}

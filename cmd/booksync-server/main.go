@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/FulgerX2007/BookSync/internal/api"
+	"github.com/FulgerX2007/BookSync/internal/auth"
 	"github.com/FulgerX2007/BookSync/internal/config"
 	"github.com/FulgerX2007/BookSync/internal/store"
 )
@@ -47,7 +48,7 @@ func run(ctx context.Context, getenv func(string) string, logOut io.Writer) erro
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           api.NewServer(cfg, api.Deps{Logger: log, Ping: st.Ping}),
+		Handler:           api.NewServer(cfg, api.Deps{Logger: log, Store: st, Hasher: auth.NewHasher(4)}),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
 		WriteTimeout:      60 * time.Second,
