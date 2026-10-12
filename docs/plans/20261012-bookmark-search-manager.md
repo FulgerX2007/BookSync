@@ -442,16 +442,17 @@ countSubtree(t, ids): { bookmarks: number; folders: number }    // for confirmat
 - Modify: `extension/src/ui/manager/manager.css`
 - Modify: `extension/e2e/manager.spec.ts`
 
-- [ ] add the toolbar actions "New folder" and "New bookmark". They create inside the selected folder, or after the selected bookmark. A new folder starts in inline rename, which holds the refresh gate.
-- [ ] add inline rename (double-click a folder title, or the row's rename action) and an edit dialog for a bookmark's title and URL. Both hold the gate. Validation errors and browser refusals show inline.
-- [ ] add "Delete" for the selected item, with a confirmation that names the counts (`countSubtree`) whenever folders or several items are involved. The dialog notes that sync may ask again for large deletions.
-- [ ] show `StaleTreeError` and `RootLockedError` as a non-blocking notice, then refresh
-- [ ] write e2e tests:
+- [x] add the toolbar actions "New folder" and "New bookmark". They create inside the selected folder, or after the selected bookmark. A new folder starts in inline rename, which holds the refresh gate.
+- [x] add inline rename (double-click a folder title, or the row's rename action) and an edit dialog for a bookmark's title and URL. Both hold the gate. Validation errors and browser refusals show inline.
+- [x] add "Delete" for the selected item, with a confirmation that names the counts (`countSubtree`) whenever folders or several items are involved. The dialog notes that sync may ask again for large deletions.
+- [x] show `StaleTreeError` and `RootLockedError` as a non-blocking notice, then refresh
+- [x] write e2e tests:
   - create a folder and type its name: the name sticks, even though `onCreated` triggered a refresh;
   - create a bookmark in it, rename both, edit a URL;
   - an invalid URL is rejected inline;
   - delete a folder with contents after confirming, and nothing is deleted on cancel.
-- [ ] run `npm run check` and `make e2e` - must pass before task 10
+- [x] run `npm run check` and `make e2e` - must pass before task 10
+- [x] ➕ The dialogs live in `src/ui/manager/dialogs.ts` and use native `<dialog>`. The edit form has `novalidate`: without it, Chromium's own `type=url` check blocked the submit and showed its tooltip instead of our message (the e2e test caught this). The toolbar's Edit and Delete act on the selection, and roots get neither a row action nor an enabled toolbar button. The notice keeps load errors apart from action results, so a refresh doesn't hide a message the user hasn't read.
 
 ### Task 10: Manager search and reveal
 **Files:**

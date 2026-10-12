@@ -100,3 +100,61 @@ main {
 .url {
   flex: 1 1 0;
 }
+.actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  margin-left: auto;
+  opacity: 0;
+}
+.node-row:hover .actions,
+.node-row.selected .actions,
+.actions:focus-within {
+  opacity: 1;
+}
+.act {
+  padding: 2px 6px;
+  border: 0;
+  background: none;
+  font-weight: 400;
+}
+.act:hover {
+  background: var(--card);
+}
+input.rename {
+  flex: 1;
+  min-width: 120px;
+  padding: 3px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+button.link {
+  padding: 0 6px;
+  border: 0;
+  background: none;
+  font-weight: 400;
+}
+.notice {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+dialog {
+  width: min(460px, 92vw);
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--text);
+}
+dialog::backdrop {
+  background: rgb(0 0 0 / 35%);
+}
+.row.end {
+  justify-content: flex-end;
+  margin-top: 14px;
+}
