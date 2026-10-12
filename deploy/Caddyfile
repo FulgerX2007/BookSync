@@ -1,0 +1,6 @@
+# Caddy obtains and renews a certificate for BOOKSYNC_DOMAIN automatically
+# ("localhost" gets a certificate from Caddy's internal CA).
+{$BOOKSYNC_DOMAIN} {
+	reverse_proxy booksync:8080
+	header -Server
+}

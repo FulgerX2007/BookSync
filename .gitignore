@@ -1,0 +1,28 @@
+# Go
+/bin/
+*.test
+*.out
+coverage.*
+
+# Local databases
+*.db
+*.db-wal
+*.db-shm
+
+# Extension
+node_modules/
+extension/dist/
+extension/dist-e2e/
+extension/coverage/
+extension/test-results/
+extension/playwright-report/
+extension/web-ext-artifacts/
+
+# Deploy
+deploy/.env
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+extension/e2e-bin/

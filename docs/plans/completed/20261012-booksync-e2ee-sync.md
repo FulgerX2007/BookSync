@@ -28,7 +28,8 @@
 
 ## Context (from discovery)
 - **Repository:** empty apart from this plan. Branch `claude/epic-ride-n5y2t8`; remote `github.com/FulgerX2007/BookSync`.
-- **Toolchains available:** Go 1.24.7; Node 22 / npm 10; Chromium preinstalled for Playwright (`/opt/pw-browsers`).
+- **Toolchains available:** Go 1.24.7 locally (the module pins `toolchain go1.27.2`, fetched automatically); Node 22 / npm 10; Chromium preinstalled for Playwright (`/opt/pw-browsers`).
+- ⚠️ **Go version changed during Task 2:** `modernc.org/sqlite` v1.60 needs Go ≥ 1.26, and Go 1.24 is out of support. `go.mod` now says `go 1.26.0` + `toolchain go1.27.2`. golangci-lint must be v2.14+ built with Go 1.27 (`GOLANGCI_LINT` in the Makefile).
 - **Existing patterns:** none yet. Conventions this plan establishes:
   - Go: standard `cmd/` + `internal/` layout, stdlib `net/http` with Go 1.22+ pattern routing, `log/slog`, table-driven tests with stdlib `testing` + `net/http/httptest`, real SQLite in `t.TempDir()` instead of store mocks.
   - Extension: TypeScript (strict), Manifest V3, one codebase built twice (Chromium and Firefox), vitest + fast-check, Playwright for e2e.
@@ -150,7 +151,7 @@ server    : stores Argon2id(authKey, salt = random 16 B, m = 19 MiB, t = 2, p = 
   - The server replaces the history, since the new key can't decrypt the old versions, and revokes all other devices.
   - The user receives a new emergency kit.
 - **Downgrade protection.** The client accepts only `kdf = "pbkdf2-sha256"` with `iterations ≥ 600000` from prelogin and login. A malicious server cannot weaken derivation.
-- **SyncID display format:** `BS1-` + Crockford base32 of the 16 bytes (26 chars) + 1 check char, grouped for readability.
+- **SyncID display format:** `BS1-` + Crockford base32 of the 16 bytes (26 chars) + 2 check chars (value mod 1021), in seven groups of four.
   - The parser tolerates case, spaces and dashes, and maps I/L→1 and O→0.
   - The check char catches typos before a wasted login round-trip.
 - **Why PBKDF2 and not Argon2id on the client:** PBKDF2 is WebCrypto-native with no WASM, and the SyncID's 128 bits already make offline attacks infeasible. The KDF name and iteration count are stored per user, so moving to Argon2id later is a migration, not a redesign.
@@ -196,7 +197,7 @@ interface VaultDoc {
   - Discovery: before creating the folder, look for an existing folder titled "Bookmarks Menu" directly under Other bookmarks and reuse it.
   - The folder's native id is pinned with the roots.
   - If the pinned folder is missing (the user deleted it), the projection carries the `menu________` subtree over from `base`, so it never counts as a deletion, and the next apply recreates the folder.
-- **Index translation.** Adapters take **sync-space** indices (positions within the vault `children` list) and translate them to native indices. The translation:
+- **Index translation.** Adapters position writes by anchor ("after sibling P") and compute the native index from the folder's current children at write time. The translation:
   - skips GUIDs in `skipped` (present in the vault, absent from the browser);
   - skips native-only nodes: Firefox separators and the Chromium menu folder under Other bookmarks;
   - applies Chrome's same-parent `move` rule, where the index counts positions before the node is removed, so moving down needs `+1`. Firefox treats the index as the final position.
@@ -205,7 +206,11 @@ interface VaultDoc {
   - After each create or update, the applier stores the URL as read back from the browser (`nativeUrl`) in the node's `idMap` entry.
   - When the native URL still equals `nativeUrl`, projection emits the vault URL. Rewrites therefore never look like local edits and never ping-pong between browsers.
 - **Firefox separators** are filtered out on read and never synced.
-- **Skipped nodes** are bookmarks a browser refuses to create (e.g. Firefox rejects privileged URL schemes such as `javascript:` or `chrome:`). Their GUIDs go into `skipped`, and the projection re-inserts them from `base`, so they never look like local deletions.
+- **Skipped nodes** are bookmarks a browser refuses to create (e.g. Firefox rejects privileged URL schemes such as `javascript:` or `chrome:`) or cannot place (their folder is in an unavailable root).
+  - Their GUIDs go into `skipped`, and the projection re-inserts them from `base`, so they never look like local deletions.
+  - They are retried on every apply, so they appear once they become placeable.
+  - A native node that the merged tree moves into an unavailable folder is removed from the browser and becomes skipped.
+- **Chromium Mobile bookmarks** is hidden by desktop Chromium while empty, and the API can then neither read nor write it. It is synced only while visible; otherwise it is carried from `base`, like a missing root.
 
 ### Server API
 Binary fields in JSON (`authKey`, `wrappedVaultKey`, `vault`) use base64url without padding. Errors look like `{"error":{"code":"…","message":"…"}}`. Device auth uses `Authorization: Bearer bst_<base64url 32 B>`. JSON bodies are capped at 64 KiB, except a password change carrying a rotation, which is capped at `BOOKSYNC_MAX_VAULT_BYTES × 4/3 + 64 KiB`.
@@ -219,7 +224,7 @@ Binary fields in JSON (`authKey`, `wrappedVaultKey`, `vault`) use base64url with
 | `POST /v1/auth/logout` | device | – | 204 |
 | `GET /v1/devices` | device | – | 200 `[{id, name, createdAt, lastSeenAt, current}]` |
 | `DELETE /v1/devices/{id}` | device | – | 204 · 404 |
-| `POST /v1/account/password` | device | `{currentAuthKey, newAuthKey, iterations, newWrappedVaultKey, rotation?: {expectedVersion, vault}}` | 204 (other devices revoked; with `rotation`, history replaced by the new vault) · 401 · 412 `version_conflict` · 413 |
+| `POST /v1/account/password` | device | `{currentAuthKey, newAuthKey, kdf, iterations, newWrappedVaultKey, rotation?: {expectedVersion, vault}}` | 204 (other devices revoked) · with `rotation`: 200 `{version}` + ETag, history replaced by the new vault · 400 · 401 · 412 `version_conflict` · 413 |
 | `POST /v1/account/delete` | device | `{authKey}` | 204 · 401 |
 | `GET /v1/vault` | device | `If-None-Match: "<v>"` (optional) | 200 `application/octet-stream` + `ETag: "<v>"` · 304 · 404 `vault_empty` |
 | `PUT /v1/vault` | device | octet-stream; `If-Match: "<v>"` or `If-None-Match: *` | 200 `{version}` + ETag · 400 `invalid_vault` · 412 `version_conflict {currentVersion}` · 413 · 428 |
@@ -386,13 +391,14 @@ CREATE TABLE vault_versions (
 - Create: `.golangci.yml`
 - Create: `.gitignore`
 
-- [ ] init module `github.com/FulgerX2007/BookSync` (`go 1.24`); add `Makefile` targets `build`, `run`, `test`, `lint`, and `.golangci.yml` (default linters + gofmt, errcheck, staticcheck)
-- [ ] implement `config.Load(getenv func(string) string) (Config, error)` reading the `BOOKSYNC_*` variables with defaults and validation (see Server configuration)
-- [ ] implement `api.NewServer(cfg, deps) http.Handler`: Go 1.22 pattern routing, JSON error helper in `respond.go`, slog request logging, `GET /healthz`, JSON 404/405
-- [ ] wire `main.go`: load config, build handler, `http.Server` with timeouts (ReadHeader 10 s, Read/Write 60 s, Idle 120 s), graceful shutdown on SIGINT/SIGTERM via `signal.NotifyContext`
-- [ ] write table-driven tests for config defaults and env overrides
-- [ ] write tests for invalid config values (bad duration, negative retention, non-numeric size) and for `/healthz` + unknown route → JSON 404 via httptest
-- [ ] run `go test -race ./...` and `make lint` - must pass before Task 2
+- [x] init module `github.com/FulgerX2007/BookSync` (`go 1.24`, later raised to 1.26, see Context); add `Makefile` targets `build`, `run`, `test`, `lint`, and `.golangci.yml` (default linters + gofmt, errcheck, staticcheck)
+- [x] implement `config.Load(getenv func(string) string) (Config, error)` reading the `BOOKSYNC_*` variables with defaults and validation (see Server configuration)
+- [x] implement `api.NewServer(cfg, deps) http.Handler`: Go 1.22 pattern routing, JSON error helper in `respond.go`, slog request logging, `GET /healthz`, JSON 404/405
+- [x] wire `main.go`: load config, build handler, `http.Server` with timeouts (ReadHeader 10 s, Read/Write 60 s, Idle 120 s), graceful shutdown on SIGINT/SIGTERM via `signal.NotifyContext`
+- [x] write table-driven tests for config defaults and env overrides
+- [x] write tests for invalid config values (bad duration, negative retention, non-numeric size) and for `/healthz` + unknown route → JSON 404 via httptest
+- [x] run `go test -race ./...` and `make lint` - must pass before Task 2
+- [x] ➕ added `internal/api/helpers_test.go` and `cmd/booksync-server/main_test.go` (run starts and shuts down on cancel; invalid config rejected)
 
 ### Task 2: SQLite store, embedded migrations and users repository
 
@@ -405,14 +411,14 @@ CREATE TABLE vault_versions (
 - Create: `internal/store/users_test.go`
 - Modify: `cmd/booksync-server/main.go`
 
-- [ ] implement `store.Open(ctx, path)` with `modernc.org/sqlite`, setting pragmas through the DSN (`_pragma=foreign_keys(1)`, `_pragma=busy_timeout(5000)`, `_pragma=journal_mode(WAL)`, `_txlock=immediate`) so every pooled connection gets them; `Close()`
-- [ ] implement migration runner: `embed` `migrations/*.sql`, apply in order inside a tx, track in `schema_migrations`, idempotent on re-open
-- [ ] add `0001_init.sql` with `users`, `devices`, `vault_versions` (see Database schema)
-- [ ] implement users repo: `CreateUser`, `UserByUsername`, `UserByID`, `DeleteUser`; sentinel errors `ErrNotFound`, `ErrUsernameTaken`
-- [ ] wire `store.Open`/`Close` into `main.go`
-- [ ] write tests: migrations idempotent on re-open; user CRUD success against a real DB in `t.TempDir()`
-- [ ] write tests: duplicate username → `ErrUsernameTaken`; missing user → `ErrNotFound`; `DeleteUser` cascades to `devices` and `vault_versions`; with `SetMaxOpenConns(4)` and several connections held at once, `PRAGMA foreign_keys` returns 1 on each
-- [ ] run `go test -race ./...` - must pass before Task 3
+- [x] implement `store.Open(ctx, path)` with `modernc.org/sqlite`, setting pragmas through the DSN (`_pragma=foreign_keys(1)`, `_pragma=busy_timeout(5000)`, `_pragma=journal_mode(WAL)`, `_txlock=immediate`) so every pooled connection gets them; `Close()`
+- [x] implement migration runner: `embed` `migrations/*.sql`, apply in order inside a tx, track in `schema_migrations`, idempotent on re-open
+- [x] add `0001_init.sql` with `users`, `devices`, `vault_versions` (see Database schema)
+- [x] implement users repo: `CreateUser`, `UserByUsername`, `UserByID`, `DeleteUser`; sentinel errors `ErrNotFound`, `ErrUsernameTaken`
+- [x] wire `store.Open`/`Close` into `main.go`
+- [x] write tests: migrations idempotent on re-open; user CRUD success against a real DB in `t.TempDir()`
+- [x] write tests: duplicate username → `ErrUsernameTaken`; missing user → `ErrNotFound`; `DeleteUser` cascades to `devices` and `vault_versions`; with `SetMaxOpenConns(4)` and several connections held at once, `PRAGMA foreign_keys` returns 1 on each
+- [x] run `go test -race ./...` - must pass before Task 3
 
 ### Task 3: Credential hashing and device tokens
 
@@ -422,12 +428,13 @@ CREATE TABLE vault_versions (
 - Create: `internal/auth/token.go`
 - Create: `internal/auth/token_test.go`
 
-- [ ] implement `Hasher.Hash(ctx, authKey) (hash, salt, error)` / `Hasher.Verify(ctx, authKey, hash, salt) (bool, error)` with Argon2id (m = 19 MiB, t = 2, p = 1, 32 B) and `subtle.ConstantTimeCompare`; a semaphore (default 4) caps concurrent hashing and memory
-- [ ] implement `Hasher.DummyVerify(ctx)` for unknown usernames so login timing does not reveal account existence
-- [ ] implement `NewDeviceToken() (plain string, hash []byte)` (32 random bytes, base64url, `bst_` prefix) and `HashToken(plain)` (SHA-256), plus `ValidateAuthKey` (exactly 32 bytes)
-- [ ] write tests: hash/verify round trip, wrong key fails, distinct salts per call, semaphore honors context cancellation
-- [ ] write tests: token prefix/length/uniqueness, deterministic hashing, malformed tokens and wrong-length auth keys rejected
-- [ ] run `go test -race ./...` - must pass before Task 4
+- [x] implement `Hasher.Hash(ctx, authKey) (hash, salt, error)` / `Hasher.Verify(ctx, authKey, hash, salt) (bool, error)` with Argon2id (m = 19 MiB, t = 2, p = 1, 32 B) and `subtle.ConstantTimeCompare`; a semaphore (default 4) caps concurrent hashing and memory
+- [x] implement `Hasher.DummyVerify(ctx)` for unknown usernames so login timing does not reveal account existence
+- [x] implement `NewDeviceToken() (plain string, hash []byte)` (32 random bytes, base64url, `bst_` prefix) and `HashToken(plain)` (SHA-256), plus `ValidateAuthKey` (exactly 32 bytes)
+- [x] write tests: hash/verify round trip, wrong key fails, distinct salts per call, semaphore honors context cancellation
+- [x] write tests: token prefix/length/uniqueness, deterministic hashing, malformed tokens and wrong-length auth keys rejected
+- [x] run `go test -race ./...` - must pass before Task 4
+- [x] ➕ stored hashes are prefixed with a one-byte Argon2 parameter-set id, so parameters can change later without invalidating existing hashes
 
 ### Task 4: Prelogin, registration and login endpoints
 
@@ -440,14 +447,15 @@ CREATE TABLE vault_versions (
 - Create: `internal/api/auth_handlers_test.go`
 - Modify: `internal/api/server.go`
 
-- [ ] implement devices repo: `CreateDevice`, `DeviceByTokenHash`, `TouchDevice` (sliding expiry), `ListDevices`, `DeleteDevice`
-- [ ] implement validation in `validate.go`: username (trim + lowercase, `[a-z0-9._-]{3,64}`), authKey (32 B), `kdf == "pbkdf2-sha256"`, iterations ≥ 600000, wrappedVaultKey ≤ 256 B, deviceName 1–64 chars
-- [ ] implement `GET /v1/auth/prelogin`: returns the stored KDF params, or the identical defaults for unknown usernames
-- [ ] implement `POST /v1/auth/register` (403 `registration_closed` when disabled; 409 `username_taken`) → 201 `{userId, deviceId, deviceToken}`
-- [ ] implement `POST /v1/auth/login` → 200 with token, `wrappedVaultKey` and KDF params; unknown user or wrong key → 401 `invalid_credentials`, using `DummyVerify` for unknown users
-- [ ] write tests: devices repo CRUD + expiry; register → prelogin → login happy path; prelogin response shape identical for known and unknown users
-- [ ] write table-driven tests for validation errors, duplicate username 409, wrong authKey 401, registration closed 403
-- [ ] run `go test -race ./...` - must pass before Task 5
+- [x] implement devices repo: `CreateDevice`, `DeviceByTokenHash`, `TouchDevice` (sliding expiry), `ListDevices`, `DeleteDevice`
+- [x] implement validation in `validate.go`: username (trim + lowercase, `[a-z0-9._-]{3,64}`), authKey (32 B), `kdf == "pbkdf2-sha256"`, iterations ≥ 600000, wrappedVaultKey ≤ 256 B, deviceName 1–64 chars
+- [x] implement `GET /v1/auth/prelogin`: returns the stored KDF params, or the identical defaults for unknown usernames
+- [x] implement `POST /v1/auth/register` (403 `registration_closed` when disabled; 409 `username_taken`) → 201 `{userId, deviceId, deviceToken}`
+- [x] implement `POST /v1/auth/login` → 200 with token, `wrappedVaultKey` and KDF params; unknown user or wrong key → 401 `invalid_credentials`, using `DummyVerify` for unknown users
+- [x] write tests: devices repo CRUD + expiry; register → prelogin → login happy path; prelogin response shape identical for known and unknown users
+- [x] write table-driven tests for validation errors, duplicate username 409, wrong authKey 401, registration closed 403
+- [x] run `go test -race ./...` - must pass before Task 5
+- [x] ➕ `decodeJSON` (64 KiB cap → 413, unknown fields and trailing data → 400) and `auth.NewTestHasher()` (cheap params under an id production hashers reject) were added here; `Deps` carries `Store`, `Hasher` and a `Now` clock
 
 ### Task 5: Auth middleware, devices, logout and account deletion
 
@@ -458,12 +466,12 @@ CREATE TABLE vault_versions (
 - Create: `internal/api/account_handlers_test.go`
 - Modify: `internal/api/server.go`
 
-- [ ] implement `requireDevice` middleware: Bearer `bst_…` token → device + user in the request context; 401 `unauthorized` when missing, unknown or expired; `TouchDevice` at most once per hour
-- [ ] implement `POST /v1/auth/logout`, `GET /v1/devices` (with `current` flag), `DELETE /v1/devices/{id}` (own devices only, otherwise 404)
-- [ ] implement `POST /v1/account/delete`: verify `authKey`, delete the user (cascade)
-- [ ] write table-driven middleware tests: no header, wrong scheme/prefix, revoked, expired, valid
-- [ ] write tests: device list/revoke incl. cross-user isolation (404); account delete removes all rows; wrong key → 401
-- [ ] run `go test -race ./...` - must pass before Task 6
+- [x] implement `requireDevice` middleware: Bearer `bst_…` token → device + user in the request context; 401 `unauthorized` when missing, unknown or expired; `TouchDevice` at most once per hour
+- [x] implement `POST /v1/auth/logout`, `GET /v1/devices` (with `current` flag), `DELETE /v1/devices/{id}` (own devices only, otherwise 404)
+- [x] implement `POST /v1/account/delete`: verify `authKey`, delete the user (cascade)
+- [x] write table-driven middleware tests: no header, wrong scheme/prefix, revoked, expired, valid
+- [x] write tests: device list/revoke incl. cross-user isolation (404); account delete removes all rows; wrong key → 401
+- [x] run `go test -race ./...` - must pass before Task 6
 
 ### Task 6: Vault version storage with retention
 
@@ -471,13 +479,13 @@ CREATE TABLE vault_versions (
 - Create: `internal/store/vault.go`
 - Create: `internal/store/vault_test.go`
 
-- [ ] implement `LatestVault(ctx, userID)` (`ErrNotFound` when the user has no vault yet)
-- [ ] implement `PutVault(ctx, userID, deviceID, expected *int64, ciphertext, retention, now) (int64, error)`: one immediate tx; `expected == nil` means "must be empty"; mismatch → `*VersionConflictError{Current}`; insert `version+1`; apply retention (newest `KeepRecent` + newest per UTC day within `KeepDays`)
-- [ ] implement `ListVaultVersions` (version, created_at, device name via LEFT JOIN, size) and `VaultVersion(ctx, userID, version)`
-- [ ] write tests: first put requires empty; sequential puts increment; stale expected → conflict carrying the current version; per-user isolation
-- [ ] write retention tests with injected timestamps: a burst of 50 puts today keeps the newest 10 plus one per earlier day; days older than `KeepDays` are dropped
-- [ ] write a concurrency test: N goroutines `PutVault` with the same expected version → exactly one succeeds, the rest get conflicts (run under `-race`)
-- [ ] run `go test -race ./...` - must pass before Task 7
+- [x] implement `LatestVault(ctx, userID)` (`ErrNotFound` when the user has no vault yet)
+- [x] implement `PutVault(ctx, userID, deviceID, expected *int64, ciphertext, retention, now) (int64, error)`: one immediate tx; `expected == nil` means "must be empty"; mismatch → `*VersionConflictError{Current}`; insert `version+1`; apply retention (newest `KeepRecent` + newest per UTC day within `KeepDays`)
+- [x] implement `ListVaultVersions` (version, created_at, device name via LEFT JOIN, size) and `VaultVersion(ctx, userID, version)`
+- [x] write tests: first put requires empty; sequential puts increment; stale expected → conflict carrying the current version; per-user isolation
+- [x] write retention tests with injected timestamps: a burst of 50 puts today keeps the newest 10 plus one per earlier day; days older than `KeepDays` are dropped
+- [x] write a concurrency test: N goroutines `PutVault` with the same expected version → exactly one succeeds, the rest get conflicts (run under `-race`)
+- [x] run `go test -race ./...` - must pass before Task 7
 
 ### Task 7: Vault HTTP endpoints with ETag concurrency
 
@@ -486,12 +494,12 @@ CREATE TABLE vault_versions (
 - Create: `internal/api/vault_handlers_test.go`
 - Modify: `internal/api/server.go`
 
-- [ ] implement `GET /v1/vault`: 200 octet-stream + `ETag: "<v>"`; 304 when `If-None-Match` matches; 404 `vault_empty`
-- [ ] implement `PUT /v1/vault`: require `If-Match` or `If-None-Match: *` (else 428); `http.MaxBytesReader` at `BOOKSYNC_MAX_VAULT_BYTES` (413); `BSV1` magic sanity check (400 `invalid_vault`); 412 `version_conflict` with `currentVersion`; 200 `{version}` + ETag
-- [ ] implement `GET /v1/vault/versions` and `GET /v1/vault/versions/{version}`
-- [ ] write tests for the full flow: put(`*`) → get → put(If-Match) → get with matching ETag → 304 → history list → get old version
-- [ ] write tests for errors: missing precondition 428, stale If-Match 412 with current version, oversize 413, bad magic 400, another user's version 404, unauthenticated 401
-- [ ] run `go test -race ./...` - must pass before Task 8
+- [x] implement `GET /v1/vault`: 200 octet-stream + `ETag: "<v>"`; 304 when `If-None-Match` matches; 404 `vault_empty`
+- [x] implement `PUT /v1/vault`: require `If-Match` or `If-None-Match: *` (else 428); `http.MaxBytesReader` at `BOOKSYNC_MAX_VAULT_BYTES` (413); `BSV1` magic sanity check (400 `invalid_vault`); 412 `version_conflict` with `currentVersion`; 200 `{version}` + ETag
+- [x] implement `GET /v1/vault/versions` and `GET /v1/vault/versions/{version}`
+- [x] write tests for the full flow: put(`*`) → get → put(If-Match) → get with matching ETag → 304 → history list → get old version
+- [x] write tests for errors: missing precondition 428, stale If-Match 412 with current version, oversize 413, bad magic 400, another user's version 404, unauthenticated 401
+- [x] run `go test -race ./...` - must pass before Task 8
 
 ### Task 8: Password change and key rotation endpoint
 
@@ -501,14 +509,14 @@ CREATE TABLE vault_versions (
 - Modify: `internal/api/account_handlers.go`
 - Modify: `internal/api/account_handlers_test.go`
 
-- [ ] implement `ChangeCredentials(ctx, userID, keepDeviceID, creds, rotation *VaultRotation)` in one immediate tx:
+- [x] implement `ChangeCredentials(ctx, userID, keepDeviceID, creds, rotation *VaultRotation)` in one immediate tx:
   - update auth hash/salt, KDF params and wrapped key;
   - with `rotation`: check `expectedVersion` (conflict error), insert the new vault version and delete every older version;
   - delete all devices except `keepDeviceID`.
-- [ ] implement `POST /v1/account/password`: verify `currentAuthKey`, validate new fields and the optional `rotation {expectedVersion, vault}` (base64url, `BSV1` magic, size cap with the route-specific body limit); 204 / 401 / 412 / 413
-- [ ] write store tests: plain change keeps history; rotation leaves exactly one version (the new one); stale `expectedVersion` → conflict and nothing changes (tx rolled back); other devices deleted, current kept
-- [ ] write API tests: old authKey fails afterwards and the new one works; a revoked device gets 401; oversize rotation vault 413; wrong current key 401
-- [ ] run `go test -race ./...` - must pass before Task 9
+- [x] implement `POST /v1/account/password`: verify `currentAuthKey`, validate new fields and the optional `rotation {expectedVersion, vault}` (base64url, `BSV1` magic, size cap with the route-specific body limit); 204 / 401 / 412 / 413
+- [x] write store tests: plain change keeps history; rotation leaves exactly one version (the new one); stale `expectedVersion` → conflict and nothing changes (tx rolled back); other devices deleted, current kept
+- [x] write API tests: old authKey fails afterwards and the new one works; a revoked device gets 401; oversize rotation vault 413; wrong current key 401
+- [x] run `go test -race ./...` - must pass before Task 9
 
 ### Task 9: Abuse protection: rate limiting and request limits
 
@@ -518,13 +526,14 @@ CREATE TABLE vault_versions (
 - Modify: `internal/api/server.go`
 - Modify: `internal/config/config.go`
 
-- [ ] implement keyed token-bucket limiter on `golang.org/x/time/rate` with idle-entry eviction and an injectable clock
-- [ ] apply to `/v1/auth/*`: per client IP (10/min, burst 10) and per (IP, username) on login (5/min); no global per-username limit (see Security model); respond 429 `rate_limited` with `Retry-After`
-- [ ] resolve client IP from `RemoteAddr`, or from the **rightmost** `X-Forwarded-For` entry only when `BOOKSYNC_TRUST_PROXY_HEADERS=true`
-- [ ] cap JSON request bodies at 64 KiB (413), except the password route with rotation
-- [ ] write tests: limiter allows burst then blocks, refills with fake time, evicts idle keys
-- [ ] write tests: 429 + `Retry-After` on auth endpoints; the rightmost `X-Forwarded-For` entry is used only when trusted, and a spoofed leftmost entry is ignored; oversized JSON → 413
-- [ ] run `go test -race ./...` - must pass before Task 10
+- [x] implement keyed token-bucket limiter on `golang.org/x/time/rate` with idle-entry eviction and an injectable clock
+- [x] apply to `/v1/auth/*`: per client IP (10/min, burst 10) and per (IP, username) on login (5/min); no global per-username limit (see Security model); respond 429 `rate_limited` with `Retry-After`
+- [x] resolve client IP from `RemoteAddr`, or from the **rightmost** `X-Forwarded-For` entry only when `BOOKSYNC_TRUST_PROXY_HEADERS=true`
+- [x] cap JSON request bodies at 64 KiB (413), except the password route with rotation
+- [x] write tests: limiter allows burst then blocks, refills with fake time, evicts idle keys
+- [x] write tests: 429 + `Retry-After` on auth endpoints; the rightmost `X-Forwarded-For` entry is used only when trusted, and a spoofed leftmost entry is ignored; oversized JSON → 413
+- [x] run `go test -race ./...` - must pass before Task 10
+- [x] ➕ `config.go` needed no change (`BOOKSYNC_TRUST_PROXY_HEADERS` already existed); IPv6 clients are rate-limited per /64; the 64 KiB JSON cap was built in Task 4 and is tested here at the API level
 
 ### Task 10: Container image and self-hosting bundle
 
@@ -538,18 +547,19 @@ CREATE TABLE vault_versions (
 - Create: `cmd/booksync-server/healthcheck_test.go`
 - Modify: `cmd/booksync-server/main.go`
 
-- [ ] add multi-stage `Dockerfile`:
-  - build stage: `golang:1.24` with `CGO_ENABLED=0 -trimpath -ldflags "-s -w -X main.version=…"`, plus `mkdir /data`;
+- [x] add multi-stage `Dockerfile`:
+  - build stage: `golang:1.27` with `CGO_ENABLED=0 -trimpath -ldflags "-s -w -X main.version=…"`, plus `mkdir /data`;
   - final stage: `gcr.io/distroless/static-debian12:nonroot` with `COPY --from=build --chown=65532:65532 /data /data`, so named volumes inherit nonroot ownership; `VOLUME /data`; `EXPOSE 8080`.
-- [ ] add `booksync-server healthcheck` subcommand (GET `/healthz` on the local port, exit 0/1) used by Docker `HEALTHCHECK`, since distroless has no curl
-- [ ] add `docker-compose.yml` and `Caddyfile`:
+- [x] add `booksync-server healthcheck` subcommand (GET `/healthz` on the local port, exit 0/1) used by Docker `HEALTHCHECK`, since distroless has no curl
+- [x] add `docker-compose.yml` and `Caddyfile`:
   - `booksync` only `expose`s 8080 and publishes no host port, so traffic must go through Caddy;
   - `caddy` publishes 80/443 with automatic HTTPS for `${BOOKSYNC_DOMAIN}`;
   - named volumes, `restart: unless-stopped`, `BOOKSYNC_TRUST_PROXY_HEADERS=true`.
-- [ ] add `.env.example` documenting every `BOOKSYNC_*` variable, incl. "set `BOOKSYNC_ALLOW_REGISTRATION=false` after creating your accounts"
-- [ ] add `deploy/smoke.sh`: `docker compose up -d` with a local domain (`tls internal`), wait for healthy, curl `/healthz` and register one user through Caddy, `docker compose down -v`
-- [ ] write tests for the healthcheck subcommand against httptest servers (200 → exit 0; 500 or unreachable → exit 1)
-- [ ] run `deploy/smoke.sh` if Docker is available locally (it always runs in CI, Task 28); run `go test -race ./...` - must pass before Task 11
+- [x] add `.env.example` documenting every `BOOKSYNC_*` variable, incl. "set `BOOKSYNC_ALLOW_REGISTRATION=false` after creating your accounts"
+- [x] add `deploy/smoke.sh`: `docker compose up -d` with a local domain (`tls internal`), wait for healthy, curl `/healthz` and register one user through Caddy, `docker compose down -v`
+- [x] write tests for the healthcheck subcommand against httptest servers (200 → exit 0; 500 or unreachable → exit 1)
+- [x] run `deploy/smoke.sh` if Docker is available locally (it always runs in CI, Task 28); run `go test -race ./...` - must pass before Task 11
+- [x] ⚠️ in this dev environment the egress proxy re-signs TLS, so the image was built from a scratch copy of the Dockerfile that trusts the proxy CA, then `SMOKE_BUILD=0 deploy/smoke.sh` passed (health via the Docker healthcheck, TLS through Caddy, registration). ➕ `smoke.sh` gained `SMOKE_BUILD=0` to reuse a prebuilt image
 
 ### Task 11: Extension project scaffold and dual-browser build
 
@@ -571,17 +581,23 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/ui/options/options.html`
 - Create: `extension/src/ui/options/options.ts`
 
-- [ ] set up the npm project (strict TypeScript, dev deps from Context) with scripts `build`, `build:e2e`, `typecheck`, `lint`, `test`, `e2e`, `package`
-- [ ] add `src/platform/ext.ts`: `export const ext = (globalThis.browser ?? globalThis.chrome) as typeof chrome`, the single entry point to WebExtension APIs
-- [ ] add manifests:
+- [x] set up the npm project (strict TypeScript, dev deps from Context) with scripts `build`, `build:e2e`, `typecheck`, `lint`, `test`, `e2e`, `package`
+- [x] add `src/platform/ext.ts`: `export const ext = (globalThis.browser ?? globalThis.chrome) as typeof chrome`, the single entry point to WebExtension APIs
+- [x] add manifests:
   - base MV3: `bookmarks`, `storage`, `alarms`; `optional_host_permissions` for `https://*/*`, `http://localhost/*`, `http://127.0.0.1/*`; popup + options;
   - Chromium override: `background.service_worker`, `minimum_chrome_version: "120"`;
   - Firefox override: `background.scripts`; `browser_specific_settings.gecko` with id, `strict_min_version: "128.0"` and the `data_collection_permissions` declaration that current AMO policy requires (confirm with `web-ext lint`).
-- [ ] implement `scripts/manifest.mjs`: a pure deep-merge of base + browser override that stamps `version` from `package.json`; the `--e2e` flag adds `http://127.0.0.1/*` to `host_permissions` so tests skip the permission prompt
-- [ ] implement `build.mjs`: esbuild bundles of the background, popup and options entries into `dist/chromium` and `dist/firefox` (`dist-e2e/*` for the e2e build); the popup and options stubs exist from this task on, so the build and lint work immediately
-- [ ] write tests for manifest merge per target (background shape, gecko block only for Firefox, e2e host permission only with the flag, version stamped)
-- [ ] verify `npm run build` output loads and `npx web-ext lint -s dist/firefox` passes
-- [ ] run `npm run typecheck && npm run lint && npm test` - must pass before Task 12
+- [x] implement `scripts/manifest.mjs`: a pure deep-merge of base + browser override that stamps `version` from `package.json`; the `--e2e` flag adds `http://127.0.0.1/*` to `host_permissions` so tests skip the permission prompt
+- [x] implement `build.mjs`: esbuild bundles of the background, popup and options entries into `dist/chromium` and `dist/firefox` (`dist-e2e/*` for the e2e build); the popup and options stubs exist from this task on, so the build and lint work immediately
+- [x] write tests for manifest merge per target (background shape, gecko block only for Firefox, e2e host permission only with the flag, version stamped)
+- [x] verify `npm run build` output loads and `npx web-ext lint -s dist/firefox` passes
+- [x] run `npm run typecheck && npm run lint && npm test` - must pass before Task 12
+- [x] ⚠️ deviations:
+  - TypeScript is pinned to 6.0.3, because TypeScript 7 (the native port) is not yet supported by typescript-eslint.
+  - Firefox `strict_min_version` is 140, not 128, because `data_collection_permissions` needs it; `gecko_android` is set to 142 to keep `web-ext lint` clean.
+  - `ext()` is a lazy function, so tests can install fakes.
+  - Bundles are IIFE, so no module background is needed.
+  - `npm audit` flags only `web-ext`'s dev-only transitive dependencies; the shipped extension has no runtime dependencies.
 
 ### Task 12: Vault document model and tree validation
 
@@ -591,13 +607,14 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/model/url.ts`
 - Create: `extension/src/model/url.test.ts`
 
-- [ ] define `VaultDoc`, `VNode`, root GUID constants, `emptyDoc()`, `newGuid()` (12-char base64url)
-- [ ] implement `validateTree(doc)` → violations list (missing roots, unreachable/duplicate-parented nodes, cycles, dangling child refs, bookmark without url, folder without children)
-- [ ] implement `treesEqual(a, b)` (ignores `seq`, `writtenBy`, `writtenAt`), `countNodes`, `serializeVaultDoc`/`parseVaultDoc` (bytes ↔ doc), with unknown `format` → `unsupported_format`
-- [ ] implement `url.ts` `matchKey(url)` for dedupe (WHATWG `URL.href`, lowercase host, default port dropped; invalid URLs fall back to the trimmed string)
-- [ ] write tests: `validateTree` detects each violation type and accepts valid trees
-- [ ] write tests: `treesEqual` ignores metadata but detects title/url/parent/order changes; `parseVaultDoc` errors; `matchKey` normalization cases
-- [ ] run `npm test` - must pass before Task 13
+- [x] define `VaultDoc`, `VNode`, root GUID constants, `emptyDoc()`, `newGuid()` (12-char base64url)
+- [x] implement `validateTree(doc)` → violations list (missing roots, unreachable/duplicate-parented nodes, cycles, dangling child refs, bookmark without url, folder without children)
+- [x] implement `treesEqual(a, b)` (ignores `seq`, `writtenBy`, `writtenAt`), `countNodes`, `serializeVaultDoc`/`parseVaultDoc` (bytes ↔ doc), with unknown `format` → `unsupported_format`
+- [x] implement `url.ts` `matchKey(url)` for dedupe (WHATWG `URL.href`, lowercase host, default port dropped; invalid URLs fall back to the trimmed string)
+- [x] write tests: `validateTree` detects each violation type and accepts valid trees
+- [x] write tests: `treesEqual` ignores metadata but detects title/url/parent/order changes; `parseVaultDoc` errors; `matchKey` normalization cases
+- [x] run `npm test` - must pass before Task 13
+- [x] ➕ `extension/test/builders.ts`: compact `doc()` tree builder and `outline()` renderer shared by the tests that follow
 
 ### Task 13: Client crypto: SyncID, key derivation, key wrapping, vault cipher
 
@@ -609,24 +626,26 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/crypto/vault-cipher.ts`
 - Create: `extension/src/crypto/vault-cipher.test.ts`
 
-- [ ] implement `syncid.ts`: `generateSyncId()`, `formatSyncId()` (`BS1-` + Crockford base32 + check char, grouped), `parseSyncId()` (tolerant input, typed `invalid_checksum` / `invalid_format` errors)
-- [ ] implement `keys.ts`:
+- [x] implement `syncid.ts`: `generateSyncId()`, `formatSyncId()` (`BS1-` + Crockford base32 + check char, grouped), `parseSyncId()` (tolerant input, typed `invalid_checksum` / `invalid_format` errors)
+- [x] implement `keys.ts`:
   - `normalizeUsername`;
   - `assertKdfParams(kdf, iterations)` (downgrade guard);
   - `deriveKeys(username, password, syncId, iterations)` → `{authKey, kek}` per the Cryptography spec;
   - `createVaultKey(kek, username)` → `{key: non-extractable CryptoKey, wrapped: Uint8Array}`;
   - `unwrapVaultKey(wrapped, kek, username)` → non-extractable key;
   - `rewrapVaultKey(wrapped, oldKek, newKek, username)` → new wrapped bytes, with the temporary raw key discarded.
-- [ ] implement `vault-cipher.ts`: `encryptVault(doc, vaultKey, username)` → `BSV1 ‖ iv ‖ ct` over gzip (`CompressionStream`) of `serializeVaultDoc`, with AAD; `decryptVault` with typed errors `bad_magic`, `auth_failed`, plus `parseVaultDoc` errors
-- [ ] write tests: SyncID round trip, case/dash/space/I-L-O tolerance; property test that any single-character typo fails the checksum
-- [ ] write tests for keys:
+- [x] implement `vault-cipher.ts`: `encryptVault(doc, vaultKey, username)` → `BSV1 ‖ iv ‖ ct` over gzip (`CompressionStream`) of `serializeVaultDoc`, with AAD; `decryptVault` with typed errors `bad_magic`, `auth_failed`, plus `parseVaultDoc` errors
+- [x] write tests: SyncID round trip, case/dash/space/I-L-O tolerance; property test that any single-character typo fails the checksum
+- [x] write tests for keys:
   - `deriveKeys` matches a pinned vector (iterations = 1000, test-only bypass of the minimum);
   - a different SyncID or password yields a different authKey;
   - `assertKdfParams` rejects a low iteration count or an unknown KDF;
   - wrapping, starting from a vault key that exists only as a non-extractable `CryptoKey` plus its wrapped bytes: `rewrapVaultKey` succeeds, and the key unwrapped under the new kek decrypts data encrypted with the original key;
   - a wrong kek or username fails.
-- [ ] write tests: vault encrypt/decrypt round trip; fresh IV per call; one flipped byte → `auth_failed`; wrong-username AAD → `auth_failed`; bad magic
-- [ ] run `npm test` - must pass before Task 14
+- [x] write tests: vault encrypt/decrypt round trip; fresh IV per call; one flipped byte → `auth_failed`; wrong-username AAD → `auth_failed`; bad magic
+- [x] run `npm test` - must pass before Task 14
+- [x] ⚠️ the SyncID has **two** check characters (value mod 1021, a prime): one base32 character cannot detect every typo, and this avoids Crockford's `*~$=` symbols. The format is `BS1-` + seven groups of four.
+- [x] ➕ the derivation test vector was computed independently (Python `hashlib.pbkdf2_hmac` + RFC 5869 HKDF), not copied from WebCrypto output. Passwords are NFC-normalized before PBKDF2.
 
 ### Task 14: Three-way merge engine
 
@@ -636,17 +655,18 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/sync/merge.property.test.ts`
 - Create: `extension/test/arbitraries.ts`
 
-- [ ] implement `merge3(base, local, remote) → {doc, stats}` following the Merge rules definitions and every table row (existence, field merge, parent merge, child ordering, orphan relocation, cycle repair, immutable roots)
-- [ ] compute `stats`: adds/updates/moves/deletes per direction (toward local, toward remote) and resolved conflicts, for the guard and the popup summary
-- [ ] add fast-check arbitraries in `test/arbitraries.ts`: random valid trees and random edit scripts (add/rename/re-url/move/reorder/delete)
-- [ ] write table-driven tests for each Merge rules row, including:
+- [x] implement `merge3(base, local, remote) → {doc, stats}` following the Merge rules definitions and every table row (existence, field merge, parent merge, child ordering, orphan relocation, cycle repair, immutable roots)
+- [x] compute `stats`: adds/updates/moves/deletes per direction (toward local, toward remote) and resolved conflicts, for the guard and the popup summary
+- [x] add fast-check arbitraries in `test/arbitraries.ts`: random valid trees and random edit scripts (add/rename/re-url/move/reorder/delete)
+- [x] write table-driven tests for each Merge rules row, including:
   - add/add; edit/edit, same and different;
   - edit-vs-delete in both directions; delete vs reorder-only (stays deleted);
   - folder delete vs child add; move/move conflict;
   - move cycle (A→B locally, B→A remotely);
   - reorder on one side + insert on the other; both reorder.
-- [ ] write property tests: `merge3(b, x, b) ≡ x`, `merge3(b, b, x) ≡ x`, `merge3(b, x, x) ≡ x`; output always passes `validateTree`; deterministic; a node edited on exactly one side is never lost
-- [ ] run `npm test` - must pass before Task 15
+- [x] write property tests: `merge3(b, x, b) ≡ x`, `merge3(b, b, x) ≡ x`, `merge3(b, x, x) ≡ x`; output always passes `validateTree`; deterministic; a node edited on exactly one side is never lost
+- [x] run `npm test` - must pass before Task 15
+- [x] ➕ also verified with `FC_RUNS=5000` (about 19-node base trees, two edit scripts of up to 15 ops each); children of a folder the merge doesn't place by order rules are appended in guid order
 
 ### Task 15: First-sync matching for bootstrap, join and rejoin
 
@@ -654,13 +674,14 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/sync/first-sync.ts`
 - Create: `extension/src/sync/first-sync.test.ts`
 
-- [ ] implement `firstSync(local, remote | null) → {doc, guidRemap}`:
+- [x] implement `firstSync(local, remote | null) → {doc, guidRemap}`:
   - `remote == null` bootstraps the account from `local`.
   - Otherwise, match by GUID first, then by content top-down (see First sync), and return `guidRemap` so the idMap can rebind local ids to remote GUIDs.
-- [ ] place unmatched local nodes under their matched parent, after the nearest matched local predecessor; never delete or rename remote content
-- [ ] write tests: identical trees → no additions; partial overlap → no duplicates; duplicate URLs in one folder matched 1:1; same-titled folders under different parents not cross-matched
-- [ ] write tests: GUID match wins over content (renamed bookmark from an earlier membership is not duplicated); empty local; empty remote (bootstrap); unmatched local folder carries its whole subtree; result passes `validateTree`
-- [ ] run `npm test` - must pass before Task 16
+- [x] place unmatched local nodes under their matched parent, after the nearest matched local predecessor; never delete or rename remote content
+- [x] write tests: identical trees → no additions; partial overlap → no duplicates; duplicate URLs in one folder matched 1:1; same-titled folders under different parents not cross-matched
+- [x] write tests: GUID match wins over content (renamed bookmark from an earlier membership is not duplicated); empty local; empty remote (bootstrap); unmatched local folder carries its whole subtree; result passes `validateTree`
+- [x] run `npm test` - must pass before Task 16
+- [x] ➕ property test: for random overlapping trees the result is valid, keeps every remote node unchanged and accounts for every local node; a local guid that exists remotely as the other kind gets a fresh guid
 
 ### Task 16: Local extension state in IndexedDB
 
@@ -670,13 +691,13 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/storage/state.ts`
 - Create: `extension/src/storage/state.test.ts`
 
-- [ ] implement `db.ts`: minimal promise wrapper over IndexedDB (`booksync` DB, stores `kv` and `idmap`, versioned upgrade)
-- [ ] implement `state.ts` typed accessors for `session`, `vaultKey`, `sync` and `idMap` (entries `{guid, nativeUrl?}`), see Local extension state
-- [ ] implement `clearAccount()` (logout: everything) and `clearCredentials()` (401: only `deviceToken` + `vaultKey`); neither touches browser bookmarks
-- [ ] write tests (fake-indexeddb): round trip of each accessor; DB upgrade from empty; `clearAccount` wipes everything; `clearCredentials` keeps `base`, `idMap`, SyncID and `lastSeq`
-- [ ] write tests: idMap stays bidirectionally consistent on rebind/remove; vault `CryptoKey` persists, remains usable and non-extractable
-- [ ] ⚠️ if Node's structured clone cannot store `CryptoKey` under fake-indexeddb, cover that one assertion in the Task 24 e2e instead and note it here
-- [ ] run `npm test` - must pass before Task 17
+- [x] implement `db.ts`: minimal promise wrapper over IndexedDB (`booksync` DB, stores `kv` and `idmap`, versioned upgrade)
+- [x] implement `state.ts` typed accessors for `session`, `vaultKey`, `sync` and `idMap` (entries `{guid, nativeUrl?}`), see Local extension state
+- [x] implement `clearAccount()` (logout: everything) and `clearCredentials()` (401: only `deviceToken` + `vaultKey`); neither touches browser bookmarks
+- [x] write tests (fake-indexeddb): round trip of each accessor; DB upgrade from empty; `clearAccount` wipes everything; `clearCredentials` keeps `base`, `idMap`, SyncID and `lastSeq`
+- [x] write tests: idMap stays bidirectionally consistent on rebind/remove; vault `CryptoKey` persists, remains usable and non-extractable
+- [x] Node's structured clone stores `CryptoKey` under fake-indexeddb, so the e2e fallback isn't needed (a unit test covers it)
+- [x] run `npm test` - must pass before Task 17
 
 ### Task 17: Browser bookmark adapters for Chromium and Firefox
 
@@ -688,15 +709,15 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/browser/firefox.test.ts`
 - Create: `extension/test/fakes/bookmarks.ts`
 
-- [ ] define the `BookmarksAdapter` interface (`flavor`, `readTree`, `resolveRoots(pins)`, `create`, `update`, `move`, `remove`, `events`) and the `LocalNode` type. Write positions are sync-space indices plus the target folder's sync children; the adapter does the index translation (see Browser mapping).
-- [ ] implement the Chromium adapter:
+- [x] define the `BookmarksAdapter` interface (`flavor`, `readTree`, `resolveRoots(pins)`, `create`, `update`, `move`, `remove`, `events`) and the `LocalNode` type. Write positions are sync-space indices plus the target folder's sync children; the adapter does the index translation (see Browser mapping).
+- [x] implement the Chromium adapter:
   - resolve roots by `folderType`, preferring `syncing !== true`, with fallback to ids `1/2/3`;
   - check pins: a missing pinned root → `roots_changed`; a pinned root with `syncing === true` → `nativeSyncDetected`;
   - skip `managed` folders;
   - discover or create the "Bookmarks Menu" folder and pin it;
   - apply Chrome's same-parent `move` +1 rule.
-- [ ] implement the Firefox adapter: fixed root GUIDs; separators filtered on read; sync ↔ native index translation around separators; `events` built only from APIs that exist (Firefox lacks `onChildrenReordered`, `onImportBegan`, `onImportEnded`)
-- [ ] implement `test/fakes/bookmarks.ts` with fidelity per flavor:
+- [x] implement the Firefox adapter: fixed root GUIDs; separators filtered on read; sync ↔ native index translation around separators; `events` built only from APIs that exist (Firefox lacks `onChildrenReordered`, `onImportBegan`, `onImportEnded`)
+- [x] implement `test/fakes/bookmarks.ts` with fidelity per flavor:
   - root ids;
   - Chrome's pre-removal index for same-parent `move`, versus Firefox's final index;
   - URL canonicalization on save (trailing slash for bare hosts, lowercase host, punycode);
@@ -704,9 +725,11 @@ CREATE TABLE vault_versions (
   - Firefox separators and privileged-URL rejection;
   - an unmodifiable Chromium managed folder;
   - each flavor's own event set.
-- [ ] write tests (Chromium): root resolution for legacy, `folderType`, and local + account storage variants; missing pin → `roots_changed`; `syncing` flip → `nativeSyncDetected`; menu folder rediscovered rather than duplicated; same-parent moves up and down land at the intended sync index
-- [ ] write tests (Firefox): separators hidden from reads; creates and moves land at the correct native index with separators present; privileged URL create rejects with a recognizable error; missing event APIs don't throw
-- [ ] run `npm test` - must pass before Task 18
+- [x] write tests (Chromium): root resolution for legacy, `folderType`, and local + account storage variants; missing pin → `roots_changed`; `syncing` flip → `nativeSyncDetected`; menu folder rediscovered rather than duplicated; same-parent moves up and down land at the intended sync index
+- [x] write tests (Firefox): separators hidden from reads; creates and moves land at the correct native index with separators present; privileged URL create rejects with a recognizable error; missing event APIs don't throw
+- [x] run `npm test` - must pass before Task 18
+- [x] ⚠️ refinement: writes are positioned by **anchor** (`create(parent, afterId)` / `moveAfter(id, parent, afterId)`), and the adapter computes the native index from the folder's current children at write time. That covers separators, skipped nodes, the menu folder and both move semantics without a separate sync↔native index mapping. Firefox's final-position semantics were confirmed in its Places implementation.
+- [x] ➕ a root this Firefox lacks is left unpinned and carried from `base` like the Chromium menu folder; `ensureRoot` rejects writes into it with `BookmarkRejectedError`
 
 ### Task 18: Local tree projection
 
@@ -714,15 +737,17 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/browser/projection.ts`
 - Create: `extension/src/browser/projection.test.ts`
 
-- [ ] implement `project(adapter, idMap, base, skipped, pins) → VaultDoc`:
+- [x] implement `project(adapter, idMap, base, skipped, pins) → VaultDoc`:
   - map roots to canonical GUIDs;
   - map local ids to GUIDs, allocating and persisting new ones;
   - exclude the pinned menu folder from Other's children and project it as `menu________`.
-- [ ] when the pinned menu folder is missing, carry the `menu________` subtree over from `base` (never a deletion); re-insert `skipped` nodes from `base` after their base predecessor
-- [ ] emit the vault URL whenever the native URL equals the entry's `nativeUrl` (canonicalization is not an edit)
-- [ ] write tests: stable GUIDs across repeated projections; new local nodes get fresh GUIDs; the menu folder maps to `menu________` on Chromium; deleting the menu folder yields no deletions of menu content
-- [ ] write tests: skipped node re-inserted at the right position; skipped node whose parent vanished is dropped; a browser-rewritten URL projects as the vault URL while a real user URL edit is still detected; output passes `validateTree` for both flavors
-- [ ] run `npm test` - must pass before Task 19
+- [x] when the pinned menu folder is missing, carry the `menu________` subtree over from `base` (never a deletion); re-insert `skipped` nodes from `base` after their base predecessor
+- [x] emit the vault URL whenever the native URL equals the entry's `nativeUrl` (canonicalization is not an edit)
+- [x] write tests: stable GUIDs across repeated projections; new local nodes get fresh GUIDs; the menu folder maps to `menu________` on Chromium; deleting the menu folder yields no deletions of menu content
+- [x] write tests: skipped node re-inserted at the right position; skipped node whose parent vanished is dropped; a browser-rewritten URL projects as the vault URL while a real user URL edit is still detected; output passes `validateTree` for both flavors
+- [x] run `npm test` - must pass before Task 19
+- [x] ➕ `project()` takes the `LocalTree` the adapter already read, so it stays nearly pure. New GUID bindings are persisted in one transaction (`IdMap.setMany`). Any root absent locally is carried from `base`, not only the menu, and a carried node the browser shows elsewhere is not duplicated.
+- [x] ➕ `matchKey` ignores an empty trailing `#`, so browsers that disagree about it still dedupe on join
 
 ### Task 19: Typed API client and fake server
 
@@ -732,13 +757,13 @@ CREATE TABLE vault_versions (
 - Create: `extension/test/fakes/server.ts`
 - Create: `extension/test/fakes/server.test.ts`
 
-- [ ] define the `ApiClient` interface for every endpoint in the Server API table (incl. password `rotation`), and implement `HttpApiClient(baseUrl, getToken)` with binary vault bodies as `Uint8Array`
-- [ ] implement `getVault(ifNoneMatch?)` → `ok | not_modified | empty`, and `putVault(body, expected: number | 'none')` → `{version} | {conflict}`
-- [ ] map errors to typed `ApiError` (`unauthorized`, `invalid_credentials`, `rate_limited` + `retryAfter`, `version_conflict`, `too_large`, `network`, `server`); refuse non-HTTPS server URLs except `localhost`/`127.0.0.1`
-- [ ] implement `test/fakes/server.ts`: in-memory `ApiClient` with users, devices, versioned vault, 304/412 semantics, retention-free history and rotation
-- [ ] write tests (mocked `fetch`): method, path, headers and body per endpoint; ETag round trip; 304/404/412 handling; error mapping incl. `Retry-After`; non-HTTPS rejection
-- [ ] write tests for the fake server's conflict, history and rotation semantics, so later tests rely on correct behavior
-- [ ] run `npm test` - must pass before Task 20
+- [x] define the `ApiClient` interface for every endpoint in the Server API table (incl. password `rotation`), and implement `HttpApiClient(baseUrl, getToken)` with binary vault bodies as `Uint8Array`
+- [x] implement `getVault(ifNoneMatch?)` → `ok | not_modified | empty`, and `putVault(body, expected: number | 'none')` → `{version} | {conflict}`
+- [x] map errors to typed `ApiError` (`unauthorized`, `invalid_credentials`, `rate_limited` + `retryAfter`, `version_conflict`, `too_large`, `network`, `server`); refuse non-HTTPS server URLs except `localhost`/`127.0.0.1`
+- [x] implement `test/fakes/server.ts`: in-memory `ApiClient` with users, devices, versioned vault, 304/412 semantics, retention-free history and rotation
+- [x] write tests (mocked `fetch`): method, path, headers and body per endpoint; ETag round trip; 304/404/412 handling; error mapping incl. `Retry-After`; non-HTTPS rejection
+- [x] write tests for the fake server's conflict, history and rotation semantics, so later tests rely on correct behavior
+- [x] run `npm test` - must pass before Task 20
 
 ### Task 20: Applying the merged tree to the browser
 
@@ -746,17 +771,23 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/browser/apply.ts`
 - Create: `extension/src/browser/apply.test.ts`
 
-- [ ] implement `diffTrees(localProjection, merged) → ops`, ordered as folder creates (top-down), bookmark creates, title/url updates, per-folder moves and reorders (minimal moves), then removals bottom-up using `remove` only (no `removeTree`)
-- [ ] implement `applyOps(adapter, ops, idMap, skipped)`:
+- [x] implement `diffTrees(localProjection, merged) → ops`, ordered as folder creates (top-down), bookmark creates, title/url updates, per-folder moves and reorders (minimal moves), then removals bottom-up using `remove` only (no `removeTree`)
+- [x] implement `applyOps(adapter, ops, idMap, skipped)`:
   - persist each `idMap` entry, with `nativeUrl` read back from the browser, as soon as its call resolves;
   - a create the browser rejects goes into `skipped`, and the apply continues;
   - `remove` on a non-empty folder → `ConcurrentEditError`;
   - any other failure aborts.
-- [ ] implement `rebindPending(localNodes, pendingApply, idMap)` for crash recovery (exact match on parent GUID, kind, title, URL), and drop GUIDs from `skipped` once `merged` no longer contains them
-- [ ] write tests: op ordering (parent before child, removals last); a single reorder needs one move; applying to the Chromium and Firefox fakes, including their URL rewriting and move semantics, yields a projection `treesEqual` to `merged`
-- [ ] write tests: privileged URL on Firefox → skipped and not seen as a local deletion on the next projection; a folder that gains a child before its removal → `ConcurrentEditError` and the child survives
-- [ ] write a test for an apply stopped after k ops without throwing (discard in-memory state, rebuild from storage): `rebindPending` + re-projection yields no duplicates
-- [ ] run `npm test` - must pass before Task 21
+- [x] implement `rebindPending(localNodes, pendingApply, idMap)` for crash recovery (exact match on parent GUID, kind, title, URL), and drop GUIDs from `skipped` once `merged` no longer contains them
+- [x] write tests: op ordering (parent before child, removals last); a single reorder needs one move; applying to the Chromium and Firefox fakes, including their URL rewriting and move semantics, yields a projection `treesEqual` to `merged`
+- [x] write tests: privileged URL on Firefox → skipped and not seen as a local deletion on the next projection; a folder that gains a child before its removal → `ConcurrentEditError` and the child survives
+- [x] write a test for an apply stopped after k ops without throwing (discard in-memory state, rebuild from storage): `rebindPending` + re-projection yields no duplicates
+- [x] run `npm test` - must pass before Task 21
+- [x] ⚠️ refinement: `diffTrees` became `planOps(local, merged, hasNativeNode, skipped)`.
+  - Structure ops (creates and moves) are emitted per folder top-down in merged order. Nodes on the longest increasing subsequence of current positions stay put, so moves are minimal; then updates, then removals bottom-up.
+  - `applyOps` resolves anchors at execution time and creates absent roots via `ensureRoot`.
+  - A refused URL *update* removes the stale native copy and marks the guid skipped.
+  - `pruneSkipped` drops skipped guids that merged no longer has.
+  - Projection nodes without a browser node (carried roots) are re-created unless skipped.
 
 ### Task 21: Sync engine orchestration, guard and recovery actions
 
@@ -767,32 +798,35 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/sync/guard.test.ts`
 - Create: `extension/src/sync/convergence.property.test.ts`
 
-- [ ] implement `syncOnce(deps, {confirmation?})` exactly as in the Sync algorithm (steps 0–9, budget of 3 restarts), returning and persisting `SyncResult` (`ok`, `needs_confirmation`, `conflict_exhausted`, `rollback_detected`, `roots_changed`, `native_sync_detected`, `error`)
-- [ ] implement `guard.ts`: block when deletions in either direction exceed 25 % of nodes **and** number at least 20; produce `pendingConfirmation = {remoteVersion, deletionsToLocal, deletionsToRemote}`; accept a confirmation only for the same `remoteVersion` and no more deletions than confirmed
-- [ ] implement recovery actions:
+- [x] implement `syncOnce(deps, {confirmation?})` exactly as in the Sync algorithm (steps 0–9, budget of 3 restarts), returning and persisting `SyncResult` (`ok`, `needs_confirmation`, `conflict_exhausted`, `rollback_detected`, `roots_changed`, `native_sync_detected`, `error`)
+- [x] implement `guard.ts`: block when deletions in either direction exceed 25 % of nodes **and** number at least 20; produce `pendingConfirmation = {remoteVersion, deletionsToLocal, deletionsToRemote}`; accept a confirmation only for the same `remoteVersion` and no more deletions than confirmed
+- [x] implement recovery actions:
   - `useLocalVersion()` and `acceptServerVersion()` for `rollback_detected`;
   - `rejoin()` for `roots_changed`: re-pin, discard `base`, run `firstSync`.
-- [ ] write tests:
+- [x] write tests:
   - first-device bootstrap and second-device join (no duplicates);
   - local-only change uploads, remote-only change applies;
   - a 304 makes no PUT;
   - 412 retry, then success, and `conflict_exhausted` after 3 restarts.
-- [ ] write tests:
+- [x] write tests:
   - lower `seq` → `rollback_detected`, and both recovery actions;
   - empty vault after a previous sync → `rollback_detected`;
   - the guard blocks in both directions;
   - a confirmation reused against a different remote version asks again;
   - an event-counter change before apply restarts the run and no user edit is lost.
-- [ ] write tests:
+- [x] write tests:
   - `pendingApply` crash recovery;
   - re-login with the same `userId` and an existing `base` uses `merge3`, so deletions made before the revocation are not undone;
   - `roots_changed` → `rejoin` never deletes.
-- [ ] write the convergence property test:
+- [x] write the convergence property test:
   - 2–3 simulated devices (Chromium and Firefox fakes with URL rewriting) against one fake server;
   - random interleavings of edits and syncs;
   - after a final round, every projection is `treesEqual` and valid;
   - **settle:** one more round produces zero browser ops and zero PUTs.
-- [ ] run `npm test` - must pass before Task 22
+- [x] run `npm test` - must pass before Task 22
+- [x] ➕ `test/harness.ts` (`World`/`Device`): one fake server plus N simulated browsers with real IndexedDB state.
+- [x] ➕ The convergence property was mutation-tested: disabling the projection's URL-rewrite handling makes it fail, shrinking to "one bookmark ending in `#`, two devices". It also passes 300 runs (about 20 user edits per run, up to 22 nodes).
+- [x] ➕ Recovery is passed as options to `syncOnce` (`recovery: 'use_local' | 'accept_remote'`, `rejoin`, `confirmation`, `force`) rather than as separate functions. A `roots_changed` state resolves itself when the pinned roots reappear.
 
 ### Task 22: Background scheduler and message bus
 
@@ -804,31 +838,34 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/background/router.test.ts`
 - Modify: `extension/src/background/index.ts`
 
-- [ ] implement the scheduler:
+- [x] implement the scheduler:
   - single-flight sync with a "dirty" re-run flag;
   - listeners only for the events the adapter reports, debounced by 3 s, and counted into the engine's event counter;
   - events during apply mark the scheduler dirty instead of being dropped;
   - Chromium `onImportBegan/onImportEnded` pause syncing.
-- [ ] create the `poll` alarm (1 min) idempotently (`alarms.get` → create) at top level, in `onInstalled` and in `onStartup`, since alarms may not survive a browser restart; sync on `runtime.onStartup`
-- [ ] implement backoff and pause state:
+- [x] create the `poll` alarm (1 min) idempotently (`alarms.get` → create) at top level, in `onInstalled` and in `onStartup`, since alarms may not survive a browser restart; sync on `runtime.onStartup`
+- [x] implement backoff and pause state:
   - backoff on network/server errors (30 s → 15 min, jittered) and `Retry-After` are persisted as `nextAttemptAt`, which every alarm checks, because service-worker timers die after ~30 s idle;
   - `unauthorized` → `clearCredentials()` and status `signed_out`;
   - `pause`/`resume` state is persisted.
-- [ ] define the typed request/response union in `messages.ts`:
+- [x] define the typed request/response union in `messages.ts`:
   - sync: `getStatus`, `syncNow`, `pauseSync`, `resumeSync`, `confirmPendingSync`, `useLocalVersion`, `acceptServerVersion`, `rejoin`, `acknowledgeNativeSync`;
   - account: `register`, `login`, `logout`, `listDevices`, `revokeDevice`, `changePassword`, `deleteAccount`, `getEmergencyKit`;
   - history: `listVersions`, `restoreVersion`.
-- [ ] implement `router.ts` as a handler registry: it validates and dispatches. Sync handlers are registered here; account handlers are added in Task 23 and history handlers in Task 26.
-- [ ] publish status to `storage.session` so the popup and options pages update via `storage.onChanged`
-- [ ] write tests (fake timers):
+- [x] implement `router.ts` as a handler registry: it validates and dispatches. Sync handlers are registered here; account handlers are added in Task 23 and history handlers in Task 26.
+- [x] publish status to `storage.session` so the popup and options pages update via `storage.onChanged`
+- [x] write tests (fake timers):
   - debounce coalesces bursts;
   - single-flight + dirty re-run;
   - events during apply produce exactly one no-op follow-up;
   - persisted backoff is respected after a simulated service-worker restart;
   - `Retry-After`;
   - 401 keeps `base`, `idMap` and SyncID.
-- [ ] write tests: the alarm is created once across repeated startups; a Firefox fake without `onChildrenReordered`/`onImport*` starts cleanly; pause/resume; the router rejects unknown and malformed messages and dispatches registered handlers
-- [ ] run `npm test` - must pass before Task 23
+- [x] write tests: the alarm is created once across repeated startups; a Firefox fake without `onChildrenReordered`/`onImport*` starts cleanly; pause/resume; the router rejects unknown and malformed messages and dispatches registered handlers
+- [x] run `npm test` - must pass before Task 23
+- [x] ➕ 401 handling lives in the engine (it owns the state change). The scheduler restores the previous status when a run did nothing (paused, backoff, no session).
+- [x] ➕ `StateStore.lazy()` lets the background register every listener synchronously before IndexedDB has opened, as MV3 requires.
+- [x] ➕ `npm run check` (typecheck + lint + tests) gates every commit from here on.
 
 ### Task 23: Account flows: register, login, password change, delete
 
@@ -839,23 +876,24 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/background/emergency-kit.test.ts`
 - Modify: `extension/src/background/index.ts`
 
-- [ ] implement `register`: prelogin (`assertKdfParams`) → generate SyncID → derive → `createVaultKey` → `POST /register` → persist session (incl. `wrappedVaultKey`), SyncID and key → bootstrap sync; return the SyncID and kit
-- [ ] implement `login`: prelogin (`assertKdfParams`) → derive → login (`assertKdfParams` on the response) → unwrap the vault key (failure → `invalid_credentials`) → persist. Resume with `merge3` when `userId` matches the stored one and `base` exists; otherwise clear the old state and join (`firstSync`). The SyncID field is pre-filled after a 401 sign-out.
-- [ ] implement `logout` (revoke + `clearAccount`) and `deleteAccount(password)`
-- [ ] implement `changePassword(current, next, {rotateKeys})`:
+- [x] implement `register`: prelogin (`assertKdfParams`) → generate SyncID → derive → `createVaultKey` → `POST /register` → persist session (incl. `wrappedVaultKey`), SyncID and key → bootstrap sync; return the SyncID and kit
+- [x] implement `login`: prelogin (`assertKdfParams`) → derive → login (`assertKdfParams` on the response) → unwrap the vault key (failure → `invalid_credentials`) → persist. Resume with `merge3` when `userId` matches the stored one and `base` exists; otherwise clear the old state and join (`firstSync`). The SyncID field is pre-filled after a 401 sign-out.
+- [x] implement `logout` (revoke + `clearAccount`) and `deleteAccount(password)`
+- [x] implement `changePassword(current, next, {rotateKeys})`:
   - plain: `rewrapVaultKey` from the stored wrapped bytes; this device stays signed in;
   - `rotateKeys`: sync first, generate a new SyncID and vault key, encrypt `base` with `seq = lastSeq + 1`, and send it as `rotation`. On 412, sync and retry. Return the new kit.
-- [ ] implement `emergency-kit.ts`: plaintext kit with server URL, username, SyncID, creation date and recovery warning, never the password; enforce a 10-character minimum password client-side; register the account handlers with the router
-- [ ] write tests (fake server, reduced iterations):
+- [x] implement `emergency-kit.ts`: plaintext kit with server URL, username, SyncID, creation date and recovery warning, never the password; enforce a 10-character minimum password client-side; register the account handlers with the router
+- [x] write tests (fake server, reduced iterations):
   - register on device 1, then login on device 2, recovers the same vault key;
   - wrong password or wrong SyncID → `invalid_credentials`;
   - a downgraded prelogin is rejected.
-- [ ] write tests:
+- [x] write tests:
   - plain `changePassword`: old password fails, new one works, other devices revoked, history kept;
   - rotation: the old SyncID fails, a new kit is returned, another device decrypts after re-login, and history holds one version;
   - `deleteAccount` clears local state;
   - the kit contains the SyncID and never the password.
-- [ ] run `npm test` - must pass before Task 24
+- [x] run `npm test` - must pass before Task 24
+- [x] ➕ `Account` takes a `KdfPolicy`: production uses 600k iterations and strict checks; tests use 1000 with `allowWeak`. `changePassword` checks the current password locally (by unwrapping) before calling the server. Rotation retries up to 3 times on `version_conflict`.
 
 ### Task 24: Options page and e2e harness
 
@@ -868,13 +906,13 @@ CREATE TABLE vault_versions (
 - Create: `extension/e2e/fixtures.ts`
 - Create: `extension/e2e/options.spec.ts`
 
-- [ ] build the server step: validate the URL (HTTPS unless localhost); call `permissions.request` for the origin **synchronously at the top of the click handler, before any `await`**, or Firefox loses the user gesture; then probe `/healthz`
-- [ ] build the sign-up form:
+- [x] build the server step: validate the URL (HTTPS unless localhost); call `permissions.request` for the origin **synchronously at the top of the click handler, before any `await`**, or Firefox loses the user gesture; then probe `/healthz`
+- [x] build the sign-up form:
   - show the SyncID once;
   - offer "Download emergency kit" (.txt);
   - require the "I saved my SyncID" checkbox before continuing.
-- [ ] build the sign-in form: username, password, SyncID with live format validation, pre-filled after a 401 sign-out
-- [ ] build the signed-in view:
+- [x] build the sign-in form: username, password, SyncID with live format validation, pre-filled after a 401 sign-out
+- [x] build the signed-in view:
   - account info and "Show SyncID / download kit";
   - native-sync warning with acknowledgment (Chromium);
   - "Re-pin and rejoin" when roots changed;
@@ -882,13 +920,19 @@ CREATE TABLE vault_versions (
   - change password, with an "a device was lost — rotate keys" option;
   - delete account (type the username to confirm);
   - logout.
-- [ ] implement the Playwright fixture: `go build` the server → spawn it on a free port with a temp DB → launch a Chromium persistent context with `dist-e2e/chromium` → resolve the extension id from the service worker URL
-- [ ] write e2e tests:
+- [x] implement the Playwright fixture: `go build` the server → spawn it on a free port with a temp DB → launch a Chromium persistent context with `dist-e2e/chromium` → resolve the extension id from the service worker URL
+- [x] write e2e tests:
   - registration shows the SyncID and the kit downloads;
   - after logout, sign-in with a wrong SyncID shows an error and the correct one succeeds;
   - the devices list shows the current device, and revoking a device works.
-- [ ] write an e2e test: change password with rotation → logout → sign-in needs the new SyncID and the bookmarks are intact
-- [ ] run `npm test && npm run e2e` - must pass before Task 25
+- [x] write an e2e test: change password with rotation → logout → sign-in needs the new SyncID and the bookmarks are intact
+- [x] run `npm test && npm run e2e` - must pass before Task 25
+- [x] ⚠️ **Real Chromium finding.** Desktop Chromium hides "Mobile bookmarks" while it is empty, and the API can then neither read nor write it. Mobile is therefore optional on Chromium (toolbar and other remain required), and the fake now reproduces the hiding.
+- [x] ⚠️ The convergence property (run up to 3,000 times) then found four real bugs around unavailable roots, all fixed:
+  - (a) a native node moved into an unavailable folder must be dropped and marked skipped, not left in place;
+  - (b) a native node placed under a skipped folder needs the same treatment;
+  - (c) stale id-map bindings of user-deleted bookmarks are now pruned at projection;
+  - (d) "skipped" is no longer permanent: virtual nodes are retried on every apply, so they appear once they become placeable.
 
 ### Task 25: Toolbar popup: status, sync now, confirmations
 
@@ -898,7 +942,7 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/ui/popup/popup.css`
 - Create: `extension/e2e/popup.spec.ts`
 
-- [ ] render the popup states:
+- [x] render the popup states:
   - signed out (button opening the options page);
   - syncing;
   - ok ("last synced 2 min ago");
@@ -907,11 +951,12 @@ CREATE TABLE vault_versions (
   - `needs_confirmation` (counts per direction, with Confirm and Pause sync);
   - `rollback_detected` ("Use this browser's bookmarks" / "Accept server version", with an explanation);
   - `native_sync_detected` and `roots_changed` (link to options).
-- [ ] add "Sync now" and "Pause/Resume" buttons, with live updates via `storage.onChanged`
-- [ ] set the toolbar badge `!` on error or any state needing action; clear it on `ok`
-- [ ] write e2e tests: popup shows ok after the sign-in sync; Sync now triggers a sync (server version increments); Pause stops syncing until Resume
-- [ ] write an e2e test for mass deletion: seed 40 bookmarks, sync, delete 30 via the service worker → popup asks for confirmation → Confirm applies and the server reflects it
-- [ ] run `npm test && npm run e2e` - must pass before Task 26
+- [x] add "Sync now" and "Pause/Resume" buttons, with live updates via `storage.onChanged`
+- [x] set the toolbar badge `!` on error or any state needing action; clear it on `ok`
+- [x] write e2e tests: popup shows ok after the sign-in sync; Sync now triggers a sync (server version increments); Pause stops syncing until Resume
+- [x] write an e2e test for mass deletion: seed 40 bookmarks, sync, delete 30 via the service worker → popup asks for confirmation → Confirm applies and the server reflects it
+- [x] run `npm test && npm run e2e` - must pass before Task 26
+- [x] ➕ `badge.ts` (pure, unit-tested) shows `!` when the user is needed and `‖` when paused. `StatusView` gained `version`. Pausing and account changes now publish status immediately (`scheduler.publish()`, `Account.publish`). The e2e login helper waits for the page to settle; an earlier race made it flaky.
 
 ### Task 26: Version history and restore
 
@@ -923,18 +968,19 @@ CREATE TABLE vault_versions (
 - Modify: `extension/src/ui/options/options.ts`
 - Modify: `extension/e2e/options.spec.ts`
 
-- [ ] implement `restoreVersion(v)`:
+- [x] implement `restoreVersion(v)`:
   - GET and decrypt the **current** vault, then fetch and decrypt version `v`;
   - set `seq = max(current.seq, lastSeq) + 1`;
   - PUT with `If-Match` current, recomputing `seq` on every 412 retry;
   - run `syncOnce` with a confirmation bound to the version it just wrote, so this browser follows; other browsers pick it up through a normal merge.
-- [ ] register the history handlers with the router; add an options "History" section (version, date, device, size) with Restore behind a confirmation dialog, noting that versions from before a key rotation are gone
-- [ ] write tests:
+- [x] register the history handlers with the router; add an options "History" section (version, date, device, size) with Restore behind a confirmation dialog, noting that versions from before a key rotation are gone
+- [x] write tests:
   - a restoring device at least 2 `seq` behind still writes a `seq` above every device's `lastSeq`;
   - other devices accept it without `rollback_detected`;
   - a concurrent write during restore → 412 → recompute and retry succeeds.
-- [ ] write an e2e test: add bookmarks → restore an earlier version → the added bookmarks disappear locally
-- [ ] run `npm test && npm run e2e` - must pass before Task 27
+- [x] write an e2e test: add bookmarks → restore an earlier version → the added bookmarks disappear locally
+- [x] run `npm test && npm run e2e` - must pass before Task 27
+- [x] ➕ History handlers live in `background/index.ts`. The restore confirmation is an inline "Yes, restore" button instead of a native dialog. The confirmation passed to the follow-up sync covers any number of deletions, but only for the version the restore wrote.
 
 ### Task 27: Cross-profile end-to-end sync test
 
@@ -942,17 +988,18 @@ CREATE TABLE vault_versions (
 - Create: `extension/e2e/sync.spec.ts`
 - Modify: `extension/e2e/fixtures.ts`
 
-- [ ] extend the fixture with two Chromium profiles (A, B) on one server, plus helpers to run `chrome.bookmarks.*` in each service worker and to trigger `syncNow`
-- [ ] write an e2e test: A registers with existing bookmarks; B, with overlapping bookmarks, signs in → both trees identical, no duplicates
-- [ ] write e2e tests:
+- [x] extend the fixture with two Chromium profiles (A, B) on one server, plus helpers to run `chrome.bookmarks.*` in each service worker and to trigger `syncNow`
+- [x] write an e2e test: A registers with existing bookmarks; B, with overlapping bookmarks, signs in → both trees identical, no duplicates
+- [x] write e2e tests:
   - create, rename, move and delete in A show up in B after sync;
   - A deletes a folder while B adds a child → the child survives in the nearest ancestor on both.
-- [ ] write an e2e test for real Chromium move semantics: reorder within a folder in A (moves up and down, plus URLs Chrome canonicalizes) → identical order and URLs in B, and one more sync round on each profile uploads nothing
-- [ ] write an e2e test for the event-driven path: a bookmark created in A with no manual sync → the server version increments within 10 s
-- [ ] write an e2e test for E2EE at rest:
+- [x] write an e2e test for real Chromium move semantics: reorder within a folder in A (moves up and down, plus URLs Chrome canonicalizes) → identical order and URLs in B, and one more sync round on each profile uploads nothing
+- [x] write an e2e test for the event-driven path: a bookmark created in A with no manual sync → the server version increments within 10 s
+- [x] write an e2e test for E2EE at rest:
   - stop the server, then confirm a unique seeded title and URL appear in none of `booksync.db`, `booksync.db-wal` or `booksync.db-shm`;
   - the stored vault bytes after `BSV1 ‖ iv` are not a gzip stream (no `1f 8b` prefix).
-- [ ] run `npm run e2e` - must pass before Task 28
+- [x] run `npm run e2e` - must pass before Task 28
+- [x] ➕ the suite was stable across `--repeat-each=2` (28/28). The at-rest test reads the stored vault through the API with the profile's device token, and also checks that the test password never appears in the database files.
 
 ### Task 28: CI pipeline and release packaging
 
@@ -962,19 +1009,20 @@ CREATE TABLE vault_versions (
 - Modify: `extension/package.json`
 - Modify: `extension/scripts/manifest.test.ts`
 
-- [ ] add CI jobs:
+- [x] add CI jobs:
   - `go`: gofmt check, `go vet`, golangci-lint, `go test -race ./...`;
   - `extension`: `npm ci`, typecheck, lint, test, build, `web-ext lint`;
   - `e2e`: needs both; Playwright Chromium + the Go toolchain;
   - `docker-smoke`: runs `deploy/smoke.sh`.
-- [ ] add `make test` (Go + extension unit tests), `make e2e`, and `make package`, which produces `booksync-chromium-<ver>.zip` and `booksync-firefox-<ver>.zip` (via `web-ext build`)
-- [ ] make `package.json` the single source of the extension version; the server version comes from the git tag via `-X main.version`
-- [ ] write tests: manifest version stamping and package naming in `manifest.test.ts`
-- [ ] run `make test` locally - must pass before Task 29
+- [x] add `make test` (Go + extension unit tests), `make e2e`, and `make package`, which produces `booksync-chromium-<ver>.zip` and `booksync-firefox-<ver>.zip` (via `web-ext build`)
+- [x] make `package.json` the single source of the extension version; the server version comes from the git tag via `-X main.version`
+- [x] write tests: manifest version stamping and package naming in `manifest.test.ts`
+- [x] run `make test` locally - must pass before Task 29
+- [x] ➕ Actions are pinned to the current majors (checkout/setup-go/setup-node/upload-artifact v7, golangci-lint-action v9 running golangci-lint v2.14.0). The e2e job installs Playwright's Chromium; locally the fixture falls back to `/opt/pw-browsers/chromium` or `CHROMIUM_PATH`. Every CI command was run locally. `make test` runs `npm run check` for the extension.
 
 ### Task 29: Verify acceptance criteria
-- [ ] verify all eight acceptance criteria from the Overview are implemented, each mapped to at least one automated test (criterion 8 → `docker-smoke`)
-- [ ] verify edge cases:
+- [x] verify all eight acceptance criteria from the Overview are implemented, each mapped to at least one automated test (criterion 8 → `docker-smoke`)
+- [x] verify edge cases:
   - separators, privileged URLs, URL canonicalization;
   - the menu folder on Chromium (deleted, rediscovered); account-storage and native-sync roots;
   - rollback after a server backup restore;
@@ -983,19 +1031,32 @@ CREATE TABLE vault_versions (
   - an apply interrupted mid-way;
   - a 401 followed by re-login;
   - key rotation.
-- [ ] run the full test suite: `make test`
-- [ ] run the e2e tests: `make e2e`
-- [ ] verify coverage: `go test -cover ./...` ≥ 80 % for `internal/...`; `npx vitest run --coverage` ≥ 90 % for `src/sync`, `src/crypto` and `src/browser`
+- [x] run the full test suite: `make test`
+- [x] run the e2e tests: `make e2e`
+- [x] verify coverage: `go test -cover ./...` ≥ 80 % for `internal/...`; `npx vitest run --coverage` ≥ 90 % for `src/sync`, `src/crypto` and `src/browser`
+- [x] ➕ Criteria → tests:
+  1. e2e `registers, shows the SyncID once and downloads the emergency kit`; `account.test.ts` registration.
+  2. `engine.test.ts` `joins a second device without duplicates` (Chromium + Firefox fakes); e2e `joins a second profile without duplicates` (real Chromium).
+  3. e2e `propagates creates, renames, moves and deletes`, `reorders with real Chromium move semantics…`, `uploads a local change by itself` (debounce → upload, no manual sync); `scheduler.test.ts` (3 s debounce, 1 min poll alarm).
+  4. `convergence.property.test.ts` (mixed Chromium/Firefox devices; converged, then zero writes and zero uploads); `engine.test.ts` `makes no browser writes and no upload when nothing changed`.
+  5. e2e `stores only ciphertext on the server`; `account.test.ts` `rejects a wrong password, a wrong SyncID and a mistyped SyncID`; `auth_handlers_test.go` `TestLoginFailuresAreIndistinguishable`.
+  6. `engine.test.ts` mass-deletion guard suite; e2e `asks before a mass deletion…`; `vault_test.go` `TestVaultRetention`; e2e `restores an earlier version from the history`.
+  7. e2e `lists devices and signs another browser out`, `rotates keys on password change…`; `account_handlers_test.go` `TestDeleteAccount`, `TestChangePasswordWithRotation`; `users_test.go` `TestDeleteUserCascades`.
+  8. `deploy/smoke.sh` (`docker-smoke` CI job).
+- [x] ➕ Edge cases: each has a named test (separators and privileged URLs in `firefox.test.ts`; canonical URLs in `apply.test.ts` and e2e; menu folder deleted/rediscovered in `chromium.test.ts`; account-storage and native-sync roots in `chromium.test.ts` and `engine.test.ts`; rollback suite and stale confirmation in `engine.test.ts`; 412 retry and `gives up after repeated conflicts` plus scheduler backoff; interrupted apply in `apply.test.ts` and `engine.test.ts`; 401 then re-login in `engine.test.ts` and `account.test.ts`; key rotation in `account.test.ts` and e2e).
+- [x] ➕ Results: `make test` (Go `-race` + 314 vitest), `make lint` and `make e2e` (14 tests) pass. Coverage: Go `internal/api` 88.1 %, `auth` 96.2 %, `config` 97.2 %, `store` 80.6 %; vitest statements `src/sync` 98.7 %, `src/crypto` 98.5 %, `src/browser` 95.3 % (branches 92.7 / 90.9 / 84.0 %).
+- [x] ⚠️ `go test ./...` walked into `extension/node_modules` (npm's `flatted` ships a Go package). `go.mod` now has `ignore ./extension` (Go 1.25+).
 
 ### Task 30: [Final] Update documentation
-- [ ] write `README.md`:
+- [x] write `README.md`:
   - what and why, architecture diagram, security model summary (incl. "lost device → rotate keys");
   - self-hosting with docker compose, plus closing registration and backups (and what to do on `rollback_detected` after restoring one);
   - installing the extension (unpacked builds and stores);
   - development setup and test commands.
-- [ ] write `docs/protocol.md`: the Cryptography spec, vault format, Browser mapping rules and Server API as a normative reference for future clients (e.g. a Go CLI or Safari)
-- [ ] create `CLAUDE.md`: repo layout, Go and TS conventions, test commands, merge invariants and fake-fidelity rules that must hold
-- [ ] move this plan to `docs/plans/completed/`
+- [x] write `docs/protocol.md`: the Cryptography spec, vault format, Browser mapping rules and Server API as a normative reference for future clients (e.g. a Go CLI or Safari)
+- [x] create `CLAUDE.md`: repo layout, Go and TS conventions, test commands, merge invariants and fake-fidelity rules that must hold
+- [x] move this plan to `docs/plans/completed/`
+- [x] ➕ Every statement in the docs was checked against the code (API codes, UI labels, constants, test names). `docs/protocol.md` includes the independent KDF test vector. CLAUDE.md records the merge, apply, engine and crypto invariants, and the fake-fidelity rules.
 
 ## Post-Completion
 *Items requiring manual intervention or external systems - no checkboxes, informational only*
