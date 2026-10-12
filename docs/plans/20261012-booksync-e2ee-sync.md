@@ -490,12 +490,12 @@ CREATE TABLE vault_versions (
 - Create: `internal/api/vault_handlers_test.go`
 - Modify: `internal/api/server.go`
 
-- [ ] implement `GET /v1/vault`: 200 octet-stream + `ETag: "<v>"`; 304 when `If-None-Match` matches; 404 `vault_empty`
-- [ ] implement `PUT /v1/vault`: require `If-Match` or `If-None-Match: *` (else 428); `http.MaxBytesReader` at `BOOKSYNC_MAX_VAULT_BYTES` (413); `BSV1` magic sanity check (400 `invalid_vault`); 412 `version_conflict` with `currentVersion`; 200 `{version}` + ETag
-- [ ] implement `GET /v1/vault/versions` and `GET /v1/vault/versions/{version}`
-- [ ] write tests for the full flow: put(`*`) → get → put(If-Match) → get with matching ETag → 304 → history list → get old version
-- [ ] write tests for errors: missing precondition 428, stale If-Match 412 with current version, oversize 413, bad magic 400, another user's version 404, unauthenticated 401
-- [ ] run `go test -race ./...` - must pass before Task 8
+- [x] implement `GET /v1/vault`: 200 octet-stream + `ETag: "<v>"`; 304 when `If-None-Match` matches; 404 `vault_empty`
+- [x] implement `PUT /v1/vault`: require `If-Match` or `If-None-Match: *` (else 428); `http.MaxBytesReader` at `BOOKSYNC_MAX_VAULT_BYTES` (413); `BSV1` magic sanity check (400 `invalid_vault`); 412 `version_conflict` with `currentVersion`; 200 `{version}` + ETag
+- [x] implement `GET /v1/vault/versions` and `GET /v1/vault/versions/{version}`
+- [x] write tests for the full flow: put(`*`) → get → put(If-Match) → get with matching ETag → 304 → history list → get old version
+- [x] write tests for errors: missing precondition 428, stale If-Match 412 with current version, oversize 413, bad magic 400, another user's version 404, unauthenticated 401
+- [x] run `go test -race ./...` - must pass before Task 8
 
 ### Task 8: Password change and key rotation endpoint
 

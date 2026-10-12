@@ -53,6 +53,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /v1/devices", s.requireDevice(s.handleListDevices))
 	s.mux.HandleFunc("DELETE /v1/devices/{id}", s.requireDevice(s.handleRevokeDevice))
 	s.mux.HandleFunc("POST /v1/account/delete", s.requireDevice(s.handleDeleteAccount))
+	s.mux.HandleFunc("GET /v1/vault", s.requireDevice(s.handleGetVault))
+	s.mux.HandleFunc("PUT /v1/vault", s.requireDevice(s.handlePutVault))
+	s.mux.HandleFunc("GET /v1/vault/versions", s.requireDevice(s.handleListVaultVersions))
+	s.mux.HandleFunc("GET /v1/vault/versions/{version}", s.requireDevice(s.handleGetVaultVersion))
 }
 
 // internalError logs err and answers with a generic 500.
