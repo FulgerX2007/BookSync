@@ -670,13 +670,14 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/sync/first-sync.ts`
 - Create: `extension/src/sync/first-sync.test.ts`
 
-- [ ] implement `firstSync(local, remote | null) → {doc, guidRemap}`:
+- [x] implement `firstSync(local, remote | null) → {doc, guidRemap}`:
   - `remote == null` bootstraps the account from `local`.
   - Otherwise, match by GUID first, then by content top-down (see First sync), and return `guidRemap` so the idMap can rebind local ids to remote GUIDs.
-- [ ] place unmatched local nodes under their matched parent, after the nearest matched local predecessor; never delete or rename remote content
-- [ ] write tests: identical trees → no additions; partial overlap → no duplicates; duplicate URLs in one folder matched 1:1; same-titled folders under different parents not cross-matched
-- [ ] write tests: GUID match wins over content (renamed bookmark from an earlier membership is not duplicated); empty local; empty remote (bootstrap); unmatched local folder carries its whole subtree; result passes `validateTree`
-- [ ] run `npm test` - must pass before Task 16
+- [x] place unmatched local nodes under their matched parent, after the nearest matched local predecessor; never delete or rename remote content
+- [x] write tests: identical trees → no additions; partial overlap → no duplicates; duplicate URLs in one folder matched 1:1; same-titled folders under different parents not cross-matched
+- [x] write tests: GUID match wins over content (renamed bookmark from an earlier membership is not duplicated); empty local; empty remote (bootstrap); unmatched local folder carries its whole subtree; result passes `validateTree`
+- [x] run `npm test` - must pass before Task 16
+- [x] ➕ property test: for random overlapping trees the result is valid, keeps every remote node unchanged and accounts for every local node; a local guid that exists remotely as the other kind gets a fresh guid
 
 ### Task 16: Local extension state in IndexedDB
 
