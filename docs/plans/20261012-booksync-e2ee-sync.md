@@ -651,17 +651,18 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/sync/merge.property.test.ts`
 - Create: `extension/test/arbitraries.ts`
 
-- [ ] implement `merge3(base, local, remote) → {doc, stats}` following the Merge rules definitions and every table row (existence, field merge, parent merge, child ordering, orphan relocation, cycle repair, immutable roots)
-- [ ] compute `stats`: adds/updates/moves/deletes per direction (toward local, toward remote) and resolved conflicts, for the guard and the popup summary
-- [ ] add fast-check arbitraries in `test/arbitraries.ts`: random valid trees and random edit scripts (add/rename/re-url/move/reorder/delete)
-- [ ] write table-driven tests for each Merge rules row, including:
+- [x] implement `merge3(base, local, remote) → {doc, stats}` following the Merge rules definitions and every table row (existence, field merge, parent merge, child ordering, orphan relocation, cycle repair, immutable roots)
+- [x] compute `stats`: adds/updates/moves/deletes per direction (toward local, toward remote) and resolved conflicts, for the guard and the popup summary
+- [x] add fast-check arbitraries in `test/arbitraries.ts`: random valid trees and random edit scripts (add/rename/re-url/move/reorder/delete)
+- [x] write table-driven tests for each Merge rules row, including:
   - add/add; edit/edit, same and different;
   - edit-vs-delete in both directions; delete vs reorder-only (stays deleted);
   - folder delete vs child add; move/move conflict;
   - move cycle (A→B locally, B→A remotely);
   - reorder on one side + insert on the other; both reorder.
-- [ ] write property tests: `merge3(b, x, b) ≡ x`, `merge3(b, b, x) ≡ x`, `merge3(b, x, x) ≡ x`; output always passes `validateTree`; deterministic; a node edited on exactly one side is never lost
-- [ ] run `npm test` - must pass before Task 15
+- [x] write property tests: `merge3(b, x, b) ≡ x`, `merge3(b, b, x) ≡ x`, `merge3(b, x, x) ≡ x`; output always passes `validateTree`; deterministic; a node edited on exactly one side is never lost
+- [x] run `npm test` - must pass before Task 15
+- [x] ➕ also verified with `FC_RUNS=5000` (about 19-node base trees, two edit scripts of up to 15 ops each); children of a folder the merge doesn't place by order rules are appended in guid order
 
 ### Task 15: First-sync matching for bootstrap, join and rejoin
 
