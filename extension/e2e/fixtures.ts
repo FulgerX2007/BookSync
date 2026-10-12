@@ -122,6 +122,12 @@ export class ExtBrowser {
     return page;
   }
 
+  async openManager(): Promise<Page> {
+    const page = await this.context.newPage();
+    await page.goto(`chrome-extension://${this.extensionId}/manager.html`);
+    return page;
+  }
+
   /** Opens popup.html in a tab; `query` (e2e builds) can name the tab to bookmark: "?tab=<id>". */
   async openPopup(query = ''): Promise<Page> {
     const page = await this.context.newPage();

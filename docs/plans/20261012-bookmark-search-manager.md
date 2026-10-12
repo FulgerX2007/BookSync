@@ -418,22 +418,23 @@ countSubtree(t, ids): { bookmarks: number; folders: number }    // for confirmat
 - Modify: `extension/e2e/fixtures.ts`
 - Create: `extension/e2e/manager.spec.ts`
 
-- [ ] add the `manager` entry point to `build.mjs` (html/css are already copied by the existing glob), and the popup's "Manage bookmarks" button
-- [ ] render the tree as nested lists: expand toggles are buttons with `aria-expanded`, and the full ARIA tree keyboard pattern is a non-goal.
+- [x] add the `manager` entry point to `build.mjs` (html/css are already copied by the existing glob), and the popup's "Manage bookmarks" button
+- [x] render the tree as nested lists: expand toggles are buttons with `aria-expanded`, and the full ARIA tree keyboard pattern is a non-goal.
   - roots are expanded on open;
   - folders show item counts;
   - URLs are muted, and long titles and URLs end in an ellipsis with a tooltip;
   - double-click on a bookmark opens it;
   - roots show no rename or delete actions.
-- [ ] wire plain-click selection through `select()` (on click, not mousedown)
-- [ ] wire live refresh through the refresh gate: it keeps expanded folders, the selection and the scroll position. A `roots_changed` error shows a notice pointing to settings.
-- [ ] add `ExtBrowser.openManager()` to the fixtures
-- [ ] write e2e tests:
+- [x] wire plain-click selection through `select()` (on click, not mousedown)
+- [x] wire live refresh through the refresh gate: it keeps expanded folders, the selection and the scroll position. A `roots_changed` error shows a notice pointing to settings.
+- [x] add `ExtBrowser.openManager()` to the fixtures
+- [x] write e2e tests:
   - the manager opens from the popup and shows the roots and seeded items;
   - a bookmark added through `chrome.bookmarks` appears without a reload;
   - the collapse state and the selection survive a refresh;
   - a click selects a row.
-- [ ] run `npm run check` and `make e2e` - must pass before task 9
+- [x] run `npm run check` and `make e2e` - must pass before task 9
+- [x] ➕ "Manage bookmarks" sits in a static `#popup-nav` row of the popup. A selection change repaints classes instead of rebuilding rows. Only expanded folders render their children, so collapsed parts of a big library cost nothing. A double-click on a folder toggles it. The `roots_changed` notice (with an "Open settings" button) has no e2e test, because Chromium's permanent folders can't be removed from a test; the handler's unit test covers the error. The root rename/delete restriction comes with the actions in Task 9.
 
 ### Task 9: Manager editing
 **Files:**

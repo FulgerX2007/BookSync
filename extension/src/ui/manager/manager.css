@@ -1,0 +1,102 @@
+body {
+  min-height: 100vh;
+}
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 24px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+.bar h1 {
+  font-size: 18px;
+  margin: 0;
+}
+.toolbar {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  align-items: center;
+}
+.notice {
+  margin: 12px 24px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--warn);
+  border-radius: 7px;
+  background: var(--card);
+}
+main {
+  padding: 12px 24px 48px;
+  max-width: 1100px;
+}
+.tree,
+.tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tree ul {
+  padding-left: 22px;
+}
+.node-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 30px;
+  padding: 2px 8px 2px 2px;
+  border-radius: 6px;
+  cursor: default;
+  user-select: none;
+}
+.node-row:hover {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.node-row.selected {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.twisty {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-weight: 400;
+  line-height: 22px;
+}
+.twisty.leaf {
+  visibility: hidden;
+}
+.icon {
+  flex: none;
+  width: 18px;
+  text-align: center;
+}
+.title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.root > .node-row .title {
+  font-weight: 600;
+}
+.url,
+.count {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-size: 12px;
+}
+.url {
+  flex: 1 1 0;
+}

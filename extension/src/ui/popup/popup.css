@@ -10,8 +10,12 @@ main {
 #this-page {
   padding: 8px 16px 0;
 }
-#bookmark-page {
+#bookmark-page,
+#open-manager {
   width: 100%;
+}
+#popup-nav {
+  padding: 8px 16px 0;
 }
 #this-page-form .row {
   margin-top: 10px;

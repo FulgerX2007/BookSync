@@ -13,6 +13,7 @@ const entryPoints = {
   background: 'src/background/index.ts',
   popup: 'src/ui/popup/popup.ts',
   options: 'src/ui/options/options.ts',
+  manager: 'src/ui/manager/manager.ts',
 };
 // Every page and stylesheet under src/ui is copied flat next to the bundles.
 const staticFiles = readdirSync('src/ui', { recursive: true })

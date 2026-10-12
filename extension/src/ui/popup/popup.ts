@@ -96,7 +96,13 @@ function render(): void {
   );
 }
 
+function openManager(): void {
+  void ext().tabs.create({ url: ext().runtime.getURL('manager.html') });
+  window.close();
+}
+
 async function main(): Promise<void> {
+  byId('open-manager').addEventListener('click', openManager);
   const bookmarks = openBookmarks();
   mountSearch(byId('search'), bookmarks);
   mountThisPage(byId('this-page'), bookmarks);
