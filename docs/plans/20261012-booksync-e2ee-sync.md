@@ -968,18 +968,19 @@ CREATE TABLE vault_versions (
 - Modify: `extension/src/ui/options/options.ts`
 - Modify: `extension/e2e/options.spec.ts`
 
-- [ ] implement `restoreVersion(v)`:
+- [x] implement `restoreVersion(v)`:
   - GET and decrypt the **current** vault, then fetch and decrypt version `v`;
   - set `seq = max(current.seq, lastSeq) + 1`;
   - PUT with `If-Match` current, recomputing `seq` on every 412 retry;
   - run `syncOnce` with a confirmation bound to the version it just wrote, so this browser follows; other browsers pick it up through a normal merge.
-- [ ] register the history handlers with the router; add an options "History" section (version, date, device, size) with Restore behind a confirmation dialog, noting that versions from before a key rotation are gone
-- [ ] write tests:
+- [x] register the history handlers with the router; add an options "History" section (version, date, device, size) with Restore behind a confirmation dialog, noting that versions from before a key rotation are gone
+- [x] write tests:
   - a restoring device at least 2 `seq` behind still writes a `seq` above every device's `lastSeq`;
   - other devices accept it without `rollback_detected`;
   - a concurrent write during restore → 412 → recompute and retry succeeds.
-- [ ] write an e2e test: add bookmarks → restore an earlier version → the added bookmarks disappear locally
-- [ ] run `npm test && npm run e2e` - must pass before Task 27
+- [x] write an e2e test: add bookmarks → restore an earlier version → the added bookmarks disappear locally
+- [x] run `npm test && npm run e2e` - must pass before Task 27
+- [x] ➕ History handlers live in `background/index.ts`. The restore confirmation is an inline "Yes, restore" button instead of a native dialog. The confirmation passed to the follow-up sync covers any number of deletions, but only for the version the restore wrote.
 
 ### Task 27: Cross-profile end-to-end sync test
 

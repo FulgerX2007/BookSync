@@ -10,9 +10,10 @@ import { FirefoxAdapter } from '../browser/firefox';
 import { ext } from '../platform/ext';
 import { StateStore } from '../storage/state';
 import { syncOnce } from '../sync/engine';
+import { restoreVersion } from '../sync/restore';
 import { Account, registerAccountHandlers } from './account';
 import { badgeFor } from './badge';
-import { Router } from './router';
+import { RequestError, Router } from './router';
 import { SyncScheduler, registerSyncHandlers, statusView } from './scheduler';
 
 const api = ext();
@@ -60,6 +61,18 @@ const account = new Account({
 const router = new Router();
 registerSyncHandlers(router, scheduler, state);
 registerAccountHandlers(router, account);
+router.register('listVersions', async () => {
+  const client = await serverClient();
+  if (!client) throw new RequestError('not_signed_in', 'this browser is not signed in');
+  return client.listVersions();
+});
+router.register('restoreVersion', async (req) => {
+  const client = await serverClient();
+  if (!client) throw new RequestError('not_signed_in', 'this browser is not signed in');
+  if (!Number.isSafeInteger(req.version) || req.version < 1) throw new RequestError('invalid_request', 'version must be a positive integer');
+  await restoreVersion({ api: client, state, now: Date.now, sync: (opts) => scheduler.requestSync(opts) }, req.version);
+  return statusView(state);
+});
 router.listen(api.runtime);
 
 void scheduler.start();

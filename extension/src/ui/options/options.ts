@@ -443,10 +443,60 @@ function onDelete(ev: Event): void {
   });
 }
 
-/** Filled by the history feature (Task 26). */
+/** Server-side version history with restore. */
 function renderHistorySlot(): void {
-  const slot = document.getElementById('history-card');
-  if (slot) slot.remove();
+  const slot = byId('history-card');
+  replace(
+    slot,
+    h('h2', {}, 'History'),
+    h('p', { class: 'muted' }, 'The server keeps recent versions and one per day for a month. Restoring makes an old version current again on every browser. Versions from before a key rotation are not available.'),
+    h('div', { id: 'history' }, h('p', { class: 'muted' }, 'Loading…')),
+    h('div', { id: 'history-error', class: 'error', role: 'alert' }),
+  );
+  void loadHistory();
+}
+
+async function loadHistory(): Promise<void> {
+  try {
+    const versions = await send('listVersions');
+    const rows = versions.map((v, i) =>
+      h(
+        'tr',
+        { 'data-version': v.version },
+        h('td', {}, String(v.version)),
+        h('td', {}, new Date(v.createdAt).toLocaleString()),
+        h('td', {}, v.deviceName || '—'),
+        h('td', {}, `${Math.max(1, Math.round(v.size / 1024))} KB`),
+        h('td', {}, i === 0 ? h('span', { class: 'badge ok' }, 'current') : h('button', { class: 'restore', onclick: (ev: Event) => askRestore(ev.currentTarget as HTMLButtonElement, v.version) }, 'Restore')),
+      ),
+    );
+    replace(byId('history'), h('table', { class: 'history' }, h('thead', {}, h('tr', {}, h('th', {}, '#'), h('th', {}, 'Saved'), h('th', {}, 'By'), h('th', {}, 'Size'), h('th', {}))), h('tbody', {}, ...rows)));
+  } catch (e) {
+    byId('history-error').textContent = errorText(e);
+  }
+}
+
+/** Inline confirmation instead of a native dialog. */
+function askRestore(button: HTMLButtonElement, version: number): void {
+  const cell = button.parentElement!;
+  replace(
+    cell,
+    h('span', { class: 'muted' }, 'Restore? '),
+    h(
+      'button',
+      {
+        class: 'danger confirm-restore',
+        onclick: (ev: Event) =>
+          void busy(ev.currentTarget as HTMLButtonElement, 'history-error', async () => {
+            status = await send('restoreVersion', { version });
+            render();
+          }),
+      },
+      'Yes, restore',
+    ),
+    ' ',
+    h('button', { onclick: () => void loadHistory() }, 'Cancel'),
+  );
 }
 
 async function main(): Promise<void> {
