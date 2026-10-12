@@ -475,13 +475,13 @@ CREATE TABLE vault_versions (
 - Create: `internal/store/vault.go`
 - Create: `internal/store/vault_test.go`
 
-- [ ] implement `LatestVault(ctx, userID)` (`ErrNotFound` when the user has no vault yet)
-- [ ] implement `PutVault(ctx, userID, deviceID, expected *int64, ciphertext, retention, now) (int64, error)`: one immediate tx; `expected == nil` means "must be empty"; mismatch → `*VersionConflictError{Current}`; insert `version+1`; apply retention (newest `KeepRecent` + newest per UTC day within `KeepDays`)
-- [ ] implement `ListVaultVersions` (version, created_at, device name via LEFT JOIN, size) and `VaultVersion(ctx, userID, version)`
-- [ ] write tests: first put requires empty; sequential puts increment; stale expected → conflict carrying the current version; per-user isolation
-- [ ] write retention tests with injected timestamps: a burst of 50 puts today keeps the newest 10 plus one per earlier day; days older than `KeepDays` are dropped
-- [ ] write a concurrency test: N goroutines `PutVault` with the same expected version → exactly one succeeds, the rest get conflicts (run under `-race`)
-- [ ] run `go test -race ./...` - must pass before Task 7
+- [x] implement `LatestVault(ctx, userID)` (`ErrNotFound` when the user has no vault yet)
+- [x] implement `PutVault(ctx, userID, deviceID, expected *int64, ciphertext, retention, now) (int64, error)`: one immediate tx; `expected == nil` means "must be empty"; mismatch → `*VersionConflictError{Current}`; insert `version+1`; apply retention (newest `KeepRecent` + newest per UTC day within `KeepDays`)
+- [x] implement `ListVaultVersions` (version, created_at, device name via LEFT JOIN, size) and `VaultVersion(ctx, userID, version)`
+- [x] write tests: first put requires empty; sequential puts increment; stale expected → conflict carrying the current version; per-user isolation
+- [x] write retention tests with injected timestamps: a burst of 50 puts today keeps the newest 10 plus one per earlier day; days older than `KeepDays` are dropped
+- [x] write a concurrency test: N goroutines `PutVault` with the same expected version → exactly one succeeds, the rest get conflicts (run under `-race`)
+- [x] run `go test -race ./...` - must pass before Task 7
 
 ### Task 7: Vault HTTP endpoints with ETag concurrency
 
