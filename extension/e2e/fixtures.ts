@@ -100,10 +100,37 @@ export class ExtBrowser {
     return page;
   }
 
-  /** Runs chrome.bookmarks calls inside the extension. */
-  async bookmarks<T>(fn: (b: typeof chrome.bookmarks) => Promise<T>): Promise<T> {
+  /**
+   * Runs chrome.bookmarks calls inside the extension. fn is serialized, so it
+   * cannot close over test variables: pass them as `arg` (JSON).
+   */
+  async bookmarks<T, A = undefined>(fn: (b: typeof chrome.bookmarks, arg: A) => Promise<T>, arg?: A): Promise<T> {
     const w = await this.worker();
-    return w.evaluate(`(${fn.toString()})(chrome.bookmarks)`) as Promise<T>;
+    return w.evaluate(`(${fn.toString()})(chrome.bookmarks, ${JSON.stringify(arg ?? null)})`) as Promise<T>;
+  }
+
+  /** Titles and URLs under Bookmarks bar and Other bookmarks, comparable across profiles. */
+  async snapshot(): Promise<unknown> {
+    return this.bookmarks(async (b) => {
+      const [root] = await b.getTree();
+      type N = { title: string; url?: string; children?: N[] };
+      const strip = (n: N): unknown => (n.url !== undefined ? `${n.title} <${n.url}>` : { [n.title]: (n.children ?? []).map(strip) });
+      return (root!.children ?? []).filter((c) => c.id === '1' || c.id === '2').map((c) => (c.children ?? []).map((x) => strip(x as N)));
+    });
+  }
+
+  /** The device token, read from the extension's IndexedDB. */
+  async deviceToken(): Promise<string> {
+    const w = await this.worker();
+    return w.evaluate(`new Promise((resolve, reject) => {
+      const open = indexedDB.open('booksync');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const get = open.result.transaction('kv').objectStore('kv').get('session');
+        get.onsuccess = () => resolve(get.result.deviceToken);
+        get.onerror = () => reject(get.error);
+      };
+    })`) as Promise<string>;
   }
 
   /** The toolbar badge text. */

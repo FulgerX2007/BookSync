@@ -988,17 +988,18 @@ CREATE TABLE vault_versions (
 - Create: `extension/e2e/sync.spec.ts`
 - Modify: `extension/e2e/fixtures.ts`
 
-- [ ] extend the fixture with two Chromium profiles (A, B) on one server, plus helpers to run `chrome.bookmarks.*` in each service worker and to trigger `syncNow`
-- [ ] write an e2e test: A registers with existing bookmarks; B, with overlapping bookmarks, signs in → both trees identical, no duplicates
-- [ ] write e2e tests:
+- [x] extend the fixture with two Chromium profiles (A, B) on one server, plus helpers to run `chrome.bookmarks.*` in each service worker and to trigger `syncNow`
+- [x] write an e2e test: A registers with existing bookmarks; B, with overlapping bookmarks, signs in → both trees identical, no duplicates
+- [x] write e2e tests:
   - create, rename, move and delete in A show up in B after sync;
   - A deletes a folder while B adds a child → the child survives in the nearest ancestor on both.
-- [ ] write an e2e test for real Chromium move semantics: reorder within a folder in A (moves up and down, plus URLs Chrome canonicalizes) → identical order and URLs in B, and one more sync round on each profile uploads nothing
-- [ ] write an e2e test for the event-driven path: a bookmark created in A with no manual sync → the server version increments within 10 s
-- [ ] write an e2e test for E2EE at rest:
+- [x] write an e2e test for real Chromium move semantics: reorder within a folder in A (moves up and down, plus URLs Chrome canonicalizes) → identical order and URLs in B, and one more sync round on each profile uploads nothing
+- [x] write an e2e test for the event-driven path: a bookmark created in A with no manual sync → the server version increments within 10 s
+- [x] write an e2e test for E2EE at rest:
   - stop the server, then confirm a unique seeded title and URL appear in none of `booksync.db`, `booksync.db-wal` or `booksync.db-shm`;
   - the stored vault bytes after `BSV1 ‖ iv` are not a gzip stream (no `1f 8b` prefix).
-- [ ] run `npm run e2e` - must pass before Task 28
+- [x] run `npm run e2e` - must pass before Task 28
+- [x] ➕ the suite was stable across `--repeat-each=2` (28/28). The at-rest test reads the stored vault through the API with the profile's device token, and also checks that the test password never appears in the database files.
 
 ### Task 28: CI pipeline and release packaging
 
