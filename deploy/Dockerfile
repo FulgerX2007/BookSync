@@ -1,14 +1,18 @@
 # syntax=docker/dockerfile:1
 # Build context: repository root (docker build -f deploy/Dockerfile .).
 
-FROM golang:1.27 AS build
+# The build stage runs on the builder's own platform and cross-compiles for
+# the target, so multi-arch images need no emulation.
+FROM --platform=$BUILDPLATFORM golang:1.27 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
 ARG VERSION=dev
-RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" \
+ARG TARGETOS TARGETARCH
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
+        go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" \
         -o /out/booksync-server ./cmd/booksync-server \
     && mkdir -p /out/data
 
