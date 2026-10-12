@@ -687,13 +687,13 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/storage/state.ts`
 - Create: `extension/src/storage/state.test.ts`
 
-- [ ] implement `db.ts`: minimal promise wrapper over IndexedDB (`booksync` DB, stores `kv` and `idmap`, versioned upgrade)
-- [ ] implement `state.ts` typed accessors for `session`, `vaultKey`, `sync` and `idMap` (entries `{guid, nativeUrl?}`), see Local extension state
-- [ ] implement `clearAccount()` (logout: everything) and `clearCredentials()` (401: only `deviceToken` + `vaultKey`); neither touches browser bookmarks
-- [ ] write tests (fake-indexeddb): round trip of each accessor; DB upgrade from empty; `clearAccount` wipes everything; `clearCredentials` keeps `base`, `idMap`, SyncID and `lastSeq`
-- [ ] write tests: idMap stays bidirectionally consistent on rebind/remove; vault `CryptoKey` persists, remains usable and non-extractable
-- [ ] ⚠️ if Node's structured clone cannot store `CryptoKey` under fake-indexeddb, cover that one assertion in the Task 24 e2e instead and note it here
-- [ ] run `npm test` - must pass before Task 17
+- [x] implement `db.ts`: minimal promise wrapper over IndexedDB (`booksync` DB, stores `kv` and `idmap`, versioned upgrade)
+- [x] implement `state.ts` typed accessors for `session`, `vaultKey`, `sync` and `idMap` (entries `{guid, nativeUrl?}`), see Local extension state
+- [x] implement `clearAccount()` (logout: everything) and `clearCredentials()` (401: only `deviceToken` + `vaultKey`); neither touches browser bookmarks
+- [x] write tests (fake-indexeddb): round trip of each accessor; DB upgrade from empty; `clearAccount` wipes everything; `clearCredentials` keeps `base`, `idMap`, SyncID and `lastSeq`
+- [x] write tests: idMap stays bidirectionally consistent on rebind/remove; vault `CryptoKey` persists, remains usable and non-extractable
+- [x] Node's structured clone stores `CryptoKey` under fake-indexeddb, so the e2e fallback isn't needed (a unit test covers it)
+- [x] run `npm test` - must pass before Task 17
 
 ### Task 17: Browser bookmark adapters for Chromium and Firefox
 
