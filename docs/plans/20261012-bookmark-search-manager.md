@@ -260,15 +260,16 @@ countSubtree(t, ids): { bookmarks: number; folders: number }    // for confirmat
 - Create: `extension/src/bookmarks/tree.ts`
 - Create: `extension/src/bookmarks/tree.test.ts`
 
-- [ ] implement `rootIds`, `isRootId`, `pathOf`, `isAncestor`, `treeOrder` and `visibleOrder` directly over `LocalTree`
-- [ ] implement `normalizeSelection`, `folderOptions` and `countSubtree`
-- [ ] write tests, building trees through the adapter's `readTree` over `test/fakes/bookmarks.ts`:
+- [x] implement `rootIds`, `isRootId`, `pathOf`, `isAncestor`, `treeOrder` and `visibleOrder` directly over `LocalTree`
+- [x] implement `normalizeSelection`, `folderOptions` and `countSubtree`
+- [x] write tests, building trees through the adapter's `readTree` over `test/fakes/bookmarks.ts`:
   - root order with absent roots (Chromium without the menu folder, hidden empty Mobile);
   - the menu folder as a root;
   - paths, ancestry, and visible order with collapsed and expanded folders;
   - `normalizeSelection` drops roots and descendants of selected folders, and sorts in tree order.
-- [ ] write tests for edge cases: empty folders, deep nesting, unknown ids, the folder option labels (indentation, root names)
-- [ ] run `npm run check` - must pass before task 2
+- [x] write tests for edge cases: empty folders, deep nesting, unknown ids, the folder option labels (indentation, root names)
+- [x] run `npm run check` - must pass before task 2
+- [x] ➕ `extension/test/bookmark-trees.ts`: a fake browser plus the real adapter (`browser(flavor)`, `idOf`, `childTitles`), shared by the `src/bookmarks` tests
 
 ### Task 2: Substring search
 **Files:**
