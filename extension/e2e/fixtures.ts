@@ -122,9 +122,10 @@ export class ExtBrowser {
     return page;
   }
 
-  async openManager(): Promise<Page> {
+  /** Opens the bookmark manager; `query` may ask it to reveal a node: "?reveal=<id>". */
+  async openManager(query = ''): Promise<Page> {
     const page = await this.context.newPage();
-    await page.goto(`chrome-extension://${this.extensionId}/manager.html`);
+    await page.goto(`chrome-extension://${this.extensionId}/manager.html${query}`);
     return page;
   }
 

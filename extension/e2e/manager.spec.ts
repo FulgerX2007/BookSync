@@ -177,3 +177,49 @@ test('deletes a single bookmark without asking, and never offers to edit or dele
   await expect(manager.locator('#delete-selected')).toBeDisabled();
   await expect(row(manager, 'Bookmarks bar').locator('.actions')).toHaveCount(0);
 });
+
+/** Bookmarks bar: A/B/C/{Deep}, Receipts/{}, Filler 0..39 (so Deep is far down). */
+async function deepTree(browser: import('./fixtures').ExtBrowser): Promise<string> {
+  return browser.bookmarks(async (b) => {
+    for (let i = 0; i < 40; i++) await b.create({ parentId: '1', title: `Filler ${i}`, url: `https://filler${i}.example/` });
+    const a = await b.create({ parentId: '1', title: 'A' });
+    const bb = await b.create({ parentId: a.id, title: 'B' });
+    const c = await b.create({ parentId: bb.id, title: 'C' });
+    await b.create({ parentId: '2', title: 'Receipts' });
+    return (await b.create({ parentId: c.id, title: 'Deep', url: 'https://deep.example/needle/path' })).id;
+  });
+}
+
+test('finds a deeply nested bookmark by part of its URL and reveals it in the tree', async ({ browserA }) => {
+  await deepTree(browserA);
+  const manager = await browserA.openManager();
+  await expect(row(manager, 'A')).toBeVisible();
+  await manager.fill('#manager-search', 'needle/pa');
+  const results = manager.locator('#results .result');
+  await expect(results).toHaveCount(1);
+  await expect(results.first()).toContainText('Deep');
+  await expect(results.first()).toContainText('Bookmarks bar › A › B › C');
+
+  await results.first().click();
+  await expect(manager.locator('#manager-search')).toHaveValue('');
+  await expect(row(manager, 'Deep')).toHaveClass(/selected/);
+  await expect(row(manager, 'Deep')).toBeInViewport();
+});
+
+test('finds folders by name, and Escape returns to the tree', async ({ browserA }) => {
+  await deepTree(browserA);
+  const manager = await browserA.openManager();
+  await manager.fill('#manager-search', 'receip');
+  await expect(manager.locator('#results .result')).toHaveText([/Receipts.*Other bookmarks/]);
+  await manager.fill('#manager-search', 'nothing like this');
+  await expect(manager.locator('#no-results')).toBeVisible();
+  await manager.locator('#manager-search').press('Escape');
+  await expect(manager.locator('#tree')).toBeVisible();
+});
+
+test('opens with ?reveal=<id> showing that node', async ({ browserA }) => {
+  const deepId = await deepTree(browserA);
+  const manager = await browserA.openManager(`?reveal=${deepId}`);
+  await expect(row(manager, 'Deep')).toHaveClass(/selected/);
+  await expect(row(manager, 'Deep')).toBeInViewport();
+});

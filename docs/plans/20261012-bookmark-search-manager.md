@@ -460,13 +460,13 @@ countSubtree(t, ids): { bookmarks: number; folders: number }    // for confirmat
 - Modify: `extension/src/ui/manager/manager.css`
 - Modify: `extension/e2e/manager.spec.ts`
 
-- [ ] add a search box that replaces the tree with a flat list of bookmarks and folders (with paths) while it has text, using `search()` without a limit
-- [ ] clicking a result reveals it: the search clears, its ancestors expand, and it is selected and scrolled into view. `?reveal=<id>` does the same on open. Escape clears the search.
-- [ ] write e2e tests:
+- [x] add a search box that replaces the tree with a flat list of bookmarks and folders (with paths) while it has text, using `search()` without a limit
+- [x] clicking a result reveals it: the search clears, its ancestors expand, and it is selected and scrolled into view. `?reveal=<id>` does the same on open. Escape clears the search.
+- [x] write e2e tests:
   - find a deeply nested bookmark by part of its URL and reveal it: it is selected and visible;
   - find a folder by name;
   - `manager.html?reveal=<id>` opens with that node revealed.
-- [ ] run `npm run check` and `make e2e` - must pass before task 11
+- [x] run `npm run check` and `make e2e` - must pass before task 11
 
 ### Task 11: Multi-select and drag and drop
 **Files:**

@@ -158,3 +158,30 @@ dialog::backdrop {
   justify-content: flex-end;
   margin-top: 14px;
 }
+#manager-search {
+  max-width: 320px;
+}
+.results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.result {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.result:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.result .path {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+}

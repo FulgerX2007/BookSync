@@ -6,6 +6,7 @@
 import type { LocalTree } from '../../browser/adapter';
 import { createBookmark, createFolder, deleteMany, rename, setUrl, type Position } from '../../bookmarks/ops';
 import { createRefreshGate } from '../../bookmarks/refresh';
+import { createSearchIndex, search, type SearchIndex } from '../../bookmarks/search';
 import { emptySelection, pruneSelection, select, type Selection } from '../../bookmarks/selection';
 import { countSubtree, isRootId, normalizeSelection, rootIds, visibleOrder } from '../../bookmarks/tree';
 import { ROOT_OTHER } from '../../model/vault';
@@ -22,6 +23,9 @@ const notice = byId('manager-notice');
 const toolbar = byId('manager-toolbar');
 
 let tree: LocalTree | null = null;
+let index: SearchIndex | null = null;
+/** While non-empty, a flat result list replaces the tree. */
+let query = '';
 /** Expanded folders; the roots start expanded. */
 let expanded: Set<string> | null = null;
 let selection: Selection = emptySelection;
@@ -93,14 +97,54 @@ function nodeItem(t: LocalTree, id: string): HTMLLIElement {
   return h('li', { class: root ? 'root' : '' }, row, open && kids.length > 0 ? h('ul', {}, ...kids.map((c) => nodeItem(t, c))) : null);
 }
 
+function renderResults(): void {
+  const results = index ? search(index, query) : [];
+  replace(
+    main,
+    results.length === 0
+      ? h('p', { id: 'no-results', class: 'muted' }, 'No bookmarks or folders match.')
+      : h(
+          'ul',
+          { class: 'results', id: 'results' },
+          ...results.map((r) =>
+            h(
+              'li',
+              { class: 'result', 'data-reveal': r.id, title: r.url !== undefined ? `${r.title}\n${r.url}` : r.title },
+              h('span', { class: 'icon', 'aria-hidden': 'true' }, r.kind === 'folder' ? '📁' : '🔖'),
+              h('span', { class: 'title' }, r.title || r.url || 'Untitled folder'),
+              h('span', { class: 'path muted' }, r.path.join(' › ')),
+              r.url !== undefined ? h('span', { class: 'url' }, r.url) : null,
+            ),
+          ),
+        ),
+  );
+}
+
 function render(): void {
   if (!tree) return;
+  if (query.trim()) {
+    renderResults();
+    updateToolbar();
+    return;
+  }
   const scroller = document.scrollingElement;
   const top = scroller?.scrollTop ?? 0;
   const t = tree;
   replace(main, h('ul', { class: 'tree', id: 'tree' }, ...rootIds(t).map((id) => nodeItem(t, id))));
   if (scroller) scroller.scrollTop = top;
   updateToolbar();
+}
+
+/** Leaves the search, opens the node's folders, selects it and scrolls it into view. */
+function reveal(id: string): void {
+  const t = tree;
+  if (!t?.nodes.has(id) || !expanded) return;
+  query = '';
+  searchInput.value = '';
+  for (let p = t.nodes.get(id)?.parentId; p; p = t.nodes.get(p)?.parentId) expanded.add(p);
+  selectOnly(id);
+  render();
+  rowOf(id)?.scrollIntoView({ block: 'center' });
 }
 
 /** Repaints the selection without rebuilding the rows. */
@@ -125,6 +169,7 @@ async function load(): Promise<void> {
   try {
     const t = await bookmarks.load();
     tree = t;
+    index = createSearchIndex(t);
     expanded = expanded ? new Set([...expanded].filter((id) => t.nodes.has(id))) : new Set(rootIds(t));
     selection = pruneSelection(selection, (id) => t.nodes.has(id));
     loadError = null;
@@ -293,11 +338,25 @@ async function deleteNodes(ids: Iterable<string>): Promise<void> {
 
 // ---- toolbar --------------------------------------------------------------------
 
+const searchInput = h('input', { id: 'manager-search', type: 'search', placeholder: 'Search bookmarks', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Search bookmarks' });
+searchInput.addEventListener('input', () => {
+  query = searchInput.value;
+  render();
+});
+searchInput.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape' && searchInput.value !== '') {
+    ev.preventDefault();
+    searchInput.value = '';
+    query = '';
+    render();
+  }
+});
+
 const newFolderButton = h('button', { id: 'new-folder', type: 'button', onclick: () => void newFolder() }, 'New folder');
 const newBookmarkButton = h('button', { id: 'new-bookmark', type: 'button', onclick: () => void newBookmark() }, 'New bookmark');
 const editButton = h('button', { id: 'edit-selected', type: 'button', onclick: () => editSelected() }, 'Edit');
 const deleteButton = h('button', { id: 'delete-selected', type: 'button', class: 'danger', onclick: () => void deleteNodes(selection.selected) }, 'Delete');
-replace(toolbar, newFolderButton, newBookmarkButton, editButton, deleteButton);
+replace(toolbar, searchInput, newFolderButton, newBookmarkButton, editButton, deleteButton);
 
 function editableSelection(): string | null {
   if (!tree || selection.selected.size !== 1) return null;
@@ -322,6 +381,11 @@ function updateToolbar(): void {
 
 main.addEventListener('click', (ev) => {
   const target = ev.target as HTMLElement;
+  const result = target.closest<HTMLElement>('[data-reveal]');
+  if (result) {
+    reveal(result.dataset.reveal!);
+    return;
+  }
   const toggler = target.closest<HTMLElement>('[data-toggle]');
   if (toggler) {
     toggle(toggler.dataset.toggle!);
@@ -354,4 +418,7 @@ main.addEventListener('dblclick', (ev) => {
 
 updateToolbar();
 bookmarks.onChange(() => gate.notify());
-void load();
+void load().then(() => {
+  const target = new URLSearchParams(location.search).get('reveal');
+  if (target) reveal(target);
+});
