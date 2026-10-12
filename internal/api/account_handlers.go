@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/FulgerX2007/BookSync/internal/auth"
 	"github.com/FulgerX2007/BookSync/internal/store"
 )
 
@@ -100,4 +101,91 @@ func (s *Server) reauthenticate(w http.ResponseWriter, r *http.Request, authKey 
 		return store.User{}, false
 	}
 	return u, true
+}
+
+type rotationRequest struct {
+	ExpectedVersion int64 `json:"expectedVersion"`
+	Vault           b64   `json:"vault"`
+}
+
+type changePasswordRequest struct {
+	CurrentAuthKey     b64              `json:"currentAuthKey"`
+	NewAuthKey         b64              `json:"newAuthKey"`
+	KDF                string           `json:"kdf"`
+	Iterations         int              `json:"iterations"`
+	NewWrappedVaultKey b64              `json:"newWrappedVaultKey"`
+	Rotation           *rotationRequest `json:"rotation,omitempty"`
+}
+
+// handleChangePassword replaces the credentials and signs out every other
+// device. With "rotation" it also replaces the vault history with a vault
+// re-encrypted under a new vault key ("a device was lost").
+func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	var req changePasswordRequest
+	// Room for a base64url vault of up to MaxVaultBytes plus the JSON fields.
+	limit := maxJSONBody + (s.cfg.MaxVaultBytes*4+2)/3
+	if !decodeJSON(w, r, &req, limit) {
+		return
+	}
+	if err := auth.ValidateAuthKey(req.NewAuthKey); err != nil {
+		writeError(w, http.StatusBadRequest, codeInvalidRequest, "newAuthKey must be 32 bytes")
+		return
+	}
+	if err := validateKDF(req.KDF, req.Iterations); err != nil {
+		writeError(w, http.StatusBadRequest, codeInvalidRequest, err.Error())
+		return
+	}
+	if err := validateWrappedKey(req.NewWrappedVaultKey); err != nil {
+		writeError(w, http.StatusBadRequest, codeInvalidRequest, err.Error())
+		return
+	}
+	var rot *store.VaultRotation
+	if req.Rotation != nil {
+		if int64(len(req.Rotation.Vault)) > s.cfg.MaxVaultBytes {
+			writeError(w, http.StatusRequestEntityTooLarge, codeVaultTooLarge, "vault exceeds the server's size limit")
+			return
+		}
+		if !validVaultEnvelope(req.Rotation.Vault) || req.Rotation.ExpectedVersion < 0 {
+			writeError(w, http.StatusBadRequest, codeInvalidVault, "rotation.vault is not a BookSync vault envelope")
+			return
+		}
+		rot = &store.VaultRotation{Expected: req.Rotation.ExpectedVersion, Ciphertext: req.Rotation.Vault}
+	}
+
+	u, ok := s.reauthenticate(w, r, req.CurrentAuthKey)
+	if !ok {
+		return
+	}
+	hash, salt, err := s.deps.Hasher.Hash(r.Context(), req.NewAuthKey)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	version, err := s.deps.Store.ChangeCredentials(r.Context(), u.ID, currentDevice(r).ID, store.Credentials{
+		AuthHash:        hash,
+		AuthSalt:        salt,
+		KDF:             req.KDF,
+		KDFIterations:   req.Iterations,
+		WrappedVaultKey: req.NewWrappedVaultKey,
+	}, rot)
+	var conflict *store.VersionConflictError
+	if errors.As(err, &conflict) {
+		writeJSON(w, http.StatusPreconditionFailed, conflictResponse{Error: conflictDetail{
+			Code:           codeVersionConflict,
+			Message:        "the vault changed since it was read; sync and retry",
+			CurrentVersion: conflict.Current,
+		}})
+		return
+	}
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	s.log.Info("credentials changed", "user", u.ID, "rotated", rot != nil)
+	if rot == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	w.Header().Set("ETag", etag(version))
+	writeJSON(w, http.StatusOK, putVaultResponse{Version: version})
 }

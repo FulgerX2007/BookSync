@@ -220,7 +220,7 @@ Binary fields in JSON (`authKey`, `wrappedVaultKey`, `vault`) use base64url with
 | `POST /v1/auth/logout` | device | – | 204 |
 | `GET /v1/devices` | device | – | 200 `[{id, name, createdAt, lastSeenAt, current}]` |
 | `DELETE /v1/devices/{id}` | device | – | 204 · 404 |
-| `POST /v1/account/password` | device | `{currentAuthKey, newAuthKey, iterations, newWrappedVaultKey, rotation?: {expectedVersion, vault}}` | 204 (other devices revoked; with `rotation`, history replaced by the new vault) · 401 · 412 `version_conflict` · 413 |
+| `POST /v1/account/password` | device | `{currentAuthKey, newAuthKey, kdf, iterations, newWrappedVaultKey, rotation?: {expectedVersion, vault}}` | 204 (other devices revoked) · with `rotation`: 200 `{version}` + ETag, history replaced by the new vault · 400 · 401 · 412 `version_conflict` · 413 |
 | `POST /v1/account/delete` | device | `{authKey}` | 204 · 401 |
 | `GET /v1/vault` | device | `If-None-Match: "<v>"` (optional) | 200 `application/octet-stream` + `ETag: "<v>"` · 304 · 404 `vault_empty` |
 | `PUT /v1/vault` | device | octet-stream; `If-Match: "<v>"` or `If-None-Match: *` | 200 `{version}` + ETag · 400 `invalid_vault` · 412 `version_conflict {currentVersion}` · 413 · 428 |
@@ -505,14 +505,14 @@ CREATE TABLE vault_versions (
 - Modify: `internal/api/account_handlers.go`
 - Modify: `internal/api/account_handlers_test.go`
 
-- [ ] implement `ChangeCredentials(ctx, userID, keepDeviceID, creds, rotation *VaultRotation)` in one immediate tx:
+- [x] implement `ChangeCredentials(ctx, userID, keepDeviceID, creds, rotation *VaultRotation)` in one immediate tx:
   - update auth hash/salt, KDF params and wrapped key;
   - with `rotation`: check `expectedVersion` (conflict error), insert the new vault version and delete every older version;
   - delete all devices except `keepDeviceID`.
-- [ ] implement `POST /v1/account/password`: verify `currentAuthKey`, validate new fields and the optional `rotation {expectedVersion, vault}` (base64url, `BSV1` magic, size cap with the route-specific body limit); 204 / 401 / 412 / 413
-- [ ] write store tests: plain change keeps history; rotation leaves exactly one version (the new one); stale `expectedVersion` → conflict and nothing changes (tx rolled back); other devices deleted, current kept
-- [ ] write API tests: old authKey fails afterwards and the new one works; a revoked device gets 401; oversize rotation vault 413; wrong current key 401
-- [ ] run `go test -race ./...` - must pass before Task 9
+- [x] implement `POST /v1/account/password`: verify `currentAuthKey`, validate new fields and the optional `rotation {expectedVersion, vault}` (base64url, `BSV1` magic, size cap with the route-specific body limit); 204 / 401 / 412 / 413
+- [x] write store tests: plain change keeps history; rotation leaves exactly one version (the new one); stale `expectedVersion` → conflict and nothing changes (tx rolled back); other devices deleted, current kept
+- [x] write API tests: old authKey fails afterwards and the new one works; a revoked device gets 401; oversize rotation vault 413; wrong current key 401
+- [x] run `go test -race ./...` - must pass before Task 9
 
 ### Task 9: Abuse protection: rate limiting and request limits
 
