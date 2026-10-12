@@ -320,18 +320,19 @@ countSubtree(t, ids): { bookmarks: number; folders: number }    // for confirmat
 - Create: `extension/src/bookmarks/drop.ts`
 - Create: `extension/src/bookmarks/drop.test.ts`
 
-- [ ] implement `select` (plain, Ctrl/Cmd toggle, Shift range from the anchor in visible order)
-- [ ] implement `zoneAt` and `resolveDrop` with the precedence listed in Technical Details
-- [ ] write tests for `select`: single, toggle on and off, Shift ranges up and down, Shift after a toggle, ranges across folder boundaries and over roots
-- [ ] write table-driven tests for `resolveDrop`:
+- [x] implement `select` (plain, Ctrl/Cmd toggle, Shift range from the anchor in visible order)
+- [x] implement `zoneAt` and `resolveDrop` with the precedence listed in Technical Details
+- [x] write tests for `select`: single, toggle on and off, Shift ranges up and down, Shift after a toggle, ranges across folder boundaries and over roots
+- [x] write table-driven tests for `resolveDrop`:
   - before, after and inside;
   - into a collapsed folder, and onto a root (inside);
   - after an expanded root, which gives the first child;
   - before or after a node that is itself being dragged;
   - refusals: a root dragged, beside a root, into self, into its own descendant;
   - no-op drops.
-- [ ] write tests for `zoneAt` boundaries (25 % and 75 %, bookmark halves)
-- [ ] run `npm run check` - must pass before task 5
+- [x] write tests for `zoneAt` boundaries (25 % and 75 %, bookmark halves)
+- [x] run `npm run check` - must pass before task 5
+- [x] ➕ `selection.ts` also exports `pruneSelection`, which drops ids a refresh removed, for live refresh. In `resolveDrop`, "after" an expanded root counts as "first child" even when the root is empty; otherwise an empty root such as Firefox's Mobile Bookmarks couldn't be dropped into from its bottom edge.
 
 ### Task 5: Roots handler, refresh gate and UI bookmark access
 **Files:**
