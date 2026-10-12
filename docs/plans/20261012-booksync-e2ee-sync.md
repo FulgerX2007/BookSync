@@ -424,12 +424,13 @@ CREATE TABLE vault_versions (
 - Create: `internal/auth/token.go`
 - Create: `internal/auth/token_test.go`
 
-- [ ] implement `Hasher.Hash(ctx, authKey) (hash, salt, error)` / `Hasher.Verify(ctx, authKey, hash, salt) (bool, error)` with Argon2id (m = 19 MiB, t = 2, p = 1, 32 B) and `subtle.ConstantTimeCompare`; a semaphore (default 4) caps concurrent hashing and memory
-- [ ] implement `Hasher.DummyVerify(ctx)` for unknown usernames so login timing does not reveal account existence
-- [ ] implement `NewDeviceToken() (plain string, hash []byte)` (32 random bytes, base64url, `bst_` prefix) and `HashToken(plain)` (SHA-256), plus `ValidateAuthKey` (exactly 32 bytes)
-- [ ] write tests: hash/verify round trip, wrong key fails, distinct salts per call, semaphore honors context cancellation
-- [ ] write tests: token prefix/length/uniqueness, deterministic hashing, malformed tokens and wrong-length auth keys rejected
-- [ ] run `go test -race ./...` - must pass before Task 4
+- [x] implement `Hasher.Hash(ctx, authKey) (hash, salt, error)` / `Hasher.Verify(ctx, authKey, hash, salt) (bool, error)` with Argon2id (m = 19 MiB, t = 2, p = 1, 32 B) and `subtle.ConstantTimeCompare`; a semaphore (default 4) caps concurrent hashing and memory
+- [x] implement `Hasher.DummyVerify(ctx)` for unknown usernames so login timing does not reveal account existence
+- [x] implement `NewDeviceToken() (plain string, hash []byte)` (32 random bytes, base64url, `bst_` prefix) and `HashToken(plain)` (SHA-256), plus `ValidateAuthKey` (exactly 32 bytes)
+- [x] write tests: hash/verify round trip, wrong key fails, distinct salts per call, semaphore honors context cancellation
+- [x] write tests: token prefix/length/uniqueness, deterministic hashing, malformed tokens and wrong-length auth keys rejected
+- [x] run `go test -race ./...` - must pass before Task 4
+- [x] ➕ stored hashes are prefixed with a one-byte Argon2 parameter-set id, so parameters can change later without invalidating existing hashes
 
 ### Task 4: Prelogin, registration and login endpoints
 
