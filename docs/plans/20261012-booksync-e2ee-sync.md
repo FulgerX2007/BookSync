@@ -522,13 +522,14 @@ CREATE TABLE vault_versions (
 - Modify: `internal/api/server.go`
 - Modify: `internal/config/config.go`
 
-- [ ] implement keyed token-bucket limiter on `golang.org/x/time/rate` with idle-entry eviction and an injectable clock
-- [ ] apply to `/v1/auth/*`: per client IP (10/min, burst 10) and per (IP, username) on login (5/min); no global per-username limit (see Security model); respond 429 `rate_limited` with `Retry-After`
-- [ ] resolve client IP from `RemoteAddr`, or from the **rightmost** `X-Forwarded-For` entry only when `BOOKSYNC_TRUST_PROXY_HEADERS=true`
-- [ ] cap JSON request bodies at 64 KiB (413), except the password route with rotation
-- [ ] write tests: limiter allows burst then blocks, refills with fake time, evicts idle keys
-- [ ] write tests: 429 + `Retry-After` on auth endpoints; the rightmost `X-Forwarded-For` entry is used only when trusted, and a spoofed leftmost entry is ignored; oversized JSON → 413
-- [ ] run `go test -race ./...` - must pass before Task 10
+- [x] implement keyed token-bucket limiter on `golang.org/x/time/rate` with idle-entry eviction and an injectable clock
+- [x] apply to `/v1/auth/*`: per client IP (10/min, burst 10) and per (IP, username) on login (5/min); no global per-username limit (see Security model); respond 429 `rate_limited` with `Retry-After`
+- [x] resolve client IP from `RemoteAddr`, or from the **rightmost** `X-Forwarded-For` entry only when `BOOKSYNC_TRUST_PROXY_HEADERS=true`
+- [x] cap JSON request bodies at 64 KiB (413), except the password route with rotation
+- [x] write tests: limiter allows burst then blocks, refills with fake time, evicts idle keys
+- [x] write tests: 429 + `Retry-After` on auth endpoints; the rightmost `X-Forwarded-For` entry is used only when trusted, and a spoofed leftmost entry is ignored; oversized JSON → 413
+- [x] run `go test -race ./...` - must pass before Task 10
+- [x] ➕ `config.go` needed no change (`BOOKSYNC_TRUST_PROXY_HEADERS` already existed); IPv6 clients are rate-limited per /64; the 64 KiB JSON cap was built in Task 4 and is tested here at the API level
 
 ### Task 10: Container image and self-hosting bundle
 

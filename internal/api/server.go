@@ -28,6 +28,9 @@ type Server struct {
 	deps Deps
 	log  *slog.Logger
 	mux  *http.ServeMux
+
+	authIPLimiter *keyedLimiter
+	loginLimiter  *keyedLimiter
 }
 
 // NewServer builds the API handler.
@@ -39,16 +42,23 @@ func NewServer(cfg config.Config, deps Deps) http.Handler {
 	if deps.Now == nil {
 		deps.Now = time.Now
 	}
-	s := &Server{cfg: cfg, deps: deps, log: log, mux: http.NewServeMux()}
+	s := &Server{
+		cfg:           cfg,
+		deps:          deps,
+		log:           log,
+		mux:           http.NewServeMux(),
+		authIPLimiter: newKeyedLimiter(authIPRate, authIPBurst, deps.Now),
+		loginLimiter:  newKeyedLimiter(loginUserIPRate, loginUserIPBurst, deps.Now),
+	}
 	s.routes()
 	return s.recoverPanics(s.logRequests(http.HandlerFunc(s.dispatch)))
 }
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
-	s.mux.HandleFunc("GET /v1/auth/prelogin", s.handlePrelogin)
-	s.mux.HandleFunc("POST /v1/auth/register", s.handleRegister)
-	s.mux.HandleFunc("POST /v1/auth/login", s.handleLogin)
+	s.mux.HandleFunc("GET /v1/auth/prelogin", s.limitByIP(s.handlePrelogin))
+	s.mux.HandleFunc("POST /v1/auth/register", s.limitByIP(s.handleRegister))
+	s.mux.HandleFunc("POST /v1/auth/login", s.limitByIP(s.handleLogin))
 	s.mux.HandleFunc("POST /v1/auth/logout", s.requireDevice(s.handleLogout))
 	s.mux.HandleFunc("GET /v1/devices", s.requireDevice(s.handleListDevices))
 	s.mux.HandleFunc("DELETE /v1/devices/{id}", s.requireDevice(s.handleRevokeDevice))

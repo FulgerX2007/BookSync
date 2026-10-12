@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/FulgerX2007/BookSync/internal/auth"
 	"github.com/FulgerX2007/BookSync/internal/store"
@@ -127,6 +128,10 @@ type loginRequest struct {
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if !decodeJSON(w, r, &req, maxJSONBody) {
+		return
+	}
+	limitKey := s.clientIP(r) + "|" + strings.ToLower(strings.TrimSpace(req.Username))
+	if !s.allowed(w, s.loginLimiter, limitKey) {
 		return
 	}
 	deviceName, err := normalizeDeviceName(req.DeviceName)
