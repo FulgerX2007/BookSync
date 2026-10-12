@@ -1,4 +1,4 @@
-// One sync run: the "Sync algorithm" of the plan (steps 0-9).
+// One sync run: docs/protocol.md §4.1 (steps 0-9).
 //
 // Invariants:
 //  * base advances only after both the browser and the server hold the

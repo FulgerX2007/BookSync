@@ -1,4 +1,4 @@
-// Key derivation and vault-key wrapping (see "Cryptography" in the plan).
+// Key derivation and vault-key wrapping (docs/protocol.md §1).
 //
 //   stretched = PBKDF2-SHA256(password, SHA-256("booksync/v1|" + username), iterations)
 //   authKey   = HKDF-SHA256(stretched, salt = SyncID, "booksync/v1/auth")  → server

@@ -1,6 +1,6 @@
 // Three-way merge of bookmark trees: base (last synced), local (this
 // browser now) and remote (the server's current vault). The rules are those
-// of the "Merge rules" table in the plan:
+// of the merge table in docs/protocol.md §4.4:
 //
 //  * a change made on one side only wins;
 //  * an edit beats a delete (edit = title, url or parent change);

@@ -1,4 +1,4 @@
-// Typed client for the BookSync server API (see "Server API" in the plan).
+// Typed client for the BookSync server API (docs/protocol.md §3).
 
 export type ApiErrorCode =
   | 'unauthorized' // device token missing, revoked or expired

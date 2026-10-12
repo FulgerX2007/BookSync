@@ -1,4 +1,4 @@
-// Typed local state of the extension. See "Local extension state" in the plan.
+// Typed local state of the extension. See docs/protocol.md §6.
 import type { Guid, VaultDoc } from '../model/vault';
 import { Db, INDEX_GUID, STORE_IDMAP, STORE_KV, idbRequest, openDb } from './db';
 

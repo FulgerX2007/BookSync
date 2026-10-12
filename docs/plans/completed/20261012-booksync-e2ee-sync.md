@@ -1048,14 +1048,15 @@ CREATE TABLE vault_versions (
 - [x] ⚠️ `go test ./...` walked into `extension/node_modules` (npm's `flatted` ships a Go package). `go.mod` now has `ignore ./extension` (Go 1.25+).
 
 ### Task 30: [Final] Update documentation
-- [ ] write `README.md`:
+- [x] write `README.md`:
   - what and why, architecture diagram, security model summary (incl. "lost device → rotate keys");
   - self-hosting with docker compose, plus closing registration and backups (and what to do on `rollback_detected` after restoring one);
   - installing the extension (unpacked builds and stores);
   - development setup and test commands.
-- [ ] write `docs/protocol.md`: the Cryptography spec, vault format, Browser mapping rules and Server API as a normative reference for future clients (e.g. a Go CLI or Safari)
-- [ ] create `CLAUDE.md`: repo layout, Go and TS conventions, test commands, merge invariants and fake-fidelity rules that must hold
-- [ ] move this plan to `docs/plans/completed/`
+- [x] write `docs/protocol.md`: the Cryptography spec, vault format, Browser mapping rules and Server API as a normative reference for future clients (e.g. a Go CLI or Safari)
+- [x] create `CLAUDE.md`: repo layout, Go and TS conventions, test commands, merge invariants and fake-fidelity rules that must hold
+- [x] move this plan to `docs/plans/completed/`
+- [x] ➕ Every statement in the docs was checked against the code (API codes, UI labels, constants, test names). `docs/protocol.md` includes the independent KDF test vector. CLAUDE.md records the merge, apply, engine and crypto invariants, and the fake-fidelity rules.
 
 ## Post-Completion
 *Items requiring manual intervention or external systems - no checkboxes, informational only*

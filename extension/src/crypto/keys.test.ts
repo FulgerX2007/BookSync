@@ -18,7 +18,7 @@ const fast = { allowWeak: true };
 const hex = (b: Uint8Array) => Buffer.from(b).toString('hex');
 
 // Computed independently with Python's hashlib.pbkdf2_hmac + RFC 5869 HKDF
-// (see the Task 13 notes in the plan).
+// (docs/protocol.md §1.2; Task 13 notes in docs/plans/completed/).
 const VECTOR = {
   authKey: 'bb4e76c9004b496b6e50c1845c3a1a3ee6d695c95f1dbef3a76cd6b1213dd01d',
   kek: 'bf7ae07aff0552d9d1f011eae6d27296ea6897b14c47fd28b5cb767a6192829b',
