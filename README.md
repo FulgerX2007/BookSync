@@ -265,6 +265,37 @@ npm run build            # → dist/chromium and dist/firefox
 or Firefox account) on top of BookSync. BookSync detects it and pauses until you
 acknowledge it.
 
+## Finding and organizing bookmarks
+
+BookSync works on the browser's own bookmarks, so these tools work the same in Chrome,
+Edge, Brave, Vivaldi, Opera and Firefox. They work signed out too. Every change reaches
+your other browsers through the normal sync.
+
+- **Search from the toolbar.** Open the popup and type any part of a bookmark's title
+  or URL:
+  - case and accents don't matter (`cafe` finds *Café*);
+  - several words must all match;
+  - each result shows its folder;
+  - use ↑/↓ and Enter, or click, to open a result in a new tab.
+- **Bookmark this page.** In the popup, pick a folder and a name. If the page is
+  already bookmarked, the popup says where. This uses the `activeTab` permission, which
+  only applies when you open the popup.
+- **Manage bookmarks** (button in the popup) opens a full-tab manager:
+  - **The tree.** It shows your synced folders. Double-click a bookmark to open it, or
+    a folder name to rename it.
+  - **Editing.** Use **New folder**, **New bookmark**, **Edit** and **Delete**, or the
+    ✎ and 🗑 buttons on each row. Deleting a folder, or several items, asks first and
+    names the counts.
+  - **Search.** The search box lists matching bookmarks and folders; click a result to
+    jump to it in the tree.
+  - **Drag and drop.** Drop an item near the top or bottom edge of a row to place it
+    before or after that row, or onto the middle of a folder to move it inside.
+  - **Multi-select.** Ctrl/⌘-click or Shift-click selects several items, which you can
+    then drag or delete together.
+  - **Live updates.** The manager follows changes made by sync or by the browser.
+  - **Locked roots.** The root folders (Bookmarks bar, Other bookmarks, …) can't be
+    renamed, moved or deleted.
+
 ## Development
 
 The repository contains the Go server and the TypeScript WebExtension.
@@ -280,8 +311,9 @@ extension/
   src/browser/         Chromium/Firefox adapters, projection, applying changes
   src/storage/         IndexedDB state
   src/api/             typed HTTP client
+  src/bookmarks/       search, selection, drop rules and edits for the popup and manager
   src/background/      service worker: scheduler, account flows, message router
-  src/ui/              options page and popup
+  src/ui/              options page, popup (search, bookmark this page) and manager
   test/                fakes (bookmarks API, server), builders, multi-device harness
   e2e/                 Playwright tests against real Chromium and the real server
 docs/protocol.md       normative protocol reference

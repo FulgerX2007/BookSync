@@ -528,15 +528,15 @@ countSubtree(t, ids): { bookmarks: number; folders: number }    // for confirmat
   - Coverage: `src/bookmarks` 97.65 % statements; `src/sync` 98.68 %, `src/crypto` 98.46 %, `src/browser` 96.57 % (up from 95.33 %); Go `internal/` unchanged at 80.6–97.2 %.
 
 ### Task 13: [Final] Update documentation
-- [ ] update README.md:
+- [x] update README.md:
   - add a "Finding and organizing bookmarks" section: popup search, bookmark this page, the manager, drag and drop, multi-select;
   - mention the new `activeTab` permission;
   - add `src/bookmarks/` and the manager to the layout block.
-- [ ] update CLAUDE.md:
+- [x] update CLAUDE.md:
   - `src/bookmarks/` (pure, unit-tested; `src/ui` stays thin) and its coverage target;
   - "UI pages edit bookmarks only through `src/bookmarks/ops.ts`, never through raw `bookmarks.move` indices; roots are locked there";
   - "popup status re-renders must stay inside `#status-app`".
-- [ ] move this plan to `docs/plans/completed/`
+- [x] move this plan to `docs/plans/completed/`
 
 ## Post-Completion
 *Items requiring manual intervention or external systems - no checkboxes, informational only*
