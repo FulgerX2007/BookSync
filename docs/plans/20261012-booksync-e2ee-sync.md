@@ -834,31 +834,34 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/background/router.test.ts`
 - Modify: `extension/src/background/index.ts`
 
-- [ ] implement the scheduler:
+- [x] implement the scheduler:
   - single-flight sync with a "dirty" re-run flag;
   - listeners only for the events the adapter reports, debounced by 3 s, and counted into the engine's event counter;
   - events during apply mark the scheduler dirty instead of being dropped;
   - Chromium `onImportBegan/onImportEnded` pause syncing.
-- [ ] create the `poll` alarm (1 min) idempotently (`alarms.get` → create) at top level, in `onInstalled` and in `onStartup`, since alarms may not survive a browser restart; sync on `runtime.onStartup`
-- [ ] implement backoff and pause state:
+- [x] create the `poll` alarm (1 min) idempotently (`alarms.get` → create) at top level, in `onInstalled` and in `onStartup`, since alarms may not survive a browser restart; sync on `runtime.onStartup`
+- [x] implement backoff and pause state:
   - backoff on network/server errors (30 s → 15 min, jittered) and `Retry-After` are persisted as `nextAttemptAt`, which every alarm checks, because service-worker timers die after ~30 s idle;
   - `unauthorized` → `clearCredentials()` and status `signed_out`;
   - `pause`/`resume` state is persisted.
-- [ ] define the typed request/response union in `messages.ts`:
+- [x] define the typed request/response union in `messages.ts`:
   - sync: `getStatus`, `syncNow`, `pauseSync`, `resumeSync`, `confirmPendingSync`, `useLocalVersion`, `acceptServerVersion`, `rejoin`, `acknowledgeNativeSync`;
   - account: `register`, `login`, `logout`, `listDevices`, `revokeDevice`, `changePassword`, `deleteAccount`, `getEmergencyKit`;
   - history: `listVersions`, `restoreVersion`.
-- [ ] implement `router.ts` as a handler registry: it validates and dispatches. Sync handlers are registered here; account handlers are added in Task 23 and history handlers in Task 26.
-- [ ] publish status to `storage.session` so the popup and options pages update via `storage.onChanged`
-- [ ] write tests (fake timers):
+- [x] implement `router.ts` as a handler registry: it validates and dispatches. Sync handlers are registered here; account handlers are added in Task 23 and history handlers in Task 26.
+- [x] publish status to `storage.session` so the popup and options pages update via `storage.onChanged`
+- [x] write tests (fake timers):
   - debounce coalesces bursts;
   - single-flight + dirty re-run;
   - events during apply produce exactly one no-op follow-up;
   - persisted backoff is respected after a simulated service-worker restart;
   - `Retry-After`;
   - 401 keeps `base`, `idMap` and SyncID.
-- [ ] write tests: the alarm is created once across repeated startups; a Firefox fake without `onChildrenReordered`/`onImport*` starts cleanly; pause/resume; the router rejects unknown and malformed messages and dispatches registered handlers
-- [ ] run `npm test` - must pass before Task 23
+- [x] write tests: the alarm is created once across repeated startups; a Firefox fake without `onChildrenReordered`/`onImport*` starts cleanly; pause/resume; the router rejects unknown and malformed messages and dispatches registered handlers
+- [x] run `npm test` - must pass before Task 23
+- [x] ➕ 401 handling lives in the engine (it owns the state change). The scheduler restores the previous status when a run did nothing (paused, backoff, no session).
+- [x] ➕ `StateStore.lazy()` lets the background register every listener synchronously before IndexedDB has opened, as MV3 requires.
+- [x] ➕ `npm run check` (typecheck + lint + tests) gates every commit from here on.
 
 ### Task 23: Account flows: register, login, password change, delete
 

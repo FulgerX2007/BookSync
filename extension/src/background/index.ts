@@ -1,3 +1,57 @@
-// Background entry point (service worker on Chromium, event page on Firefox).
-// Wired up in later tasks: scheduler, message router, account flows.
-export {};
+// Background entry point: service worker on Chromium, event page on Firefox.
+//
+// Everything is constructed synchronously and every listener is registered
+// in the first turn of the event loop: an MV3 worker woken by an event only
+// receives it if its listener exists before the first await.
+import { HttpApiClient, type ApiClient } from '../api/client';
+import type { NativeBookmarksApi } from '../browser/adapter';
+import { ChromiumAdapter } from '../browser/chromium';
+import { FirefoxAdapter } from '../browser/firefox';
+import { ext } from '../platform/ext';
+import { StateStore } from '../storage/state';
+import { syncOnce } from '../sync/engine';
+import { Router } from './router';
+import { SyncScheduler, registerSyncHandlers, statusView } from './scheduler';
+
+const api = ext();
+const state = StateStore.lazy();
+const bookmarks = api.bookmarks as unknown as NativeBookmarksApi;
+const adapter = __BOOKSYNC_TARGET__ === 'chromium' ? new ChromiumAdapter(bookmarks) : new FirefoxAdapter(bookmarks);
+
+/** A client for the signed-in server; the token is read fresh for every request. */
+export async function serverClient(): Promise<ApiClient | null> {
+  const session = await state.getSession();
+  if (!session) return null;
+  return new HttpApiClient(session.serverUrl, async () => (await state.getSession())?.deviceToken ?? null);
+}
+
+async function publishStatus(): Promise<void> {
+  await api.storage.session.set({ status: await statusView(state) });
+}
+
+const scheduler: SyncScheduler = new SyncScheduler({
+  sync: async (opts) => {
+    const client = await serverClient();
+    if (!client) return { status: 'signed_out' };
+    return syncOnce({ api: client, adapter, state, now: Date.now, eventCount: scheduler.eventCount }, opts);
+  },
+  state,
+  changeEvents: adapter.changeEvents(),
+  importEvents: adapter.importEvents(),
+  alarms: api.alarms,
+  publish: publishStatus,
+  now: Date.now,
+});
+
+const router = new Router();
+registerSyncHandlers(router, scheduler, state);
+router.listen(api.runtime);
+
+void scheduler.start();
+api.runtime.onStartup.addListener(() => void scheduler.requestSync());
+api.runtime.onInstalled.addListener(() => {
+  void scheduler.ensureAlarm();
+  void publishStatus();
+});
+
+export { adapter, router, scheduler, state };

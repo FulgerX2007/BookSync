@@ -87,40 +87,51 @@ const KEY_VAULT_KEY = 'vaultKey';
 const KEY_SYNC = 'sync';
 
 export class StateStore {
-  private constructor(private readonly db: Db) {}
+  private constructor(private readonly dbp: Promise<Db>) {}
 
   static async open(name?: string): Promise<StateStore> {
-    return new StateStore(new Db(await openDb(name)));
+    const store = StateStore.lazy(name);
+    await store.dbp;
+    return store;
   }
 
-  close(): void {
-    this.db.close();
+  /**
+   * Returns immediately and opens the database in the background. MV3
+   * background scripts must register event listeners synchronously, before
+   * any await, so the background builds its objects with this.
+   */
+  static lazy(name?: string): StateStore {
+    return new StateStore(openDb(name).then((idb) => new Db(idb)));
+  }
+
+  async close(): Promise<void> {
+    (await this.dbp).close();
   }
 
   async getSession(): Promise<Session | null> {
-    return (await this.db.get<Session>(STORE_KV, KEY_SESSION)) ?? null;
+    return (await (await this.dbp).get<Session>(STORE_KV, KEY_SESSION)) ?? null;
   }
 
   async setSession(session: Session): Promise<void> {
-    await this.db.write(STORE_KV, (tx) => void tx.objectStore(STORE_KV).put(session, KEY_SESSION));
+    await (await this.dbp).write(STORE_KV, (tx) => void tx.objectStore(STORE_KV).put(session, KEY_SESSION));
   }
 
   async getVaultKey(): Promise<CryptoKey | null> {
-    return (await this.db.get<CryptoKey>(STORE_KV, KEY_VAULT_KEY)) ?? null;
+    return (await (await this.dbp).get<CryptoKey>(STORE_KV, KEY_VAULT_KEY)) ?? null;
   }
 
   async setVaultKey(key: CryptoKey): Promise<void> {
-    await this.db.write(STORE_KV, (tx) => void tx.objectStore(STORE_KV).put(key, KEY_VAULT_KEY));
+    await (await this.dbp).write(STORE_KV, (tx) => void tx.objectStore(STORE_KV).put(key, KEY_VAULT_KEY));
   }
 
   async getSync(): Promise<SyncState> {
-    return { ...defaultSyncState(), ...(await this.db.get<Partial<SyncState>>(STORE_KV, KEY_SYNC)) };
+    return { ...defaultSyncState(), ...(await (await this.dbp).get<Partial<SyncState>>(STORE_KV, KEY_SYNC)) };
   }
 
   /** Atomically merges patch into the sync state and returns the result. */
   async updateSync(patch: Partial<SyncState>): Promise<SyncState> {
     let next = defaultSyncState();
-    await this.db.write(STORE_KV, async (tx) => {
+    await (await this.dbp).write(STORE_KV, async (tx) => {
       const store = tx.objectStore(STORE_KV);
       const cur = (await idbRequest(store.get(KEY_SYNC))) as Partial<SyncState> | undefined;
       next = { ...defaultSyncState(), ...cur, ...patch };
@@ -130,12 +141,12 @@ export class StateStore {
   }
 
   async loadIdMap(): Promise<IdMap> {
-    return new IdMap(await this.db.getAll<IdMapEntry>(STORE_IDMAP), this);
+    return new IdMap(await (await this.dbp).getAll<IdMapEntry>(STORE_IDMAP), this);
   }
 
   /** Binds localId ↔ guid, dropping any previous binding of either side. */
   async putIdMapEntry(entry: IdMapEntry): Promise<void> {
-    await this.db.write(STORE_IDMAP, async (tx) => {
+    await (await this.dbp).write(STORE_IDMAP, async (tx) => {
       const store = tx.objectStore(STORE_IDMAP);
       const clash = (await idbRequest(store.index(INDEX_GUID).getKey(entry.guid))) as string | undefined;
       if (clash !== undefined && clash !== entry.localId) store.delete(clash);
@@ -146,7 +157,7 @@ export class StateStore {
   /** Binds many new entries in one transaction (first projection of a large tree). */
   async putIdMapEntries(entries: readonly IdMapEntry[]): Promise<void> {
     if (entries.length === 0) return;
-    await this.db.write(STORE_IDMAP, async (tx) => {
+    await (await this.dbp).write(STORE_IDMAP, async (tx) => {
       const store = tx.objectStore(STORE_IDMAP);
       for (const entry of entries) {
         const clash = (await idbRequest(store.index(INDEX_GUID).getKey(entry.guid))) as string | undefined;
@@ -157,12 +168,12 @@ export class StateStore {
   }
 
   async deleteIdMapEntry(localId: string): Promise<void> {
-    await this.db.write(STORE_IDMAP, (tx) => void tx.objectStore(STORE_IDMAP).delete(localId));
+    await (await this.dbp).write(STORE_IDMAP, (tx) => void tx.objectStore(STORE_IDMAP).delete(localId));
   }
 
   /** Logout: forget everything. Browser bookmarks are never touched. */
   async clearAccount(): Promise<void> {
-    await this.db.write([STORE_KV, STORE_IDMAP], (tx) => {
+    await (await this.dbp).write([STORE_KV, STORE_IDMAP], (tx) => {
       tx.objectStore(STORE_KV).clear();
       tx.objectStore(STORE_IDMAP).clear();
     });
@@ -174,7 +185,7 @@ export class StateStore {
    * a guarded merge instead of a fresh join.
    */
   async clearCredentials(): Promise<void> {
-    await this.db.write(STORE_KV, async (tx) => {
+    await (await this.dbp).write(STORE_KV, async (tx) => {
       const store = tx.objectStore(STORE_KV);
       const session = (await idbRequest(store.get(KEY_SESSION))) as Session | undefined;
       if (session) store.put({ ...session, deviceToken: null }, KEY_SESSION);
