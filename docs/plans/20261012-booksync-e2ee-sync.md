@@ -872,23 +872,24 @@ CREATE TABLE vault_versions (
 - Create: `extension/src/background/emergency-kit.test.ts`
 - Modify: `extension/src/background/index.ts`
 
-- [ ] implement `register`: prelogin (`assertKdfParams`) → generate SyncID → derive → `createVaultKey` → `POST /register` → persist session (incl. `wrappedVaultKey`), SyncID and key → bootstrap sync; return the SyncID and kit
-- [ ] implement `login`: prelogin (`assertKdfParams`) → derive → login (`assertKdfParams` on the response) → unwrap the vault key (failure → `invalid_credentials`) → persist. Resume with `merge3` when `userId` matches the stored one and `base` exists; otherwise clear the old state and join (`firstSync`). The SyncID field is pre-filled after a 401 sign-out.
-- [ ] implement `logout` (revoke + `clearAccount`) and `deleteAccount(password)`
-- [ ] implement `changePassword(current, next, {rotateKeys})`:
+- [x] implement `register`: prelogin (`assertKdfParams`) → generate SyncID → derive → `createVaultKey` → `POST /register` → persist session (incl. `wrappedVaultKey`), SyncID and key → bootstrap sync; return the SyncID and kit
+- [x] implement `login`: prelogin (`assertKdfParams`) → derive → login (`assertKdfParams` on the response) → unwrap the vault key (failure → `invalid_credentials`) → persist. Resume with `merge3` when `userId` matches the stored one and `base` exists; otherwise clear the old state and join (`firstSync`). The SyncID field is pre-filled after a 401 sign-out.
+- [x] implement `logout` (revoke + `clearAccount`) and `deleteAccount(password)`
+- [x] implement `changePassword(current, next, {rotateKeys})`:
   - plain: `rewrapVaultKey` from the stored wrapped bytes; this device stays signed in;
   - `rotateKeys`: sync first, generate a new SyncID and vault key, encrypt `base` with `seq = lastSeq + 1`, and send it as `rotation`. On 412, sync and retry. Return the new kit.
-- [ ] implement `emergency-kit.ts`: plaintext kit with server URL, username, SyncID, creation date and recovery warning, never the password; enforce a 10-character minimum password client-side; register the account handlers with the router
-- [ ] write tests (fake server, reduced iterations):
+- [x] implement `emergency-kit.ts`: plaintext kit with server URL, username, SyncID, creation date and recovery warning, never the password; enforce a 10-character minimum password client-side; register the account handlers with the router
+- [x] write tests (fake server, reduced iterations):
   - register on device 1, then login on device 2, recovers the same vault key;
   - wrong password or wrong SyncID → `invalid_credentials`;
   - a downgraded prelogin is rejected.
-- [ ] write tests:
+- [x] write tests:
   - plain `changePassword`: old password fails, new one works, other devices revoked, history kept;
   - rotation: the old SyncID fails, a new kit is returned, another device decrypts after re-login, and history holds one version;
   - `deleteAccount` clears local state;
   - the kit contains the SyncID and never the password.
-- [ ] run `npm test` - must pass before Task 24
+- [x] run `npm test` - must pass before Task 24
+- [x] ➕ `Account` takes a `KdfPolicy`: production uses 600k iterations and strict checks; tests use 1000 with `allowWeak`. `changePassword` checks the current password locally (by unwrapping) before calling the server. Rotation retries up to 3 times on `version_conflict`.
 
 ### Task 24: Options page and e2e harness
 

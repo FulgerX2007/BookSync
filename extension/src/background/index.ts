@@ -10,6 +10,7 @@ import { FirefoxAdapter } from '../browser/firefox';
 import { ext } from '../platform/ext';
 import { StateStore } from '../storage/state';
 import { syncOnce } from '../sync/engine';
+import { Account, registerAccountHandlers } from './account';
 import { Router } from './router';
 import { SyncScheduler, registerSyncHandlers, statusView } from './scheduler';
 
@@ -43,8 +44,16 @@ const scheduler: SyncScheduler = new SyncScheduler({
   now: Date.now,
 });
 
+const account = new Account({
+  state,
+  clientFor: (serverUrl, token) => new HttpApiClient(serverUrl, token),
+  sync: (opts) => scheduler.requestSync(opts),
+  now: Date.now,
+});
+
 const router = new Router();
 registerSyncHandlers(router, scheduler, state);
+registerAccountHandlers(router, account);
 router.listen(api.runtime);
 
 void scheduler.start();
@@ -54,4 +63,4 @@ api.runtime.onInstalled.addListener(() => {
   void publishStatus();
 });
 
-export { adapter, router, scheduler, state };
+export { account, adapter, router, scheduler, state };
