@@ -313,25 +313,25 @@
   - ⚠️ the "Permission missing" path is not covered by e2e: the e2e build grants `http://127.0.0.1/*` at install, and it can't be revoked from a test. Verify it manually (Post-Completion).
 
 ### Task 6: Verify acceptance criteria
-- [ ] verify all requirements from Overview are implemented
-- [ ] verify edge cases are handled:
+- [x] verify all requirements from Overview are implemented
+- [x] verify edge cases are handled:
   - an old server without `/v1/info`;
   - storage down;
   - closed registration;
   - an escaped `Host`.
-- [ ] run full test suite: `make test` and `make lint`
-- [ ] run e2e tests: `make e2e` and `make e2e-edge`
-- [ ] verify coverage: `go test -cover ./internal/...` ≥ 80 %
-- [ ] run `make docker-smoke` (extended in Tasks 1 and 2)
+- [x] run full test suite: `make test` and `make lint`
+- [x] run e2e tests: `make e2e` and `make e2e-edge`
+- [x] verify coverage: `go test -cover ./internal/...` ≥ 80 %
+- [x] run `make docker-smoke` (extended in Tasks 1 and 2)
 
 ### Task 7: [Final] Update documentation
-- [ ] `docs/protocol.md` §3.2: add `GET /` (HTML, informational) and `GET /v1/info` (schema and `protocol` meaning above); note that clients must tolerate its absence and ignore unknown fields
-- [ ] `docs/protocol.md` §3.1: `GET /` is the one non-JSON success response; 404 and 405 stay JSON
-- [ ] README: mention the home page under Self-hosting (open `https://your-domain/` to check the server) and the Test connection button
-- [ ] CLAUDE.md:
+- [x] `docs/protocol.md` §3.2: add `GET /` (HTML, informational) and `GET /v1/info` (schema and `protocol` meaning above); note that clients must tolerate its absence and ignore unknown fields
+- [x] `docs/protocol.md` §3.1: `GET /` is the one non-JSON success response; 404 and 405 stay JSON
+- [x] README: mention the home page under Self-hosting (open `https://your-domain/` to check the server) and the Test connection button
+- [x] CLAUDE.md:
   - home page rules: no JS; CSS only in `home.css`, hashed into the CSP and inserted as `template.CSS`; no inline `style=` attributes;
   - `checkServer` / `serverOrigin` are the one way the UI probes a server.
-- [ ] move this plan to `docs/plans/completed/`
+- [x] move this plan to `docs/plans/completed/`
 
 ## Post-Completion
 *Items requiring manual intervention or external systems - no checkboxes, informational only*

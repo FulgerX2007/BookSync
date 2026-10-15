@@ -107,6 +107,10 @@ docker compose -f deploy/docker-compose.yml up -d --build
 curl https://booksync.example.com/healthz # → {"status":"ok"}
 ```
 
+Open `https://booksync.example.com/` in a browser to see the server's status page: whether
+it is online, its version, whether sign-up is open, the address to enter in the
+extension and the API reference. `GET /v1/info` returns the same facts as JSON.
+
 - **Network.** Only Caddy is published. The BookSync container is reachable solely
   through it, and it trusts the client IP Caddy appends to `X-Forwarded-For`.
 - **Data.** Everything lives in the `booksync-data` volume (`/data/booksync.db`).
@@ -153,8 +157,8 @@ HTTPS. It needs DSM 7.2+ with Container Manager.
      Without it, every client shares one rate-limit bucket.
 
    In the Certificate settings, assign the new certificate to this hostname.
-6. **Check.** `curl https://booksync.example.com/healthz` should return
-   `{"status":"ok"}`.
+6. **Check.** Open `https://booksync.example.com/`: the status page should say
+   **Online** and show the `https://` address to enter in the extension.
 
 - **Data** is in `/volume1/docker/booksync/data/booksync.db`, so Hyper Backup and
   snapshots cover it. A snapshot is only consistent with the project stopped. Otherwise,
@@ -289,6 +293,8 @@ npm run build            # → dist/chromium and dist/firefox
 
 **Settings page:**
 
+- **Test connection** before connecting, and a **Server** card once signed in, showing
+  whether the server is reachable (with **Check now**);
 - devices (with revoke);
 - your SyncID and emergency kit;
 - password change (with key rotation);
