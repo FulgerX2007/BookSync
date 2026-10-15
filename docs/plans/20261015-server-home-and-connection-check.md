@@ -106,22 +106,43 @@
   }
   ```
 
-  `status` is `"ok"` or `"unavailable"` (when the store ping fails).
+  - `status` is `"ok"` or `"unavailable"` (when the store ping fails). A failed ping is
+    logged as in `handleHealth`.
+  - `registrationOpen` is `cfg.AllowRegistration`.
+  - `protocol` is the major version from protocol.md's title ("v1"). Clients must ignore
+    unknown fields.
 - **`GET /` (and `HEAD /`).** `text/html; charset=utf-8`, status 200, even when the
   status is `unavailable`: the page reports it. Headers:
   - `Content-Security-Policy: default-src 'none'; style-src 'sha256-<hash>'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`.
-    The style hash is computed once at init from the embedded `<style>` block.
+    - The CSS lives in its own embedded `internal/api/home.css`. It is hashed once at
+      init, from exactly those bytes, and inserted as `<style>{{.CSS}}</style>` with
+      `.CSS` typed `template.CSS`, which is emitted verbatim.
+    - Hashing the `<style>` block of `home.html` would not work: `html/template`
+      rewrites literal text (it strips HTML comments and blanks CSS `/* */` comments),
+      so the served bytes would differ from the hashed ones and the browser would
+      block the CSS.
+    - No inline `style="…"` attributes anywhere, the SVG included: a hash in
+      `style-src` does not allow them without `'unsafe-hashes'`.
   - `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`,
     `Cache-Control: no-store`.
-  - `/{$}` matches only the root. Every other unknown path keeps its JSON `404`.
+  - `/{$}` matches only the root. Every other unknown path keeps its JSON `404`, and
+    `POST /` gets a JSON `405` with `Allow: GET, HEAD` through the existing `dispatch`.
+    The handler has no HEAD branch: `net/http` drops the body itself.
+  - `GET /` is the API's one non-JSON success response.
 - **Page sections.**
   - Header: inline SVG logo, "BookSync", tagline "End-to-end encrypted bookmark sync".
   - Status panel: a pill (green "Online" / red "Storage unavailable"), version, sign-up
     open or closed, maximum vault size (human-readable).
   - "Connect your browser": the three steps, and this server's address to paste.
-    - The address comes from `r.Host` and the scheme: TLS, or `X-Forwarded-Proto` only
-      when `BOOKSYNC_TRUST_PROXY_HEADERS`.
+    - The address comes from `r.Host` and the scheme: `https` when `r.TLS != nil`, or
+      the **first** `X-Forwarded-Proto` entry, but only when
+      `BOOKSYNC_TRUST_PROXY_HEADERS` (Caddy and DSM set a single value).
     - It is HTML-escaped by `html/template`.
+    - A note under it reads "If this server is behind a path prefix, include it".
+      Protocol §3.1 allows prefixes, and `r.Host` can't see them. No new config.
+    - When the scheme is `http` and the host is not `localhost`/`127.0.0.1`, a warning
+      reads "The extension requires HTTPS", since `normalizeServerUrl` would reject
+      the address with `insecure_url`.
   - "Privacy": the server stores only ciphertext and Argon2id hashes; the SyncID never
     leaves your browsers.
   - API reference: a table of the §3.2 endpoints (method badge, path, auth, purpose).
@@ -136,12 +157,25 @@
     | { ok: false; reason: 'unreachable' | 'not_booksync' | 'storage_unavailable' | 'timeout' };
   ```
 
-  - **Flow:** `GET /v1/info`, with an 8 s `AbortSignal.timeout`.
-    - On 404, fall back to `GET /healthz`, which means an older server. The result is
-      `ok`, with `null` facts.
-    - `service !== "booksync"` or unparseable JSON → `not_booksync`.
-    - `status: "unavailable"` → `storage_unavailable`. A `503` from healthz also maps to
-      it.
+  - **Signature:** `checkServer(baseUrl, { fetchFn, timeoutMs = 8000 })`. It reuses the
+    exported `FetchFn` type and the default-fetch style of `src/api/client.ts`.
+  - **Flow:** `GET /v1/info` with `AbortSignal.timeout(timeoutMs)`. Results are mapped
+    in this order:
+    1. a network error → `unreachable`;
+    2. a `TimeoutError` → `timeout`;
+    3. 404 → fall back to `GET /healthz` (an older server):
+       - 2xx → `ok`, with `null` facts;
+       - 503 → `storage_unavailable`;
+       - anything else → `unreachable`;
+    4. any other non-2xx (for example 502/503/504 HTML from a reverse proxy whose
+       backend is down, or a 401/403 from an auth wall) → `unreachable`, never
+       `not_booksync`;
+    5. 2xx with unparseable JSON or `service !== "booksync"` → `not_booksync`;
+    6. `status: "unavailable"` → `storage_unavailable`;
+    7. otherwise → `ok`.
+  - **Shared origin helper.** The origin pattern for the permission
+    (`${protocol}//${hostname}/*`) moves into one helper, `serverOrigin(url)`, which the
+    connect step and the Server card both use.
 - **Options UI.**
   - **Connect card.** A **Test connection** button next to **Continue**. Both request
     the permission synchronously in the click, then run `checkServer`. The result
@@ -154,7 +188,17 @@
     server."
   - **Signed-in Server card.** It shows the server address, a dot plus text ("Reachable
     · BookSync 0.2.0" / "Not reachable: …") and "checked HH:MM", with a **Check now**
-    button. It checks once per page load and on click. Nothing is persisted.
+    button. Nothing is persisted.
+    - **State.** Module-level `let serverCheck: { result: ServerCheck; at: number } |
+      null` plus an in-flight flag. `renderSignedIn()` always draws the card from
+      that state, so `onStatus` → `render()` rebuilds never blank it.
+    - **When it runs.** The check fires on the first signed-in render of the page and
+      on **Check now**. When it finishes, it updates only `#server-card`. The state is
+      cleared on sign-out or a server change.
+    - **Permission.** Before checking, call `ext().permissions.contains({ origins:
+      [serverOrigin(url)] })`. If the user revoked the permission, show "Permission
+      missing", and **Check now** re-requests it synchronously in the click, instead of
+      a misleading "Not reachable".
 
 ## What Goes Where
 - **Implementation Steps** (`[ ]` checkboxes): code, tests and docs in this repo.
@@ -170,50 +214,66 @@
 - Create: `internal/api/info_test.go`
 - Modify: `internal/api/server.go` (`Deps.Version`, route)
 - Modify: `cmd/booksync-server/main.go` (pass `version`)
+- Modify: `internal/api/helpers_test.go` (let a test set `Deps`, e.g. `Version`)
 
 - [ ] add `Version string` to `api.Deps`, defaulting to `"dev"` in `NewServer`, and set it in `main.go`
 - [ ] create `serverInfo` and `(s *Server) info(ctx)`, sharing the store ping with `handleHealth` (extract a small `storageOK(ctx)` helper so both use it)
 - [ ] register `GET /v1/info` → `handleInfo`, writing JSON with `writeJSON`
+- [ ] extend `newTestEnv` with a deps option (or build `NewServer` directly in that case) so tests can set `Deps.Version`
 - [ ] write table-driven tests: ok; registration closed; `maxVaultBytes` from config; version from `Deps`; `"dev"` default
 - [ ] write tests for the error path: store closed → `200` with `status: "unavailable"`; `POST /v1/info` → JSON `405`
-- [ ] run `make test` and `make lint` - must pass before next task
+- [ ] extend `deploy/smoke.sh`: `/v1/info` through Caddy returns `"service":"booksync"`
+- [ ] run `make test`, `make lint` and `make docker-smoke` - must pass before next task
 
 ### Task 2: Server-rendered home page
 
 **Files:**
 - Create: `internal/api/home.go`
 - Create: `internal/api/home.html` (embedded with `//go:embed`)
+- Create: `internal/api/home.css` (embedded; hashed for the CSP)
 - Create: `internal/api/home_test.go`
 - Modify: `internal/api/server.go` (route `GET /{$}`)
 
-- [ ] write `home.html`:
-  - inline CSS with CSS variables for light/dark (`prefers-color-scheme`), system font stack, an inline SVG logo as a data URI favicon;
+- [ ] write `home.css` and `home.html`:
+  - CSS variables for light/dark (`prefers-color-scheme`), system font stack, an inline SVG logo and a data URI favicon, with no `style=` attributes anywhere;
   - responsive single column below 640 px, no horizontal scroll;
   - the sections from Technical Details.
-- [ ] parse the template once at init (`template.Must`); compute the `<style>` SHA-256 for the CSP at init
-- [ ] `handleHome`: build the view from `s.info(ctx)` plus the derived server URL (trusted `X-Forwarded-Proto` only), set the security headers, render with `200`
+- [ ] parse the template once at init (`template.Must`); hash `home.css` (SHA-256, base64) for the CSP and pass it to the template as `template.CSS`
+- [ ] `handleHome`: build the view from `s.info(ctx)` plus the derived server URL (first `X-Forwarded-Proto` entry, trusted only), the path-prefix note and the HTTPS warning; set the security headers; render with `200`. No HEAD branch.
 - [ ] keep the API reference rows as a Go slice in `home.go`, so the template ranges over data, not hand-written HTML
 - [ ] write tests:
   - `GET /` → 200, `text/html`, CSP with `script-src`-free `default-src 'none'`, status pill text, version, "sign-up open/closed";
-  - `HEAD /` → 200 with no body;
-  - the CSP style hash matches the served `<style>` block.
+  - `HEAD /` → 200 with no body, through `httptest.NewServer` and a real client (`ResponseRecorder` keeps HEAD bodies);
+  - the CSP style hash matches the bytes of the served `<style>` block;
+  - the served HTML has no `style=` attribute.
 - [ ] write tests for edge cases:
   - store down → page shows "Storage unavailable";
-  - `GET /nope` → still JSON `404`;
+  - `GET /nope` → still JSON `404`; `POST /` → JSON `405` with `Allow: GET, HEAD`;
+  - an `http://` non-local host shows the HTTPS warning, and `localhost` doesn't;
+  - `X-Forwarded-Proto: https, http` with trusted headers → `https`;
   - a `Host` header with `<script>` is escaped;
   - `X-Forwarded-Proto: https` is ignored unless proxy headers are trusted.
-- [ ] run `make test`, `make lint` and `go test -cover ./internal/...` (≥ 80 %) - must pass before next task
+- [ ] extend `deploy/smoke.sh`: `GET /` through Caddy returns `text/html` with the status pill
+- [ ] run `make test`, `make lint`, `go test -cover ./internal/...` (≥ 80 %) and `make docker-smoke` - must pass before next task
 
 ### Task 3: `checkServer` in the extension
 
 **Files:**
 - Create: `extension/src/api/server-check.ts`
 - Create: `extension/src/api/server-check.test.ts`
+- Modify: `extension/src/api/client.ts` (export `FetchFn`)
 
-- [ ] implement `checkServer(baseUrl, fetchFn = fetch)` returning `ServerCheck` as specified (8 s timeout, `/v1/info` then `/healthz` fallback on 404)
+- [ ] export `FetchFn` from `src/api/client.ts` if not already exported
+- [ ] implement `checkServer(baseUrl, { fetchFn, timeoutMs })` with the status mapping from Technical Details, plus `serverOrigin(url)`
 - [ ] export `describeServerCheck(check)` → `{ tone: 'ok' | 'bad'; text: string }` for the UI, so the wording is unit-tested rather than living in `src/ui`
 - [ ] write tests for the success cases: full info; older server (404 → healthz 200); sign-up closed
-- [ ] write tests for the error cases: network error, timeout, non-JSON 200, `service` mismatch, `status: "unavailable"`, healthz 503
+- [ ] write tests for the error cases:
+  - network error;
+  - a real timeout: a fetch that waits on `init.signal`, with `timeoutMs: 10`;
+  - non-JSON 200; `service` mismatch; `status: "unavailable"`;
+  - 502 with an HTML body → `unreachable`; 401 → `unreachable`;
+  - healthz 503 → `storage_unavailable`; healthz 500 → `unreachable`.
+- [ ] write a table test for `describeServerCheck`: every `reason`, an old server's null facts, sign-up open and closed
 - [ ] run `cd extension && npm run check` - must pass before next task
 
 ### Task 4: Test connection on the connect step
@@ -222,13 +282,16 @@
 - Modify: `extension/src/ui/options/options.ts`
 - Modify: `extension/src/ui/options/options.css` (status line styles, if not already shared)
 - Modify: `extension/e2e/options.spec.ts`
+- Modify: `extension/e2e/fixtures.ts` (`startServer(env)`)
 
+- [ ] change `startServer(env: Record<string, string> = {})` to merge `env` into the spawn environment, for a closed-registration server
 - [ ] add a **Test connection** button and a `#connect-check` result area to the connect card. The permission request stays synchronous in the click handler.
 - [ ] route **Continue** through `checkServer`. Keep the last result and use `registrationOpen === false` to open the auth step on **Sign in**, with the "Sign-up is closed on this server." note on the register tab.
 - [ ] write e2e tests:
   - Test connection against the real e2e server shows "Connected to BookSync" with the version;
   - a closed-registration server opens on Sign in.
-- [ ] write e2e tests for failure: an unused localhost port shows the red "not reachable" result, and Continue stays on the connect step
+- [ ] write e2e tests for failure: a port from `freePort()` with nothing on it shows the red "not reachable" result, and Continue stays on the connect step
+- [ ] check that the existing `connect()` helper, which every other spec uses, still passes unchanged
 - [ ] run `npm run check`, `make e2e` and `make e2e-edge` - must pass before next task
 
 ### Task 5: Server card when signed in
@@ -238,8 +301,9 @@
 - Modify: `extension/e2e/options.spec.ts`
 
 - [ ] add a **Server** card to the signed-in view: address, status dot and text from `describeServerCheck`, "checked HH:MM", and a **Check now** button (busy state while running)
-- [ ] run one check per render of the signed-in view. Guard it so a status re-render does not refire it; only page load and **Check now** do.
-- [ ] write e2e test: signed in, the card shows "Reachable"
+- [ ] keep the result in module-level state as specified: the first signed-in render and **Check now** fire it; completion updates only `#server-card`; sign-out or a server change clears it
+- [ ] check `permissions.contains` first; "Permission missing" makes **Check now** re-request the permission synchronously
+- [ ] write e2e test: signed in, the card shows "Reachable", and still does after **Sync now** re-renders the page
 - [ ] write e2e test: stop the e2e server, click **Check now** → "Not reachable"
 - [ ] run `npm run check`, `make e2e` and `make e2e-edge` - must pass before next task
 
@@ -253,12 +317,15 @@
 - [ ] run full test suite: `make test` and `make lint`
 - [ ] run e2e tests: `make e2e` and `make e2e-edge`
 - [ ] verify coverage: `go test -cover ./internal/...` ≥ 80 %
-- [ ] `make docker-smoke`: extend `deploy/smoke.sh` to assert that `GET /` returns HTML through Caddy and that `/v1/info` returns `"service":"booksync"`
+- [ ] run `make docker-smoke` (extended in Tasks 1 and 2)
 
 ### Task 7: [Final] Update documentation
-- [ ] `docs/protocol.md` §3.2: add `GET /` (HTML, informational) and `GET /v1/info` (schema above); note that clients must tolerate its absence
+- [ ] `docs/protocol.md` §3.2: add `GET /` (HTML, informational) and `GET /v1/info` (schema and `protocol` meaning above); note that clients must tolerate its absence and ignore unknown fields
+- [ ] `docs/protocol.md` §3.1: `GET /` is the one non-JSON success response; 404 and 405 stay JSON
 - [ ] README: mention the home page under Self-hosting (open `https://your-domain/` to check the server) and the Test connection button
-- [ ] CLAUDE.md: add the home page's no-JS / strict-CSP rule, and `checkServer` as the one way the UI probes a server
+- [ ] CLAUDE.md:
+  - home page rules: no JS; CSS only in `home.css`, hashed into the CSP and inserted as `template.CSS`; no inline `style=` attributes;
+  - `checkServer` / `serverOrigin` are the one way the UI probes a server.
 - [ ] move this plan to `docs/plans/completed/`
 
 ## Post-Completion
