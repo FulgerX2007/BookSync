@@ -62,6 +62,11 @@ function renderSignedOut(): void {
         { class: 'card' },
         h('h2', {}, 'Connect to your server'),
         h('p', { class: 'muted' }, 'Enter the address of your BookSync server.'),
+        h(
+          'p',
+          { class: 'muted', id: 'native-sync-note' },
+          'First turn off this browser’s own bookmark sync (Google, Microsoft or Firefox account). BookSync can’t always detect it, and running both duplicates bookmarks.',
+        ),
         h('label', { for: 'server-url' }, 'Server address'),
         h('input', { id: 'server-url', type: 'url', placeholder: 'https://booksync.example.com', value: server, autocomplete: 'url' }),
         h('div', { class: 'row' }, h('button', { id: 'connect', class: 'primary', onclick: onConnect }, 'Continue')),

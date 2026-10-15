@@ -18,6 +18,7 @@ BookSync is end-to-end encrypted bookmark sync. A Go server (`cmd/`, `internal/`
 | Go format | `make fmt`; CI fails on unformatted files |
 | Extension only | `cd extension && npm run check` (tsc, eslint, vitest) |
 | e2e (real Chromium + real server) | `make e2e` (uses `CHROMIUM_PATH`, `/opt/pw-browsers/chromium`, or Playwright's full Chromium via `channel: 'chromium'`; never its headless shell, which can't load extensions) |
+| e2e in Microsoft Edge | `make e2e-edge` (`BOOKSYNC_E2E_BROWSER=msedge`; needs Edge stable installed, e.g. `npx playwright install msedge`). Edge names the roots "Favorites bar" / "Other favorites": use `ROOTS` from `e2e/fixtures.ts`, never hardcoded root titles |
 | Container smoke test | `make docker-smoke` (`SMOKE_BUILD=0` reuses a prebuilt image) |
 | All release artifacts | `make dist` (`VERSION=X.Y.Z` stamps the server and the extension); pushing a `vX.Y.Z` tag, or creating a release in the GitHub UI, runs `.github/workflows/release.yml` |
 | Longer property runs | `cd extension && FC_RUNS=3000 npx vitest run src/sync` |

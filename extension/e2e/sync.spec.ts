@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { ExtBrowser, PASSWORD, expect, loginViaUi, managerRow, registerViaUi, status, test, waitForVersionAbove, type SyncServer } from './fixtures';
+import { ExtBrowser, PASSWORD, ROOTS, expect, loginViaUi, managerRow, registerViaUi, status, test, waitForVersionAbove, type SyncServer } from './fixtures';
 import type { Page } from '@playwright/test';
 
 /** Clicks "Sync now" and waits until the background is idle again. */
@@ -124,7 +124,7 @@ test('a drag and drop in the manager reaches the other profile, whose open manag
     const managerA = await browserA.openManager();
     await managerRow(managerA, 'News').locator('.twisty').click();
     // Paper out of News to the top of the bar: "after" an expanded root is its first child.
-    const bar = managerRow(managerA, 'Bookmarks bar');
+    const bar = managerRow(managerA, ROOTS.bar);
     const box = (await bar.boundingBox())!;
     await managerRow(managerA, 'Paper').dragTo(bar, { targetPosition: { x: box.width / 3, y: box.height - 3 } });
     await expect.poll(() => browserA.bookmarks(async (b) => (await b.getChildren('1')).map((c) => c.title))).toEqual(['Paper', 'Example', 'News']);

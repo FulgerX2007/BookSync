@@ -295,9 +295,12 @@ npm run build            # → dist/chromium and dist/firefox
 - the version history, with restore;
 - account deletion.
 
-**Browser account sync.** Don't turn on the browser's own bookmark sync (Google, Edge
-or Firefox account) on top of BookSync. BookSync detects it and pauses until you
-acknowledge it.
+**Browser account sync.** Turn off the browser's own bookmark sync (Google, Microsoft
+or Firefox account) before using BookSync. Running both duplicates bookmarks. BookSync
+detects it only in Chrome 134+, through the `syncing` flag Chrome sets on bookmark
+folders that belong to a Google account, and pauses until you acknowledge it. It does
+not detect Firefox Sync, and Microsoft Edge sync has not been confirmed to set that
+flag. In those browsers, turning it off is up to you.
 
 ## Finding and organizing bookmarks
 
@@ -382,6 +385,7 @@ Plain HTTP is accepted only for `localhost` and `127.0.0.1`.
 | `make test-go` / `make test-ext` | either half |
 | `make lint` | golangci-lint |
 | `make e2e` | Playwright: two Chromium profiles syncing through a real server built from this repo |
+| `make e2e-edge` | the same suite in the installed Microsoft Edge (`npx playwright install msedge` installs it) |
 | `make docker-smoke` | builds the image, starts the compose stack and checks TLS, health and registration |
 | `make package` | store-ready extension zips |
 | `make dist` | every release artifact in `dist/` (see below) |
@@ -393,7 +397,7 @@ In `extension/`:
 - `FC_RUNS=3000 npx vitest run src/sync` runs the property tests (merge, first sync,
   multi-device convergence) longer than the default.
 
-CI (`.github/workflows/ci.yml`) runs the Go, extension, e2e and docker-smoke jobs on
+CI (`.github/workflows/ci.yml`) runs the Go, extension, e2e (Chromium and Edge) and docker-smoke jobs on
 pushes to `main` and on pull requests.
 
 ### Releasing
