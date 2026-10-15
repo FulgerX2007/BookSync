@@ -39,7 +39,7 @@ function launchTarget(): { executablePath: string } | { channel: string } {
   return executablePath ? { executablePath } : { channel: 'chromium' };
 }
 
-function freePort(): Promise<number> {
+export function freePort(): Promise<number> {
   return new Promise((resolvePort, reject) => {
     const srv = createServer();
     srv.listen(0, '127.0.0.1', () => {
@@ -71,12 +71,13 @@ export interface SyncServer {
   stop(): Promise<void>;
 }
 
-export async function startServer(): Promise<SyncServer> {
+/** Starts a server; `env` adds or overrides BOOKSYNC_* settings. */
+export async function startServer(env: Record<string, string> = {}): Promise<SyncServer> {
   const dir = mkdtempSync(join(tmpdir(), 'booksync-e2e-server-'));
   const port = await freePort();
   const dbPath = join(dir, 'booksync.db');
   const proc: ChildProcess = spawn(serverBin, [], {
-    env: { ...process.env, BOOKSYNC_ADDR: `127.0.0.1:${port}`, BOOKSYNC_DB_PATH: dbPath, BOOKSYNC_LOG_LEVEL: 'warn' },
+    env: { ...process.env, BOOKSYNC_ADDR: `127.0.0.1:${port}`, BOOKSYNC_DB_PATH: dbPath, BOOKSYNC_LOG_LEVEL: 'warn', ...env },
     stdio: ['ignore', 'inherit', 'inherit'],
   });
   const url = `http://127.0.0.1:${port}`;

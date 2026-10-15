@@ -1,6 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { formatSyncId, generateSyncId } from '../src/crypto/syncid';
-import { ExtBrowser, PASSWORD, expect, loginViaUi, registerViaUi, test, waitForVersionAbove } from './fixtures';
+import { ExtBrowser, PASSWORD, expect, freePort, loginViaUi, registerViaUi, startServer, test, waitForVersionAbove } from './fixtures';
 
 test('registers, shows the SyncID once and downloads the emergency kit', async ({ server, browserA }) => {
   const page = await browserA.openOptions();
@@ -118,4 +118,46 @@ test('restores an earlier version from the history', async ({ server, browserA }
   await expect(page.locator('#history tbody tr')).toHaveCount(4);
   await expect.poll(async () => (await browserA.bookmarks((b) => b.search({ title: 'Added later' }))).length).toBe(0);
   expect(await browserA.bookmarks((b) => b.search({ title: 'Keep' }))).toHaveLength(1);
+});
+
+test('tests the connection before continuing', async ({ server, browserA }) => {
+  const page = await browserA.openOptions();
+  await page.fill('#server-url', server.url);
+  await page.click('#test-connection');
+  await expect(page.locator('#connect-check')).toHaveText('Connected to BookSync dev · sign-up open');
+  await expect(page.locator('#connect-check')).toHaveClass('check ok');
+  // Testing does not move on: the address can still be changed.
+  await expect(page.locator('#server-url')).toBeVisible();
+  await page.click('#connect');
+  await expect(page.locator('#connected-server')).toHaveText(server.url);
+});
+
+test('shows an unreachable server and stays on the connect step', async ({ browserA }) => {
+  const page = await browserA.openOptions();
+  await page.fill('#server-url', `http://127.0.0.1:${await freePort()}`);
+  await page.click('#test-connection');
+  await expect(page.locator('#connect-check')).toContainText('Not reachable');
+  await expect(page.locator('#connect-check')).toHaveClass('check bad');
+  await page.click('#connect');
+  await expect(page.locator('#connect-check')).toContainText('Not reachable');
+  await expect(page.locator('#server-url')).toBeVisible();
+  await expect(page.locator('#tab-login')).toHaveCount(0);
+});
+
+test('opens on Sign in when the server has closed sign-up', async ({ browserA }) => {
+  const closed = await startServer({ BOOKSYNC_ALLOW_REGISTRATION: 'false' });
+  try {
+    const page = await browserA.openOptions();
+    await page.fill('#server-url', closed.url);
+    await page.click('#test-connection');
+    await expect(page.locator('#connect-check')).toHaveText('Connected to BookSync dev · sign-up closed');
+    await page.click('#connect');
+    await expect(page.locator('#tab-login')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#login-form')).toBeVisible();
+    await page.click('#tab-register');
+    await expect(page.locator('#registration-closed')).toHaveText('Sign-up is closed on this server.');
+  } finally {
+    await closed.stop();
+    rmSync(closed.dir, { recursive: true, force: true });
+  }
 });

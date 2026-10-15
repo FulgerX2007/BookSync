@@ -286,15 +286,15 @@
 - Modify: `extension/e2e/options.spec.ts`
 - Modify: `extension/e2e/fixtures.ts` (`startServer(env)`)
 
-- [ ] change `startServer(env: Record<string, string> = {})` to merge `env` into the spawn environment, for a closed-registration server
-- [ ] add a **Test connection** button and a `#connect-check` result area to the connect card. The permission request stays synchronous in the click handler.
-- [ ] route **Continue** through `checkServer`. Keep the last result and use `registrationOpen === false` to open the auth step on **Sign in**, with the "Sign-up is closed on this server." note on the register tab.
-- [ ] write e2e tests:
+- [x] change `startServer(env: Record<string, string> = {})` to merge `env` into the spawn environment, for a closed-registration server
+- [x] add a **Test connection** button and a `#connect-check` result area to the connect card. The permission request stays synchronous in the click handler.
+- [x] route **Continue** through `checkServer`. Keep the last result and use `registrationOpen === false` to open the auth step on **Sign in**, with the "Sign-up is closed on this server." note on the register tab.
+- [x] write e2e tests:
   - Test connection against the real e2e server shows "Connected to BookSync" with the version;
   - a closed-registration server opens on Sign in.
-- [ ] write e2e tests for failure: a port from `freePort()` with nothing on it shows the red "not reachable" result, and Continue stays on the connect step
-- [ ] check that the existing `connect()` helper, which every other spec uses, still passes unchanged
-- [ ] run `npm run check`, `make e2e` and `make e2e-edge` - must pass before next task
+- [x] write e2e tests for failure: a port from `freePort()` with nothing on it shows the red "not reachable" result, and Continue stays on the connect step
+- [x] check that the existing `connect()` helper, which every other spec uses, still passes unchanged
+- [x] run `npm run check`, `make e2e` and `make e2e-edge` - must pass before next task
 
 ### Task 5: Server card when signed in
 

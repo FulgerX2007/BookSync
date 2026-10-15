@@ -2,6 +2,7 @@
 // manage the account (devices, password, emergency kit, deletion).
 import type { EmergencyKit, StatusView } from '../../background/messages';
 import { normalizeServerUrl } from '../../api/client';
+import { checkServer, describeServerCheck, serverOrigin, type ServerCheck } from '../../api/server-check';
 import { parseSyncId } from '../../crypto/syncid';
 import { ext } from '../../platform/ext';
 import { defaultDeviceName } from '../shared/device-name';
@@ -16,6 +17,8 @@ let status: StatusView;
 /** A freshly shown emergency kit blocks everything else until confirmed. */
 let shownKit: EmergencyKit | null = null;
 let connectedServer: string | null = null;
+/** The successful check that led to connectedServer (null after a page load). */
+let connectedFacts: ServerCheck | null = null;
 let authTab: 'register' | 'login' = 'login';
 
 function rememberedServer(): string {
@@ -69,7 +72,13 @@ function renderSignedOut(): void {
         ),
         h('label', { for: 'server-url' }, 'Server address'),
         h('input', { id: 'server-url', type: 'url', placeholder: 'https://booksync.example.com', value: server, autocomplete: 'url' }),
-        h('div', { class: 'row' }, h('button', { id: 'connect', class: 'primary', onclick: onConnect }, 'Continue')),
+        h(
+          'div',
+          { class: 'row' },
+          h('button', { id: 'connect', class: 'primary', onclick: onConnect }, 'Continue'),
+          h('button', { id: 'test-connection', onclick: onTestConnection }, 'Test connection'),
+        ),
+        h('div', { id: 'connect-check', class: 'check', role: 'status' }),
         h('div', { id: 'connect-error', class: 'error', role: 'alert' }),
       ),
     );
@@ -104,33 +113,63 @@ function switchTab(tab: 'register' | 'login'): void {
 function onChangeServer(ev: Event): void {
   ev.preventDefault();
   connectedServer = null;
+  connectedFacts = null;
   render();
 }
 
-function onConnect(ev: Event): void {
-  const button = ev.currentTarget as HTMLButtonElement;
+/** Renders a server check as a coloured status line into `target`. */
+function showCheck(target: HTMLElement, check: ServerCheck): void {
+  const { tone, text } = describeServerCheck(check);
+  target.className = `check ${tone}`;
+  replace(target, text);
+}
+
+/**
+ * Validates the typed address and asks for host permission. Must run
+ * synchronously inside the click: Firefox drops the user gesture after an await.
+ */
+function requestServer(): { url: string; granted: Promise<boolean> } | null {
+  byId('connect-check').textContent = '';
   const err = byId('connect-error');
   err.textContent = '';
-  let url: string;
   try {
-    url = normalizeServerUrl(value('server-url'));
+    const url = normalizeServerUrl(value('server-url'));
+    return { url, granted: ext().permissions.request({ origins: [serverOrigin(url)] }) };
   } catch (e) {
     err.textContent = errorText(e);
-    return;
+    return null;
   }
-  // Must run synchronously inside the click: Firefox drops the user gesture after an await.
-  const u = new URL(url);
-  const granted = ext().permissions.request({ origins: [`${u.protocol}//${u.hostname}/*`] });
-  void busy(button, 'connect-error', async () => {
-    if (!(await granted)) throw new Error('BookSync needs permission to talk to this server.');
-    const res = await fetch(`${url}/healthz`, { cache: 'no-store' }).catch(() => null);
-    if (!res?.ok) throw new Error('No BookSync server answered at that address.');
+}
+
+/** Checks the server with permission granted; the result shows under the buttons. */
+async function probe(req: { url: string; granted: Promise<boolean> }): Promise<ServerCheck> {
+  if (!(await req.granted)) throw new Error('BookSync needs permission to talk to this server.');
+  const check = await checkServer(req.url);
+  showCheck(byId('connect-check'), check);
+  return check;
+}
+
+function onTestConnection(ev: Event): void {
+  const req = requestServer();
+  if (!req) return;
+  void busy(ev.currentTarget as HTMLButtonElement, 'connect-error', async () => void (await probe(req)));
+}
+
+function onConnect(ev: Event): void {
+  const req = requestServer();
+  if (!req) return;
+  void busy(ev.currentTarget as HTMLButtonElement, 'connect-error', async () => {
+    const check = await probe(req);
+    if (!check.ok) return;
     try {
-      localStorage.setItem(LAST_SERVER_KEY, url);
+      localStorage.setItem(LAST_SERVER_KEY, req.url);
     } catch {
       // Per-viewer convenience only.
     }
-    connectedServer = url;
+    connectedServer = req.url;
+    connectedFacts = check;
+    // Nobody can create an account here, so start where they can act.
+    if (check.registrationOpen === false) authTab = 'login';
     render();
   });
 }
@@ -139,6 +178,7 @@ function registerForm(): HTMLElement {
   return h(
     'form',
     { id: 'register-form', onsubmit: onRegister },
+    connectedFacts?.ok && connectedFacts.registrationOpen === false && h('p', { class: 'error', id: 'registration-closed' }, 'Sign-up is closed on this server.'),
     h('label', { for: 'reg-username' }, 'Username'),
     h('input', { id: 'reg-username', type: 'text', autocomplete: 'username', required: true }),
     h('label', { for: 'reg-password' }, 'Password'),
