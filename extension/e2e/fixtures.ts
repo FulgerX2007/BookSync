@@ -30,6 +30,21 @@ function freePort(): Promise<number> {
   });
 }
 
+/**
+ * Waits until Chromium has installed the extension APIs in a service worker.
+ * Playwright reports the worker as soon as it exists; under load its `chrome`
+ * object briefly holds only the page-level csi/loadTimes, and an evaluation
+ * then fails with "Cannot read properties of undefined (reading 'create')".
+ */
+async function extensionApiReady(worker: Worker): Promise<Worker> {
+  const deadline = Date.now() + 20_000;
+  while (!(await worker.evaluate('Boolean(globalThis.chrome && chrome.bookmarks)').catch(() => false))) {
+    if (Date.now() > deadline) throw new Error(`the service worker ${worker.url()} never exposed chrome.bookmarks`);
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return worker;
+}
+
 export interface SyncServer {
   url: string;
   dir: string;
@@ -91,12 +106,14 @@ export class ExtBrowser {
         throw new Error(`the extension's service worker never started: is ${extensionDir} built, and is this a full Chromium rather than the headless shell?`);
       }
     }
+    await extensionApiReady(worker);
     return new ExtBrowser(context, new URL(worker.url()).host, userDataDir);
   }
 
   /** The extension's service worker (restarted by Chromium as needed). */
   async worker(): Promise<Worker> {
-    return this.context.serviceWorkers().find((w) => w.url().includes(this.extensionId)) ?? (await this.context.waitForEvent('serviceworker'));
+    const worker = this.context.serviceWorkers().find((w) => w.url().includes(this.extensionId)) ?? (await this.context.waitForEvent('serviceworker'));
+    return extensionApiReady(worker);
   }
 
   async openOptions(): Promise<Page> {
@@ -105,10 +122,26 @@ export class ExtBrowser {
     return page;
   }
 
-  async openPopup(): Promise<Page> {
+  /** Opens the bookmark manager; `query` may ask it to reveal a node: "?reveal=<id>". */
+  async openManager(query = ''): Promise<Page> {
     const page = await this.context.newPage();
-    await page.goto(`chrome-extension://${this.extensionId}/popup.html`);
+    await page.goto(`chrome-extension://${this.extensionId}/manager.html${query}`);
     return page;
+  }
+
+  /** Opens popup.html in a tab; `query` (e2e builds) can name the tab to bookmark: "?tab=<id>". */
+  async openPopup(query = ''): Promise<Page> {
+    const page = await this.context.newPage();
+    await page.goto(`chrome-extension://${this.extensionId}/popup.html${query}`);
+    return page;
+  }
+
+  /** The id of the tab showing `url` (the e2e build may read 127.0.0.1 tab URLs). */
+  async tabIdOf(url: string): Promise<number> {
+    const w = await this.worker();
+    const id = (await w.evaluate(`chrome.tabs.query({}).then((tabs) => tabs.find((t) => t.url === ${JSON.stringify(url)})?.id ?? null)`)) as number | null;
+    if (id === null) throw new Error(`no tab shows ${url}`);
+    return id;
   }
 
   /**
@@ -154,6 +187,11 @@ export class ExtBrowser {
     await this.context.close();
     rmSync(this.userDataDir, { recursive: true, force: true });
   }
+}
+
+/** A row of the bookmark manager's tree, by its exact title. */
+export function managerRow(page: Page, title: string) {
+  return page.locator('.node-row').filter({ has: page.locator('.title', { hasText: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) }) });
 }
 
 /** Fills the connect step of the options page. */

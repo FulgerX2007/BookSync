@@ -1,7 +1,7 @@
 // Typed protocol between the extension pages (popup, options) and the
 // background. Each entry maps a request type to its payload and result.
 import type { DeviceInfo, VersionInfo } from '../api/client';
-import type { PendingConfirmation, SyncStatus } from '../storage/state';
+import type { PendingConfirmation, RootPins, SyncStatus } from '../storage/state';
 
 export interface StatusView {
   signedIn: boolean;
@@ -48,6 +48,9 @@ export interface Protocol {
 
   listVersions: { req: object; res: VersionInfo[] };
   restoreVersion: { req: { version: number }; res: StatusView };
+
+  /** Native ids of the synced root folders, for the bookmark manager. */
+  bookmarkRoots: { req: object; res: RootPins };
 }
 
 export type MessageType = keyof Protocol;

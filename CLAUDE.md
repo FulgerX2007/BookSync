@@ -19,9 +19,9 @@ BookSync is end-to-end encrypted bookmark sync. A Go server (`cmd/`, `internal/`
 | Extension only | `cd extension && npm run check` (tsc, eslint, vitest) |
 | e2e (real Chromium + real server) | `make e2e` (uses `CHROMIUM_PATH`, `/opt/pw-browsers/chromium`, or Playwright's full Chromium via `channel: 'chromium'`; never its headless shell, which can't load extensions) |
 | Container smoke test | `make docker-smoke` (`SMOKE_BUILD=0` reuses a prebuilt image) |
-| All release artifacts | `make dist` (`VERSION=X.Y.Z` also checks `extension/package.json`); pushing a `vX.Y.Z` tag runs `.github/workflows/release.yml` |
+| All release artifacts | `make dist` (`VERSION=X.Y.Z` stamps the server and the extension); pushing a `vX.Y.Z` tag, or creating a release in the GitHub UI, runs `.github/workflows/release.yml` |
 | Longer property runs | `cd extension && FC_RUNS=3000 npx vitest run src/sync` |
-| Coverage | `go test -cover ./internal/...` (keep ≥ 80 %); `npx vitest run --coverage` (keep ≥ 90 % statements for `src/sync`, `src/crypto`, `src/browser`) |
+| Coverage | `go test -cover ./internal/...` (keep ≥ 80 %); `npx vitest run --coverage` (keep ≥ 90 % statements for `src/sync`, `src/crypto`, `src/browser`, `src/bookmarks`) |
 
 - Run `npm run check` (or `make test`) before every commit. A lint error must never
   land.
@@ -29,6 +29,9 @@ BookSync is end-to-end encrypted bookmark sync. A Go server (`cmd/`, `internal/`
   Keep it.
 - The release workflow calls `ci.yml` through `workflow_call`. A job added to CI
   therefore also gates releases.
+- Release versions come from the tag. The extension gets `X.Y.Z` through
+  `BOOKSYNC_VERSION` (`extensionVersion()` in `scripts/manifest.mjs`). `package.json`'s
+  version only covers builds that aren't from a tag.
 
 ## Go conventions (server)
 
@@ -83,17 +86,33 @@ BookSync is end-to-end encrypted bookmark sync. A Go server (`cmd/`, `internal/`
     why `StateStore.lazy()` exists.
   - No timer may be relied on across worker restarts. Backoff is persisted as
     `nextAttemptAt`, and a 1-minute alarm polls.
+- **Bookmark UI (popup search, "Bookmark this page", the manager).**
+  - All logic lives in `src/bookmarks/` (pure and unit-tested): tree helpers, search,
+    selection, drop rules, edit operations and the refresh gate.
+  - `src/ui/**` stays thin and is covered by Playwright, since vitest runs in Node and
+    excludes `src/ui` from coverage.
+  - UI pages edit bookmarks only through `src/bookmarks/ops.ts`, never with raw
+    `bookmarks.move` indices. `ops.ts` locks the roots, the Chromium menu folder
+    included.
+  - Pages get their roots from the background (`bookmarkRoots`) on every load.
+  - Anything that edits holds the refresh gate, so a live refresh never destroys an
+    inline rename, a dialog or a drag.
+  - Popup status re-renders must stay inside `#status-app`.
 - **UI ↔ background** goes through typed messages: `background/messages.ts` (the
   `Protocol` map) and `router.ts`. UI pages call `send(type, req)` from
   `ui/shared/rpc.ts`.
 - **Tests.**
   - Unit tests sit next to the code (`*.test.ts`).
+  - e2e: the fixtures wait until a service worker exposes `chrome.bookmarks`. Playwright
+    reports the worker before Chromium installs the extension APIs in it.
   - Shared helpers live in `extension/test/`:
     - `builders.ts`: `doc()` and `outline()` for compact trees;
     - `fakes/bookmarks.ts`;
     - `fakes/server.ts`;
     - `harness.ts`: `World` and `Device`, for N browsers against one fake server with
-      real IndexedDB state through `fake-indexeddb`.
+      real IndexedDB state through `fake-indexeddb`;
+    - `bookmark-trees.ts`: a fake browser plus the real adapter, for `src/bookmarks`
+      tests.
 
 ## Invariants that must hold
 

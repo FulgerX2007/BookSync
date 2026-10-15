@@ -1,9 +1,9 @@
-// Zips the production builds for store upload:
+// Zips the production builds for store upload (version: see extensionVersion):
 //   dist/packages/booksync-chromium-<version>.zip
 //   dist/packages/booksync-firefox-<version>.zip
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { extensionVersion } from './manifest.mjs';
 
 export const TARGETS = /** @type {const} */ (['chromium', 'firefox']);
 
@@ -17,7 +17,7 @@ export function packageFileName(target, version) {
 }
 
 function main() {
-  const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  const version = extensionVersion();
   for (const target of TARGETS) {
     execFileSync('npx', ['web-ext', 'build', '-s', `dist/${target}`, '-a', 'dist/packages', '-n', packageFileName(target, version), '--overwrite-dest'], {
       stdio: 'inherit',

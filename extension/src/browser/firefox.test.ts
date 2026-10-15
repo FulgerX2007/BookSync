@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FakeBookmarks } from '../../test/fakes/bookmarks';
 import { ROOT_MENU, ROOT_MOBILE, ROOT_OTHER, ROOT_TOOLBAR } from '../model/vault';
-import { BookmarkRejectedError, NonEmptyFolderError } from './adapter';
+import { AnchorMissingError, BookmarkRejectedError, NonEmptyFolderError } from './adapter';
 import { FirefoxAdapter } from './firefox';
 
 const setup = () => {
@@ -85,5 +85,17 @@ describe('FirefoxAdapter', () => {
     const { adapter } = setup();
     expect(adapter.changeEvents()).toHaveLength(4);
     expect(adapter.importEvents()).toBeNull();
+  });
+});
+
+describe('FirefoxAdapter anchors', () => {
+  it('raises AnchorMissingError when the anchor vanished from the folder', async () => {
+    const { fake, adapter } = setup();
+    const toolbar = fake.roots().toolbar;
+    const a = await fake.addBookmark(toolbar, 'a', 'https://a.example/');
+    const gone = await fake.addBookmark(toolbar, 'gone', 'https://gone.example/');
+    await fake.remove(gone.id);
+    await expect(adapter.moveAfter(a.id, toolbar, gone.id)).rejects.toBeInstanceOf(AnchorMissingError);
+    await expect(adapter.create(toolbar, gone.id, { title: 'n' })).rejects.toThrow(/no longer in the folder/);
   });
 });

@@ -1,11 +1,15 @@
-// Toolbar popup: sync status at a glance and the actions it may need.
+// Toolbar popup: bookmark search on top, then the sync status at a glance and
+// the actions it may need. Status re-renders only touch #status-app.
 import type { MessageType, StatusView } from '../../background/messages';
 import { ext } from '../../platform/ext';
+import { openBookmarks } from '../shared/bookmarks';
 import { byId, h, replace, timeAgo } from '../shared/dom';
 import { errorText } from '../shared/errors';
 import { onStatus, send } from '../shared/rpc';
+import { mountSearch } from './search';
+import { mountThisPage } from './this-page';
 
-const app = byId('app');
+const app = byId('status-app');
 let status: StatusView;
 
 type Tone = 'ok' | 'warn' | 'bad' | '';
@@ -92,7 +96,16 @@ function render(): void {
   );
 }
 
+function openManager(): void {
+  void ext().tabs.create({ url: ext().runtime.getURL('manager.html') });
+  window.close();
+}
+
 async function main(): Promise<void> {
+  byId('open-manager').addEventListener('click', openManager);
+  const bookmarks = openBookmarks();
+  mountSearch(byId('search'), bookmarks);
+  mountThisPage(byId('this-page'), bookmarks);
   status = await send('getStatus');
   render();
   onStatus((s) => {

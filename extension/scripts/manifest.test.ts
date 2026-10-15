@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { E2E_HOST_PERMISSION, buildManifest, composeManifest, deepMerge } from './manifest.mjs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { E2E_HOST_PERMISSION, buildManifest, composeManifest, deepMerge, extensionVersion } from './manifest.mjs';
+
+afterEach(() => vi.unstubAllEnvs());
 
 describe('deepMerge', () => {
   it('merges nested objects and lets the override replace arrays and scalars', () => {
@@ -20,7 +22,7 @@ describe('buildManifest', () => {
     expect(m.manifest_version).toBe(3);
     expect(m.background).toEqual({ service_worker: 'background.js' });
     expect(m.browser_specific_settings).toBeUndefined();
-    expect(m.permissions).toEqual(['bookmarks', 'storage', 'alarms']);
+    expect(m.permissions).toEqual(['bookmarks', 'storage', 'alarms', 'activeTab']);
   });
 
   it('builds a Firefox manifest with background scripts and a gecko id', () => {
@@ -41,6 +43,27 @@ describe('buildManifest', () => {
   it('stamps the version from package.json', async () => {
     const pkg = (await import('../package.json', { with: { type: 'json' } })).default;
     expect(buildManifest('firefox').version).toBe(pkg.version);
+  });
+
+  it('stamps BOOKSYNC_VERSION (the release tag) when set', () => {
+    vi.stubEnv('BOOKSYNC_VERSION', '7.8.9');
+    expect(buildManifest('chromium').version).toBe('7.8.9');
+    expect(buildManifest('firefox').version).toBe('7.8.9');
+  });
+});
+
+describe('extensionVersion', () => {
+  it('prefers BOOKSYNC_VERSION and falls back to package.json', async () => {
+    const pkg = (await import('../package.json', { with: { type: 'json' } })).default;
+    expect(extensionVersion({ BOOKSYNC_VERSION: '2.0.1' })).toBe('2.0.1');
+    expect(extensionVersion({})).toBe(pkg.version);
+    expect(extensionVersion({ BOOKSYNC_VERSION: '' })).toBe(pkg.version);
+  });
+
+  it('accepts only X.Y.Z, as browser stores require', () => {
+    for (const v of ['v1.2.3', '1.2', '1.2.3-rc.1', 'dev']) {
+      expect(() => extensionVersion({ BOOKSYNC_VERSION: v })).toThrow(/X\.Y\.Z/);
+    }
   });
 });
 

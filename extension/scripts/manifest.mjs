@@ -60,14 +60,26 @@ export function composeManifest(base, override, { version, e2e = false }) {
 }
 
 /**
+ * The extension version: BOOKSYNC_VERSION when set (scripts/dist.sh sets it
+ * from the release tag), otherwise package.json's, which only dev builds use.
+ * Browser stores accept only a plain X.Y.Z.
+ * @param {Record<string, string | undefined>} [env]
+ * @returns {string}
+ */
+export function extensionVersion(env = process.env) {
+  const version = env.BOOKSYNC_VERSION || /** @type {{ version: string }} */ (readJSON('package.json')).version;
+  if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`extension version must be X.Y.Z, got "${version}"`);
+  return version;
+}
+
+/**
  * @param {Target} target
  * @param {{ e2e?: boolean }} [opts]
  * @returns {Record<string, unknown>}
  */
 export function buildManifest(target, { e2e = false } = {}) {
-  const pkg = /** @type {{ version: string }} */ (readJSON('package.json'));
   return composeManifest(readJSON('manifests/base.json'), readJSON(`manifests/${target}.json`), {
-    version: pkg.version,
+    version: extensionVersion(),
     e2e,
   });
 }

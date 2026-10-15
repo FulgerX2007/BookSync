@@ -80,6 +80,14 @@ export class BookmarkRejectedError extends Error {
   }
 }
 
+/** A write anchored "after sibling P" found P gone from the folder: the tree changed meanwhile. */
+export class AnchorMissingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AnchorMissingError';
+  }
+}
+
 /** remove() on a folder that still has children: someone added a child meanwhile. */
 export class NonEmptyFolderError extends Error {
   constructor(message: string) {
@@ -232,6 +240,6 @@ export abstract class NativeAdapter implements BookmarksAdapter {
 export function anchorPosition(children: NativeNode[], afterId: string | null): number {
   if (afterId === null) return -1;
   const p = children.findIndex((c) => c.id === afterId);
-  if (p < 0) throw new Error(`anchor ${afterId} is no longer in the folder`);
+  if (p < 0) throw new AnchorMissingError(`anchor ${afterId} is no longer in the folder`);
   return p;
 }

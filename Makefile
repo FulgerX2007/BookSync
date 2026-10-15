@@ -29,7 +29,7 @@ package:
 
 # Every release artifact in dist/: server archives for each OS/arch, both
 # extension zips, a source archive and SHA256SUMS. `make dist VERSION=1.2.3`
-# (as the release workflow runs it) also checks extension/package.json.
+# (as the release workflow runs it) stamps 1.2.3 into server and extension.
 dist:
 	scripts/dist.sh
 
