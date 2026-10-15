@@ -35,6 +35,8 @@ for _ in $(seq 1 30); do
 	sleep 1
 done
 curl --noproxy "*" -fsSk "$base/healthz" | grep -q '"ok"'
+curl --noproxy "*" -fsSk "$base/v1/info" | grep -q '"service":"booksync"'
+curl --noproxy "*" -fsSk "$base/" | grep -q 'class="pill ok">Online<'
 
 user="smoke$RANDOM"
 body=$(printf '{"username":"%s","authKey":"%s","kdf":"pbkdf2-sha256","iterations":600000,"wrappedVaultKey":"%s","deviceName":"smoke"}' \

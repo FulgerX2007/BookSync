@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="light dark">
+<title>BookSync server</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%233b3fb6'/%3E%3Cpath d='M10 7h12v18l-6-4.5L10 25z' fill='%23fff'/%3E%3C/svg%3E">
+<style>{{.CSS}}</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <div class="brand">
+      <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true">
+        <rect width="56" height="56" rx="14" fill="#ffffff" fill-opacity="0.14"/>
+        <path d="M18 12h20v32l-10-7.5L18 44z" fill="#ffffff"/>
+        <rect x="23.5" y="22" width="9" height="7" rx="1.5" fill="#3b3fb6"/>
+        <path d="M25.5 22v-2.2a2.5 2.5 0 0 1 5 0V22" fill="none" stroke="#3b3fb6" stroke-width="1.8"/>
+      </svg>
+      <div>
+        <h1>BookSync</h1>
+        <p>End-to-end encrypted bookmark sync</p>
+      </div>
+    </div>
+    <p class="lede">This is a BookSync sync server. It keeps your bookmarks in two-way sync between Chrome, Edge, Brave, Vivaldi, Opera and Firefox, and it only ever sees ciphertext.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="panel" id="status">
+    <div class="panel-head">
+      <h2>Server status</h2>
+      {{if .Online}}<span class="pill ok">Online</span>{{else}}<span class="pill bad">Storage unavailable</span>{{end}}
+    </div>
+    <dl class="facts">
+      <div class="fact"><dt>Version</dt><dd>{{.Info.Version}}</dd></div>
+      <div class="fact"><dt>Sign-up</dt><dd>{{if .Info.RegistrationOpen}}Open{{else}}Closed{{end}}</dd></div>
+      <div class="fact"><dt>Max vault size</dt><dd>{{.MaxVault}}</dd></div>
+      <div class="fact"><dt>Protocol</dt><dd>v{{.Info.Protocol}}</dd></div>
+    </dl>
+  </div>
+
+  <section id="connect">
+    <h2>Connect your browser</h2>
+    <p class="sub">Three steps, once per browser.</p>
+    <ol class="steps">
+      <li>
+        <strong>Install the BookSync extension</strong>
+        From the <a href="https://github.com/FulgerX2007/BookSync/releases">releases page</a>, for Chromium browsers or Firefox.
+      </li>
+      <li>
+        <strong>Open its settings and enter this server's address</strong>
+        <code class="address">{{.ServerURL}}</code>
+        <p class="note">If this server is behind a path prefix, include it.</p>
+        {{if .NeedsHTTPS}}<p class="warn">The extension requires HTTPS. Put this server behind a TLS proxy and use its https:// address.</p>{{end}}
+      </li>
+      <li>
+        <strong>{{if .Info.RegistrationOpen}}Create an account, or sign in{{else}}Sign in{{end}}</strong>
+        {{if .Info.RegistrationOpen}}The first browser creates the account and shows your SyncID once. Every other browser signs in with your username, password and that SyncID.{{else}}Sign-up is closed on this server. Sign in with your username, password and SyncID.{{end}}
+      </li>
+    </ol>
+  </section>
+
+  <section id="privacy">
+    <h2>What this server can see</h2>
+    <p class="sub">Very little, by design.</p>
+    <div class="cards">
+      <div class="card">
+        <h3>Only ciphertext</h3>
+        <p>Your bookmarks are compressed and AES-256-GCM encrypted in the browser before upload.</p>
+      </div>
+      <div class="card">
+        <h3>No password, no SyncID</h3>
+        <p>Keys come from your password and SyncID, which never leave your browsers. The server keeps an Argon2id hash of a derived key.</p>
+      </div>
+      <div class="card">
+        <h3>Rollbacks are caught</h3>
+        <p>Every vault carries an encrypted sequence number, so a server restored from an old backup is detected, not trusted.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="api">
+    <h2>API reference</h2>
+    <p class="sub">JSON over HTTPS. Errors look like <code>{"error":{"code","message"}}</code>; clients branch on <code>code</code>.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th class="purpose">Purpose</th></tr></thead>
+        <tbody>
+          {{range .Endpoints}}<tr><td><span class="method {{.Class}}">{{.Method}}</span></td><td><code>{{.Path}}</code></td><td class="auth">{{.Auth}}</td><td class="purpose">{{.Purpose}}</td></tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>BookSync {{.Info.Version}}</span>
+    <span><a href="https://github.com/FulgerX2007/BookSync">Source on GitHub</a> · <a href="https://github.com/FulgerX2007/BookSync/blob/main/docs/protocol.md">Protocol</a></span>
+  </div>
+</footer>
+</body>
+</html>

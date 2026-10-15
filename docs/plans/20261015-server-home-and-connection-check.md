@@ -216,14 +216,14 @@
 - Modify: `cmd/booksync-server/main.go` (pass `version`)
 - Modify: `internal/api/helpers_test.go` (let a test set `Deps`, e.g. `Version`)
 
-- [ ] add `Version string` to `api.Deps`, defaulting to `"dev"` in `NewServer`, and set it in `main.go`
-- [ ] create `serverInfo` and `(s *Server) info(ctx)`, sharing the store ping with `handleHealth` (extract a small `storageOK(ctx)` helper so both use it)
-- [ ] register `GET /v1/info` → `handleInfo`, writing JSON with `writeJSON`
-- [ ] extend `newTestEnv` with a deps option (or build `NewServer` directly in that case) so tests can set `Deps.Version`
-- [ ] write table-driven tests: ok; registration closed; `maxVaultBytes` from config; version from `Deps`; `"dev"` default
-- [ ] write tests for the error path: store closed → `200` with `status: "unavailable"`; `POST /v1/info` → JSON `405`
-- [ ] extend `deploy/smoke.sh`: `/v1/info` through Caddy returns `"service":"booksync"`
-- [ ] run `make test`, `make lint` and `make docker-smoke` - must pass before next task
+- [x] add `Version string` to `api.Deps`, defaulting to `"dev"` in `NewServer`, and set it in `main.go`
+- [x] create `serverInfo` and `(s *Server) info(ctx)`, sharing the store ping with `handleHealth` (extract a small `storageOK(ctx)` helper so both use it)
+- [x] register `GET /v1/info` → `handleInfo`, writing JSON with `writeJSON`
+- [x] extend `newTestEnv` with a deps option (or build `NewServer` directly in that case) so tests can set `Deps.Version`
+- [x] write table-driven tests: ok; registration closed; `maxVaultBytes` from config; version from `Deps`; `"dev"` default
+- [x] write tests for the error path: store closed → `200` with `status: "unavailable"`; `POST /v1/info` → JSON `405`
+- [x] extend `deploy/smoke.sh`: `/v1/info` through Caddy returns `"service":"booksync"`
+- [x] run `make test`, `make lint` and `make docker-smoke` - must pass before next task
 
 ### Task 2: Server-rendered home page
 
@@ -234,27 +234,29 @@
 - Create: `internal/api/home_test.go`
 - Modify: `internal/api/server.go` (route `GET /{$}`)
 
-- [ ] write `home.css` and `home.html`:
+- [x] write `home.css` and `home.html`:
   - CSS variables for light/dark (`prefers-color-scheme`), system font stack, an inline SVG logo and a data URI favicon, with no `style=` attributes anywhere;
   - responsive single column below 640 px, no horizontal scroll;
   - the sections from Technical Details.
-- [ ] parse the template once at init (`template.Must`); hash `home.css` (SHA-256, base64) for the CSP and pass it to the template as `template.CSS`
-- [ ] `handleHome`: build the view from `s.info(ctx)` plus the derived server URL (first `X-Forwarded-Proto` entry, trusted only), the path-prefix note and the HTTPS warning; set the security headers; render with `200`. No HEAD branch.
-- [ ] keep the API reference rows as a Go slice in `home.go`, so the template ranges over data, not hand-written HTML
-- [ ] write tests:
+- [x] parse the template once at init (`template.Must`); hash `home.css` (SHA-256, base64) for the CSP and pass it to the template as `template.CSS`
+- [x] `handleHome`: build the view from `s.info(ctx)` plus the derived server URL (first `X-Forwarded-Proto` entry, trusted only), the path-prefix note and the HTTPS warning; set the security headers; render with `200`. No HEAD branch.
+- [x] keep the API reference rows as a Go slice in `home.go`, so the template ranges over data, not hand-written HTML
+- [x] write tests:
   - `GET /` → 200, `text/html`, CSP with `script-src`-free `default-src 'none'`, status pill text, version, "sign-up open/closed";
   - `HEAD /` → 200 with no body, through `httptest.NewServer` and a real client (`ResponseRecorder` keeps HEAD bodies);
   - the CSP style hash matches the bytes of the served `<style>` block;
   - the served HTML has no `style=` attribute.
-- [ ] write tests for edge cases:
+- [x] write tests for edge cases:
   - store down → page shows "Storage unavailable";
   - `GET /nope` → still JSON `404`; `POST /` → JSON `405` with `Allow: GET, HEAD`;
   - an `http://` non-local host shows the HTTPS warning, and `localhost` doesn't;
   - `X-Forwarded-Proto: https, http` with trusted headers → `https`;
   - a `Host` header with `<script>` is escaped;
   - `X-Forwarded-Proto: https` is ignored unless proxy headers are trusted.
-- [ ] extend `deploy/smoke.sh`: `GET /` through Caddy returns `text/html` with the status pill
-- [ ] run `make test`, `make lint`, `go test -cover ./internal/...` (≥ 80 %) and `make docker-smoke` - must pass before next task
+- [x] extend `deploy/smoke.sh`: `GET /` through Caddy returns `text/html` with the status pill
+- [x] run `make test`, `make lint`, `go test -cover ./internal/...` (≥ 80 %) and `make docker-smoke` - must pass before next task
+  - ➕ the API table stacks into one card per endpoint below 640 px (a 4-column table overflowed at phone width); checked in Chromium at 390 px and 1280 px, light and dark, with no CSP console errors
+  - ⚠️ in the cloud sandbox the image build can't reach the Go proxy, so the smoke test ran with `SMOKE_BUILD=0` on a host-built binary in the same distroless base (the Dockerfile is unchanged); CI builds normally
 
 ### Task 3: `checkServer` in the extension
 
