@@ -265,18 +265,18 @@
 - Create: `extension/src/api/server-check.test.ts`
 - Modify: `extension/src/api/client.ts` (export `FetchFn`)
 
-- [ ] export `FetchFn` from `src/api/client.ts` if not already exported
-- [ ] implement `checkServer(baseUrl, { fetchFn, timeoutMs })` with the status mapping from Technical Details, plus `serverOrigin(url)`
-- [ ] export `describeServerCheck(check)` → `{ tone: 'ok' | 'bad'; text: string }` for the UI, so the wording is unit-tested rather than living in `src/ui`
-- [ ] write tests for the success cases: full info; older server (404 → healthz 200); sign-up closed
-- [ ] write tests for the error cases:
+- [x] export `FetchFn` from `src/api/client.ts` if not already exported
+- [x] implement `checkServer(baseUrl, { fetchFn, timeoutMs })` with the status mapping from Technical Details, plus `serverOrigin(url)`
+- [x] export `describeServerCheck(check)` → `{ tone: 'ok' | 'bad'; text: string }` for the UI, so the wording is unit-tested rather than living in `src/ui`
+- [x] write tests for the success cases: full info; older server (404 → healthz 200); sign-up closed
+- [x] write tests for the error cases:
   - network error;
   - a real timeout: a fetch that waits on `init.signal`, with `timeoutMs: 10`;
   - non-JSON 200; `service` mismatch; `status: "unavailable"`;
   - 502 with an HTML body → `unreachable`; 401 → `unreachable`;
   - healthz 503 → `storage_unavailable`; healthz 500 → `unreachable`.
-- [ ] write a table test for `describeServerCheck`: every `reason`, an old server's null facts, sign-up open and closed
-- [ ] run `cd extension && npm run check` - must pass before next task
+- [x] write a table test for `describeServerCheck`: every `reason`, an old server's null facts, sign-up open and closed
+- [x] run `cd extension && npm run check` - must pass before next task
 
 ### Task 4: Test connection on the connect step
 
