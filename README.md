@@ -131,6 +131,40 @@ To update, change the tag and repeat. Each
 server binaries for Linux, macOS and Windows. They read the same environment variables
 and belong behind a TLS-terminating proxy, as in the compose bundle.
 
+### Synology NAS
+
+DSM already uses ports 80 and 443 and manages certificates, so
+[deploy/synology/docker-compose.yml](deploy/synology/docker-compose.yml) does without
+Caddy. It runs the released image on `127.0.0.1:8080`, and DSM's reverse proxy provides
+HTTPS. It needs DSM 7.2+ with Container Manager.
+
+1. **Files.** In File Station, create `docker/booksync/data` and copy the compose file
+   into `docker/booksync`.
+2. **User.** The container runs as `1026:100` so it can write to `data/`. Over SSH,
+   run `id <your-dsm-user>`. If the uid or gid differs, change `user:` to match.
+3. **Project.** Container Manager → Project → Create, path `/volume1/docker/booksync`,
+   "Use existing docker-compose.yml".
+4. **Certificate.** Point `booksync.example.com` at the NAS. Then add a Let's Encrypt
+   certificate in Control Panel → Security → Certificate.
+5. **Reverse proxy.** Control Panel → Login Portal → Advanced → Reverse Proxy → Create:
+   - source `HTTPS`, `booksync.example.com`, port `443`;
+   - destination `HTTP`, `localhost`, port `8080`;
+   - Custom Header → Create: `X-Forwarded-For` = `$proxy_add_x_forwarded_for`.
+     Without it, every client shares one rate-limit bucket.
+
+   In the Certificate settings, assign the new certificate to this hostname.
+6. **Check.** `curl https://booksync.example.com/healthz` should return
+   `{"status":"ok"}`.
+
+- **Data** is in `/volume1/docker/booksync/data/booksync.db`, so Hyper Backup and
+  snapshots cover it. A snapshot is only consistent with the project stopped. Otherwise,
+  use the online backup command below with `-v /volume1/docker/booksync/data:/data`.
+- **Updating.** The image tag is `latest`. In Container Manager, stop the project and
+  choose Action → Build (it pulls), or run `docker compose pull && docker compose up -d`
+  in the folder. Pin a tag such as `0.1.0` if you prefer explicit upgrades.
+- **Settings** are environment variables in the compose file (table below);
+  `BOOKSYNC_DOMAIN` and the port variables don't apply here.
+
 ### Configuration
 
 Every setting is an environment variable in `deploy/.env`
@@ -304,6 +338,7 @@ The repository contains the Go server and the TypeScript WebExtension.
 cmd/booksync-server/   server entry point (+ `healthcheck` subcommand for the container)
 internal/              config, store (SQLite + migrations), auth (Argon2id, tokens), api (HTTP)
 deploy/                Dockerfile, docker-compose.yml, Caddyfile, .env.example, smoke.sh
+  synology/            compose file for Synology Container Manager (behind DSM reverse proxy)
 extension/
   src/crypto/          SyncID, key derivation, vault encryption
   src/model/           vault document, tree validation, URL match key
