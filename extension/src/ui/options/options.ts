@@ -20,6 +20,12 @@ let connectedServer: string | null = null;
 /** The successful check that led to connectedServer (null after a page load). */
 let connectedFacts: ServerCheck | null = null;
 let authTab: 'register' | 'login' = 'login';
+/**
+ * The signed-in Server card's last check. Module state, so the page's
+ * frequent full re-renders redraw the result instead of blanking it.
+ */
+let serverCard: { url: string; result: ServerCheck | 'no_permission'; at: number } | null = null;
+let serverCheckRunning = false;
 
 function rememberedServer(): string {
   try {
@@ -49,7 +55,10 @@ async function busy(button: HTMLButtonElement, errorId: string, fn: () => Promis
 
 function render(): void {
   if (shownKit) return renderKit(shownKit);
-  if (!status.signedIn) return renderSignedOut();
+  if (!status.signedIn) {
+    serverCard = null;
+    return renderSignedOut();
+  }
   renderSignedIn();
 }
 
@@ -341,6 +350,7 @@ function renderSignedIn(): void {
       h('div', { id: 'kit-reveal' }),
     ),
     actionCard(),
+    h('section', { class: 'card', id: 'server-card' }, ...serverCardBody()),
     h('section', { class: 'card', id: 'devices-card' }, h('h2', {}, 'Devices'), h('ul', { class: 'devices', id: 'devices' }, h('li', { class: 'muted' }, 'Loading…')), h('div', { id: 'devices-error', class: 'error' })),
     h('section', { class: 'card', id: 'history-card' }),
     passwordCard(),
@@ -360,6 +370,68 @@ function renderSignedIn(): void {
   );
   void loadDevices();
   renderHistorySlot();
+  // Once per page load (and per server), not on every re-render.
+  if (serverCard?.url !== status.serverUrl) void runServerCheck();
+}
+
+// ---- server card ---------------------------------------------------------------
+
+function serverCardBody(): (HTMLElement | string)[] {
+  const line = h('div', { id: 'server-check', class: 'check', role: 'status' });
+  if (serverCard && serverCard.url === status.serverUrl) {
+    if (serverCard.result === 'no_permission') {
+      line.className = 'check bad';
+      replace(line, 'Permission missing: BookSync may no longer talk to this server. Click Check now to allow it.');
+    } else {
+      showCheck(line, serverCard.result);
+    }
+  } else {
+    line.className = 'check muted';
+    replace(line, 'Checking…');
+  }
+  const at = serverCard ? new Date(serverCard.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+  return [
+    h('h2', {}, 'Server'),
+    h('p', { class: 'mono', id: 'server-address' }, status.serverUrl ?? ''),
+    line,
+    h(
+      'div',
+      { class: 'row' },
+      h('button', { id: 'check-server', onclick: onCheckServer, disabled: serverCheckRunning }, serverCheckRunning ? 'Checking…' : 'Check now'),
+      at && h('span', { class: 'muted', id: 'server-checked-at' }, `Checked ${at}`),
+    ),
+  ];
+}
+
+function redrawServerCard(): void {
+  const card = document.getElementById('server-card');
+  if (card) replace(card, ...serverCardBody());
+}
+
+/**
+ * Checks the signed-in server. Without a `granted` promise (the automatic
+ * check), it only looks at the permission and never prompts.
+ */
+async function runServerCheck(granted?: Promise<boolean>): Promise<void> {
+  const url = status.serverUrl;
+  if (!url || serverCheckRunning) return;
+  serverCheckRunning = true;
+  redrawServerCard();
+  try {
+    const allowed = await (granted ?? ext().permissions.contains({ origins: [serverOrigin(url)] }));
+    serverCard = { url, result: allowed ? await checkServer(url) : 'no_permission', at: Date.now() };
+  } finally {
+    serverCheckRunning = false;
+    redrawServerCard();
+  }
+}
+
+function onCheckServer(): void {
+  const url = status.serverUrl;
+  if (!url) return;
+  // Requested inside the click (Firefox drops the gesture after an await).
+  // When the permission is still granted, this resolves without a prompt.
+  void runServerCheck(ext().permissions.request({ origins: [serverOrigin(url)] }));
 }
 
 function statusLine(): string {

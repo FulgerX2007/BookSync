@@ -161,3 +161,32 @@ test('opens on Sign in when the server has closed sign-up', async ({ browserA })
     rmSync(closed.dir, { recursive: true, force: true });
   }
 });
+
+test('shows the signed-in server as reachable, across re-renders', async ({ server, browserA }) => {
+  const page = await browserA.openOptions();
+  await registerViaUi(page, server);
+  const line = page.locator('#server-check');
+  await expect(line).toHaveText('Connected to BookSync dev · sign-up open');
+  await expect(page.locator('#server-address')).toHaveText(server.url);
+  await expect(page.locator('#server-checked-at')).toContainText('Checked');
+
+  // Sync now re-renders the whole page; the result must survive it.
+  await page.click('#sync-now');
+  await expect(page.locator('#status')).toContainText('Up to date');
+  await page.reload();
+  await expect(line).toHaveText('Connected to BookSync dev · sign-up open');
+  await page.click('#sync-now');
+  await expect(page.locator('#status')).toContainText('Up to date');
+  await expect(line).toHaveText('Connected to BookSync dev · sign-up open');
+});
+
+test('Check now reports a server that went away', async ({ server, browserA }) => {
+  const page = await browserA.openOptions();
+  await registerViaUi(page, server);
+  await expect(page.locator('#server-check')).toHaveClass('check ok');
+  await server.stop();
+  await page.click('#check-server');
+  await expect(page.locator('#server-check')).toContainText('Not reachable');
+  await expect(page.locator('#server-check')).toHaveClass('check bad');
+  await expect(page.locator('#check-server')).toBeEnabled();
+});

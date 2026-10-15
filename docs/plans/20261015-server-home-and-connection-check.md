@@ -302,12 +302,15 @@
 - Modify: `extension/src/ui/options/options.ts`
 - Modify: `extension/e2e/options.spec.ts`
 
-- [ ] add a **Server** card to the signed-in view: address, status dot and text from `describeServerCheck`, "checked HH:MM", and a **Check now** button (busy state while running)
-- [ ] keep the result in module-level state as specified: the first signed-in render and **Check now** fire it; completion updates only `#server-card`; sign-out or a server change clears it
-- [ ] check `permissions.contains` first; "Permission missing" makes **Check now** re-request the permission synchronously
-- [ ] write e2e test: signed in, the card shows "Reachable", and still does after **Sync now** re-renders the page
-- [ ] write e2e test: stop the e2e server, click **Check now** → "Not reachable"
-- [ ] run `npm run check`, `make e2e` and `make e2e-edge` - must pass before next task
+- [x] add a **Server** card to the signed-in view: address, status dot and text from `describeServerCheck`, "checked HH:MM", and a **Check now** button (busy state while running)
+- [x] keep the result in module-level state as specified: the first signed-in render and **Check now** fire it; completion updates only `#server-card`; sign-out or a server change clears it
+- [x] check `permissions.contains` first; "Permission missing" makes **Check now** re-request the permission synchronously
+- [x] write e2e test: signed in, the card shows "Reachable", and still does after **Sync now** re-renders the page
+- [x] write e2e test: stop the e2e server, click **Check now** → "Not reachable"
+- [x] run `npm run check`, `make e2e` and `make e2e-edge` - must pass before next task
+  - ➕ the card reuses `describeServerCheck`'s wording ("Connected to BookSync …"), not a separate "Reachable" string, so the connect step and the card read the same
+  - ➕ **Check now** always calls `permissions.request` in the click: it resolves without a prompt while the permission is granted, and re-prompts only when it was revoked
+  - ⚠️ the "Permission missing" path is not covered by e2e: the e2e build grants `http://127.0.0.1/*` at install, and it can't be revoked from a test. Verify it manually (Post-Completion).
 
 ### Task 6: Verify acceptance criteria
 - [ ] verify all requirements from Overview are implemented
@@ -340,6 +343,8 @@
   `https://` and the public host
 - Firefox: the Test connection permission prompt appears on the first click (the gesture
   is kept)
+- revoke the server's site access in the browser's extension settings, then reopen
+  Settings: the Server card shows "Permission missing", and Check now re-prompts
 
 **External system updates:**
 - none. Older extensions ignore `/v1/info`, and newer extensions fall back to `/healthz`
