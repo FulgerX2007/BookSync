@@ -13,14 +13,14 @@ import io.booksync.core.mobile.Mobile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-// Spike (plan Task 1): calls the Go core once and shows the result.
+// Placeholder until the real UI (plan Task 12): shows the bound core version.
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             var result by remember { mutableStateOf("…") }
             LaunchedEffect(Unit) {
-                result = withContext(Dispatchers.IO) { Mobile.ping("https://www.google.com/") }
+                result = withContext(Dispatchers.IO) { Mobile.coreVersion() }
             }
             Text("Go core: $result")
         }

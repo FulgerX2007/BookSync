@@ -584,17 +584,25 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
 - Modify: `.github/workflows/ci.yml` (gofmt includes `mobile`)
 - Modify: `.gitignore` (`android/app/libs/*.aar`)
 
-- [ ] `core.go`: the facade API from Technical Details:
+- [x] `core.go`: the facade API from Technical Details:
   - only bindable types;
   - JSON results;
   - errors as `{code, message}`;
   - `KeyWrapper` as an exported interface
-- [ ] tests:
+- [x] tests:
   - every method round-trips against a real `httptest` server;
   - error codes are stable strings;
   - a nil `KeyWrapper` is rejected;
   - the `-update` flag writes the Kotlin fixtures, and the CI drift check covers them
-- [ ] `make test` now runs `mobile/` tests; run it, and it must pass before the next task
+- [x] `make test` now runs `mobile/` tests; run it, and it must pass before the next task
+- ➕ gomobile and gobind are pinned as `tool` directives in `mobile/go.mod`.
+  `make android-aar` installs them into `bin/` and binds with `-trimpath -ldflags="-s -w"`
+  (AAR 6.5 MB). The facade adds `CountSubtree` (delete prompt) and `CoreVersion`, and
+  `Tree()` returns the vault JSON.
+- ➕ CI's Go job now also runs gofmt, vet, golangci-lint and `go test -race` for `mobile/`.
+- ➕ The stub `MainActivity` shows `Mobile.coreVersion()` until Task 12. The release APK still
+  builds with R8.
+- Coverage: `mobile` 94.7 %.
 
 ### Task 12: Android scaffold, core binding and Keystore key wrapper
 

@@ -24,14 +24,23 @@ jobs:
         with:
           go-version-file: go.mod
       - name: gofmt
-        run: test -z "$(gofmt -l cmd internal)" || { gofmt -l cmd internal; exit 1; }
+        run: test -z "$(gofmt -l cmd internal mobile)" || { gofmt -l cmd internal mobile; exit 1; }
       - name: go vet
-        run: go vet ./...
+        run: go vet ./... && (cd mobile && go vet ./...)
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.14.0
+      - name: golangci-lint (mobile facade)
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.14.0
+          working-directory: mobile
       - name: Tests
+        run: go test -race ./...
+      # mobile/ is a nested module (the gomobile facade); ./... above skips it.
+      - name: Tests (mobile facade)
+        working-directory: mobile
         run: go test -race ./...
 
   extension:
