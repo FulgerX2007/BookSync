@@ -1,7 +1,11 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
+
+// Release versions come from the tag (BOOKSYNC_VERSION), like the server and the extension.
+val appVersion = BookSyncVersion.name(System.getenv("BOOKSYNC_VERSION"))
 
 android {
     namespace = "io.booksync.android"
@@ -10,21 +14,45 @@ android {
     defaultConfig {
         applicationId = "io.booksync.android"
         minSdk = 26
-        targetSdk = 36
-        versionCode = 1
-        versionName = "0.0.0-dev"
+        targetSdk = 37
+        versionCode = BookSyncVersion.code(appVersion)
+        versionName = appVersion
+    }
+
+    signingConfigs {
+        // Release signing comes from the environment (CI secrets); without it
+        // the release build is unsigned and only the debug key applies to debug.
+        val storeFile = System.getenv("ANDROID_KEYSTORE_FILE")
+        if (storeFile != null) {
+            create("release") {
+                this.storeFile = file(storeFile)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Spike only: lets the release build install on an emulator.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 
     buildFeatures { compose = true }
+
+    lint {
+        // A lint finding must never land, as for the Go and TS code.
+        warningsAsErrors = true
+        abortOnError = true
+    }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 dependencies {
@@ -32,5 +60,21 @@ dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.material3)
     implementation(libs.compose.ui)
+    implementation(libs.compose.ui.tooling.preview)
     implementation(libs.activity.compose)
+    implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.lifecycle.runtime.compose)
+    implementation(libs.lifecycle.process)
+    implementation(libs.work.runtime)
+    implementation(libs.coroutines.android)
+    implementation(libs.serialization.json)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.work.testing)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
 }

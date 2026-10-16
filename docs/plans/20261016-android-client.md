@@ -245,7 +245,7 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
   - Target size is under 2 MB in total.
 - **Android:**
   - `android/` is a Gradle KTS project with a single `app` module. Package
-    `io.booksync.android`; minSdk 26, targetSdk 36, compileSdk 37; Compose with Material 3;
+    `io.booksync.android`; minSdk 26, targetSdk 37, compileSdk 37; Compose with Material 3;
     kotlinx-serialization.
   - The AAR comes from `make android-aar`
     (`gomobile bind -target=android/arm64,android/amd64 -androidapi 26`), output
@@ -613,22 +613,35 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
 - Create: `.../BookSyncApplication.kt`, `core/{BookSyncCore,GoCore,Models}.kt`,
   `security/KeystoreKeyWrapper.kt`
 - Create: tests `core/ModelsJsonTest.kt`, `core/FakeCore.kt`,
-  `security/KeystoreKeyWrapperTest.kt`, `build/VersionCodeTest.kt`
+  `security/KeystoreKeyWrapperTest.kt`, `android/buildSrc/src/test/kotlin/BookSyncVersionTest.kt`
 
-- [ ] the Gradle setup:
+- [x] the Gradle setup:
   - versions from `BOOKSYNC_VERSION` with the rc-aware `versionCode`;
   - `allowBackup=false`; `INTERNET` only;
   - R8 keep rules for `go.**` and `io.booksync.core.**`
-- [ ] `GoCore`: a singleton in `BookSyncApplication`; NFC-normalizes passwords; runs on
+- [x] `GoCore`: a singleton in `BookSyncApplication`; NFC-normalizes passwords; runs on
       `Dispatchers.IO`; maps error JSON to `CoreException(code)`
-- [ ] `KeystoreKeyWrapper`: an `AndroidKeyStore` AES-256-GCM key, behind a `KeyProvider`
+- [x] `KeystoreKeyWrapper`: an `AndroidKeyStore` AES-256-GCM key, behind a `KeyProvider`
       seam so it can be tested on the JVM
-- [ ] tests:
+- [x] tests:
   - model decoding from the Go fixtures;
   - wrapper round-trip, tamper → error, wrong key → error;
   - `versionCode` table (1.2.3, 1.2.3-rc.1, a non-tag build)
-- [ ] run `make android-test` (`testDebugUnitTest lintDebug`); it must pass before the next
+- [x] run `make android-test` (`testDebugUnitTest lintDebug`); it must pass before the next
       task
+- ➕ Versioning lives in `android/buildSrc` (`BookSyncVersion`), so the Gradle script and its
+  JUnit test share it. `make android-test` runs `-p buildSrc test` first.
+- ➕ targetSdk is **37** (lint's OldTargetApi; a new app has no legacy behavior to keep);
+  compileSdk 37; minSdk 26.
+- ➕ Android lint runs with `warningsAsErrors` and `abortOnError` (0 findings).
+  `isShrinkResources` is on, and there's an adaptive vector launcher icon.
+  `data_extraction_rules.xml` excludes everything from cloud backup and device transfer.
+- ➕ Release signing reads `ANDROID_KEYSTORE_FILE`, `ANDROID_KEYSTORE_PASSWORD`,
+  `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` from the environment. Without them the
+  release APK is unsigned.
+- ➕ `FakeCore` (test sources) implements `BookSyncCore` in memory, for the UI tests of
+  Tasks 13 to 16.
+- ⚠️ Local builds in this container need the Maven Central mirror init script; CI does not.
 
 ### Task 13: Auth screens
 

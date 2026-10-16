@@ -3,4 +3,7 @@ build/
 local.properties
 app/libs/*.aar
 app/libs/*-sources.jar
+buildSrc/build/
+buildSrc/.gradle/
+buildSrc/.kotlin/
 .kotlin/

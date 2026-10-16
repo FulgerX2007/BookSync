@@ -59,6 +59,7 @@ android-aar:
 		-javapkg io.booksync.core -trimpath -ldflags="-s -w" -o ../$(ANDROID_AAR) .
 
 android-test: android-aar
+	cd android && ./gradlew --console=plain -p buildSrc test
 	cd android && ./gradlew --console=plain testDebugUnitTest lintDebug
 
 android-apk: android-aar
