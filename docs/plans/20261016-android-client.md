@@ -650,16 +650,27 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
   `ui/auth/{AuthViewModel,ServerScreen,RegisterScreen,LoginScreen,EmergencyKitScreen}.kt`
 - Create: tests `ui/auth/AuthViewModelTest.kt`, `ui/auth/AuthScreensTest.kt`
 
-- [ ] a server URL screen, with the http/https rule surfaced from the core code
-- [ ] register: password confirmation, then the emergency kit (username, server, SyncID;
+- [x] a server URL screen, with the http/https rule surfaced from the core code
+- [x] register: password confirmation, then the emergency kit (username, server, SyncID;
       copy and share as text; `FLAG_SECURE`; an "I saved it" checkbox gates continue)
-- [ ] sign in with live SyncID validation; `signed_out_reauth` pre-fills the server and
+- [x] sign in with live SyncID validation; `signed_out_reauth` pre-fills the server and
       username
-- [ ] sign out with a confirmation saying local bookmarks are removed from this device
-- [ ] tests: ViewModel transitions with `FakeCore` (success, `invalid_credentials`,
+- [x] sign out with a confirmation saying local bookmarks are removed from this device
+- [x] tests: ViewModel transitions with `FakeCore` (success, `invalid_credentials`,
       `username_taken`, `registration_closed`, `rate_limited`, a bad SyncID); compose tests
       for the kit gate and SyncID validation
-- [ ] run `make android-test`; it must pass before the next task
+- [x] run `make android-test`; it must pass before the next task
+- ➕ Navigation is a `Route` value in `AppViewModel` (Loading, Welcome, Register, Login,
+  EmergencyKit, Bookmarks) instead of navigation-compose. A revoked device (`needsReauth`)
+  stays on its bookmarks and is offered "Sign in again" with prefilled fields.
+- ➕ Each visit to a form gets a fresh `AuthViewModel` (keyed by route), and secrets are
+  cleared after success. `FLAG_SECURE` covers login, register and the kit. The kit is
+  shown, copied, or shared as text.
+- ➕ Robolectric downloads its Android jars at test time. `ROBOLECTRIC_REPO_URL`
+  (optional) points it at a mirror; CI uses Maven Central.
+- ➕ Robolectric's default screen is small: tests call `performScrollTo()` before clicking
+  controls inside scrolling forms.
+- Android unit and UI tests: 20 pass; lint finds nothing.
 
 ### Task 14: Bookmark browser and Kotlin search
 
