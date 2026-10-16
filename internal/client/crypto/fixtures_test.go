@@ -5,11 +5,11 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
-	"encoding/json"
 	"flag"
 	"testing"
 
 	"github.com/FulgerX2007/BookSync/internal/client/conformance"
+	"github.com/FulgerX2007/BookSync/internal/client/vault"
 )
 
 var update = flag.Bool("update", false, "rewrite the Go-written fixtures in testdata/conformance")
@@ -71,15 +71,16 @@ func TestGoFixtures(t *testing.T) {
 
 func writeGoFixtures(t *testing.T) {
 	t.Helper()
-	// The plaintexts are the TS corpus's edge-case documents, re-encoded by
-	// Go. TODO(android plan Task 4): encode with the vault package instead.
+	// The plaintexts are the TS corpus's edge-case documents (empty folder,
+	// empty url, escapes, non-ASCII), parsed and re-encoded by the Go vault
+	// package exactly as an Android device uploads them.
 	var envs []conformance.Case[envelopeInput, envelopeExpected]
 	for _, c := range conformance.Load[envelopeInput, envelopeExpected](t, "envelope.json") {
-		var doc any
-		if err := json.Unmarshal(c.Expected.Doc, &doc); err != nil {
+		doc, err := vault.Parse(c.Expected.Doc)
+		if err != nil {
 			t.Fatal(err)
 		}
-		plain, err := json.Marshal(doc)
+		plain, err := vault.Marshal(doc)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -382,16 +382,27 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
 - Create: `internal/client/vault/{vault,json,equal}.go` and their `_test.go` files
 - Create: `internal/client/vault/builders_test.go` (Go analogue of `doc()`/`outline()`)
 
-- [ ] `VaultDoc`/`VNode`, the root constants, `NewEmpty`, and custom JSON per design
+- [x] `VaultDoc`/`VNode`, the root constants, `NewEmpty`, and custom JSON per design
       decision 5
-- [ ] `Validate()` with TS error codes, ASCII GUID check, and `ErrUnsupportedFormat` for a
+- [x] `Validate()` with TS error codes, ASCII GUID check, and `unsupported_format` for a
       higher `format`
-- [ ] `Equal` (ports `treesEqual`, root titles ignored), `DiffStats` and `Clone`
-- [ ] tests: replay of `validate` and `equal`; JSON round-trips for an empty folder (`[]`), an
+- [x] `Equal` (ports `treesEqual`, root titles ignored), `DiffStats` and `Clone`
+- [x] tests: replay of `validate` and `equal`; JSON round-trips for an empty folder (`[]`), an
       empty URL (present) and a fractional `writtenAt`; decoding ignores unknown fields and
       drops `children` on bookmarks and `url` on folders, as TS does; encoding never emits
       them; one failure case per validity rule
-- [ ] run `make test`; it must pass before the next task
+- [x] run `make test`; it must pass before the next task
+- ➕ **Deviation, GUIDs:** non-ASCII GUIDs are *not* rejected; TS accepts them, and rejecting
+  them would make Go refuse vaults the extension reads. `CompareGUID` orders by UTF-16 code
+  units instead, as JS `.sort()` does, and is used wherever TS sorts GUIDs.
+- ➕ `Parse` mirrors JS number handling: an out-of-range number reads as ±Inf
+  (`"format":1e400` → `unsupported_format`), and `seq` must be a safe integer.
+- ➕ `DiffStats` counts a kind change as an update even with an empty URL (TS compares
+  `'' !== undefined`).
+- ➕ `vault.Marshal` disables HTML escaping (same as `JSON.stringify`). The Go fixtures for
+  Task 3 now use it (TODO resolved).
+- Every document in `merge3.json` survives Go `Parse` then `Marshal` and stays equal as JSON
+  (`TestMarshalMatchesTS`). Coverage: `internal/client/vault` 97.7 %.
 
 ### Task 5: Port `merge3` and the mass-deletion guard
 
