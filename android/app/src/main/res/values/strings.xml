@@ -103,4 +103,12 @@
         <item quantity="one">%d on the server</item>
         <item quantity="other">%d on the server</item>
     </plurals>
+
+    <string name="share_label">Save to BookSync</string>
+    <string name="share_title">Save to BookSync</string>
+    <string name="share_folder">Folder</string>
+    <string name="share_signed_out">Sign in to BookSync first, then share again.</string>
+    <string name="share_no_url">There is no web link in what was shared.</string>
+    <string name="open_app">Open BookSync</string>
+    <string name="save">Save</string>
 </resources>

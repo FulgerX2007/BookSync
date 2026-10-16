@@ -7,6 +7,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import io.booksync.android.core.BookSyncCore
+import io.booksync.android.core.CoreProvider
 import io.booksync.android.core.GoCore
 import io.booksync.android.security.KeystoreKeyWrapper
 import io.booksync.android.sync.SyncController
@@ -16,8 +17,8 @@ import java.io.File
  * Owns the single core of this process and the foreground sync controller;
  * the UI and the share worker use the same instances.
  */
-class BookSyncApplication : Application() {
-    val core: BookSyncCore by lazy {
+class BookSyncApplication : Application(), CoreProvider {
+    override val core: BookSyncCore by lazy {
         GoCore.open(File(filesDir, "booksync"), KeystoreKeyWrapper(), deviceName())
     }
 

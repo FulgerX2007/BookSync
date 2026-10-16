@@ -741,18 +741,25 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
 - Modify: `AndroidManifest.xml` (`ACTION_SEND` `text/plain`)
 - Create: tests `share/ShareViewModelTest.kt`, `work/OneShotSyncWorkerTest.kt`
 
-- [ ] `ShareActivity`:
+- [x] `ShareActivity`:
   - takes the first http(s) URL from `EXTRA_TEXT`, with the title from `EXTRA_SUBJECT`
     (falling back to the host);
   - folder choice, defaulting to the last used, else `mobile______`;
   - saves through core;
   - signed out → explain and open the app
-- [ ] after a save, enqueue a unique `OneTimeWorkRequest` (`KEEP`, network constraint). It
+- [x] after a save, enqueue a unique `OneTimeWorkRequest` (`KEEP`, network constraint). It
       calls the singleton `GoCore.sync()`; `busy` or a network error → `retry`, anything else
       → `success`
-- [ ] tests: URL extraction table (plain, embedded, multiple, none); the signed-out path; the
+- [x] tests: URL extraction table (plain, embedded, multiple, none); the signed-out path; the
       worker's result mapping (`TestListenableWorkerBuilder` under Robolectric)
-- [ ] run `make android-test`; it must pass before the next task
+- [x] run `make android-test`; it must pass before the next task
+- ➕ A device waiting for re-auth (`needsReauth`) can still save shares; they sync after
+  sign-in. Only a device with no account is sent to the app.
+- ➕ `CoreProvider` (implemented by `BookSyncApplication`) gives the share activity and the
+  worker the single core. Worker tests use a Robolectric `TestApp` with `FakeCore`.
+- ➕ The share activity is dialog-themed, excluded from recents and has its own task
+  affinity, so it doesn't pull the main app over the sharing app.
+- Android tests: 66 pass; lint finds nothing.
 
 ### Task 17: CI and release wiring
 
