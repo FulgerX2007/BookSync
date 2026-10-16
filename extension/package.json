@@ -12,7 +12,8 @@
     "test": "vitest run",
     "e2e": "npm run build:e2e && playwright test",
     "package": "npm run build && node scripts/package.mjs",
-    "check": "tsc --noEmit && eslint . && vitest run"
+    "check": "tsc --noEmit && eslint . && vitest run",
+    "conformance:gen": "CONFORMANCE_WRITE=1 vitest run test/conformance/generate.test.ts"
   },
   "engines": {
     "node": ">=22"

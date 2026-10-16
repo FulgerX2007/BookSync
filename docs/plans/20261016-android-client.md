@@ -314,23 +314,32 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
 - Create: `extension/test/conformance/generate.test.ts`
 - Create: `extension/test/conformance/go-fixtures.test.ts`
 - Modify: `extension/package.json` (`conformance:gen`)
-- Create: `testdata/conformance/*.json`
-- Modify: `.github/workflows/ci.yml` (drift check)
+- Create: `testdata/conformance/{keys,syncid,validate,equal,merge3,guard,envelope}.json`
 
-- [ ] write `generate.test.ts`:
-  - a seeded `crypto.getRandomValues` stub;
+- [x] write `generate.test.ts`:
+  - a seeded `crypto.getRandomValues` stub (mulberry32; no production code changes);
   - curated cases: each §4.4 row, root-title localization in `equal`, guard thresholds,
-    validity rules, SyncID typos, non-ASCII NFC passwords for keys;
-  - seeded `merge3` and guard cases from `arbitraries.ts`, recording `merged` and `stats`
-- [ ] add `npm run conformance:gen` and commit the output (under 2 MB in total)
-- [ ] CI: in the extension job, regenerate and run `git diff --exit-code
-      testdata/conformance` (excluding `envelope.json`)
-- [ ] write `go-fixtures.test.ts`. It decrypts `envelope-go.json`/`wrap-go.json` and asserts
-      `parseVaultDoc` succeeds with structural equality. It is skipped with a TODO until
-      Task 3
-- [ ] write tests: two generator runs produce byte-identical output (excluding the envelope),
-      and every expected `merged` passes `validateTree`
-- [ ] run `npm run check`; it must pass before the next task
+    validity and parse rules, SyncID typos, NFC and NFD passwords for keys;
+  - 150 seeded `merge3` cases from `arbitraries.ts`, recording `merged` and `stats`, with a
+    localized root title in about half of them
+- [x] add `npm run conformance:gen` and commit the output (1.4 MB in total; `merge3.json` is
+      1.2 MB)
+- ➕ **Deviation:** there is no `git diff` step in CI. Without `CONFORMANCE_WRITE`, the test
+  regenerates in memory and fails if a committed file is stale, so `npm run check` (and CI's
+  `npm test`) enforces the drift check. `envelope.json` is only checked to decrypt to its own
+  document (its bytes depend on zlib).
+- [x] write `go-fixtures.test.ts`. It decrypts `envelope-go.json` and checks
+      `wrap-go.json` (unwrap round trip). It is skipped through `describe.skipIf` with a TODO
+      until Task 3 writes the files
+- [x] write tests: two generator runs produce identical output; every expected `merged` passes
+      `validateTree`; a corrupted file is reported as stale (checked by hand)
+- [x] run `npm run check` (446 passed, 2 skipped)
+- ➕ **Findings the Go decoder must copy** (recorded in `validate.json`):
+  - on read, TS *drops* `children` on a bookmark and `url` on a folder instead of rejecting
+    them;
+  - unknown header and node fields are ignored;
+  - a negative `seq` is accepted;
+  - `url: null`, `children: null`, a missing title and an unknown kind are `bad_format`.
 
 ### Task 3: Go client crypto (keys, wrap, envelope, SyncID)
 
@@ -368,8 +377,9 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
       higher `format`
 - [ ] `Equal` (ports `treesEqual`, root titles ignored), `DiffStats` and `Clone`
 - [ ] tests: replay of `validate` and `equal`; JSON round-trips for an empty folder (`[]`), an
-      empty URL (present), unknown fields rejected and a fractional `writtenAt`; one failure
-      case per validity rule
+      empty URL (present) and a fractional `writtenAt`; decoding ignores unknown fields and
+      drops `children` on bookmarks and `url` on folders, as TS does; encoding never emits
+      them; one failure case per validity rule
 - [ ] run `make test`; it must pass before the next task
 
 ### Task 5: Port `merge3` and the mass-deletion guard
