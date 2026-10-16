@@ -1,5 +1,6 @@
-// E2E fixtures: a real BookSync server process per test, and Chromium
-// profiles with the unpacked e2e build of the extension.
+// E2E fixtures: a real BookSync server process per test, and Chromium (or,
+// with BOOKSYNC_E2E_BROWSER=msedge, Microsoft Edge) profiles with the
+// unpacked e2e build of the extension.
 import { test as base, chromium, expect, type BrowserContext, type Page, type Worker } from '@playwright/test';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
@@ -14,13 +15,31 @@ const serverBin = resolve(here, '../e2e-bin/booksync-server');
 
 export const PASSWORD = 'correct horse battery';
 
+/** The browser under test: "chromium" (default) or "msedge" (installed Edge stable). */
+export const BROWSER = process.env.BOOKSYNC_E2E_BROWSER ?? 'chromium';
+if (BROWSER !== 'chromium' && BROWSER !== 'msedge') throw new Error(`BOOKSYNC_E2E_BROWSER must be chromium or msedge, got "${BROWSER}"`);
+
+/** The root folders' titles as the browser under test names them (the UI shows these). */
+export const ROOTS = BROWSER === 'msedge' ? { bar: 'Favorites bar', other: 'Other favorites' } : { bar: 'Bookmarks bar', other: 'Other bookmarks' };
+
 /** Use a preinstalled Chromium when Playwright's own download is not available. */
 function chromiumPath(): string | undefined {
   if (process.env.CHROMIUM_PATH) return process.env.CHROMIUM_PATH;
   return existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined;
 }
 
-function freePort(): Promise<number> {
+/**
+ * How to launch the browser under test. Without a channel, headless
+ * Playwright runs its headless shell, which cannot load extensions; channel
+ * "chromium" is the full browser, and "msedge" is the installed Edge.
+ */
+function launchTarget(): { executablePath: string } | { channel: string } {
+  if (BROWSER === 'msedge') return { channel: 'msedge' };
+  const executablePath = chromiumPath();
+  return executablePath ? { executablePath } : { channel: 'chromium' };
+}
+
+export function freePort(): Promise<number> {
   return new Promise((resolvePort, reject) => {
     const srv = createServer();
     srv.listen(0, '127.0.0.1', () => {
@@ -52,12 +71,13 @@ export interface SyncServer {
   stop(): Promise<void>;
 }
 
-export async function startServer(): Promise<SyncServer> {
+/** Starts a server; `env` adds or overrides BOOKSYNC_* settings. */
+export async function startServer(env: Record<string, string> = {}): Promise<SyncServer> {
   const dir = mkdtempSync(join(tmpdir(), 'booksync-e2e-server-'));
   const port = await freePort();
   const dbPath = join(dir, 'booksync.db');
   const proc: ChildProcess = spawn(serverBin, [], {
-    env: { ...process.env, BOOKSYNC_ADDR: `127.0.0.1:${port}`, BOOKSYNC_DB_PATH: dbPath, BOOKSYNC_LOG_LEVEL: 'warn' },
+    env: { ...process.env, BOOKSYNC_ADDR: `127.0.0.1:${port}`, BOOKSYNC_DB_PATH: dbPath, BOOKSYNC_LOG_LEVEL: 'warn', ...env },
     stdio: ['ignore', 'inherit', 'inherit'],
   });
   const url = `http://127.0.0.1:${port}`;
@@ -89,12 +109,9 @@ export class ExtBrowser {
 
   static async launch(): Promise<ExtBrowser> {
     const userDataDir = mkdtempSync(join(tmpdir(), 'booksync-e2e-profile-'));
-    const executablePath = chromiumPath();
     const context = await chromium.launchPersistentContext(userDataDir, {
       headless: true,
-      // Without a channel, headless Playwright runs its headless shell, which
-      // cannot load extensions; channel "chromium" is the full browser.
-      ...(executablePath ? { executablePath } : { channel: 'chromium' }),
+      ...launchTarget(),
       args: [`--disable-extensions-except=${extensionDir}`, `--load-extension=${extensionDir}`],
     });
     let worker = context.serviceWorkers()[0];
@@ -103,7 +120,7 @@ export class ExtBrowser {
         worker = await context.waitForEvent('serviceworker', { timeout: 20_000 });
       } catch {
         await context.close();
-        throw new Error(`the extension's service worker never started: is ${extensionDir} built, and is this a full Chromium rather than the headless shell?`);
+        throw new Error(`the extension's service worker never started: is ${extensionDir} built, and is this a full ${BROWSER} rather than the headless shell?`);
       }
     }
     await extensionApiReady(worker);

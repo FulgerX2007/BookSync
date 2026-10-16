@@ -33,6 +33,12 @@ type testEnv struct {
 
 func newTestEnv(t *testing.T, mutate ...func(*config.Config)) *testEnv {
 	t.Helper()
+	return newTestEnvDeps(t, nil, mutate...)
+}
+
+// newTestEnvDeps is newTestEnv with a hook to adjust Deps (e.g. Version).
+func newTestEnvDeps(t *testing.T, mutateDeps func(*Deps), mutate ...func(*config.Config)) *testEnv {
+	t.Helper()
 	cfg := config.Default()
 	for _, m := range mutate {
 		m(&cfg)
@@ -45,7 +51,11 @@ func newTestEnv(t *testing.T, mutate ...func(*config.Config)) *testEnv {
 	}
 	t.Cleanup(func() { _ = st.Close() })
 	e.st = st
-	e.h = NewServer(cfg, Deps{Logger: discardLogger(), Store: st, Hasher: auth.NewTestHasher(), Now: clock})
+	deps := Deps{Logger: discardLogger(), Store: st, Hasher: auth.NewTestHasher(), Now: clock}
+	if mutateDeps != nil {
+		mutateDeps(&deps)
+	}
+	e.h = NewServer(cfg, deps)
 	return e
 }
 

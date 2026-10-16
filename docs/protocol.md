@@ -172,7 +172,9 @@ let extensions set it).
 - **Binary fields** in JSON (`authKey`, `wrappedVaultKey`, `vault`, …) are base64url
   without padding.
 - **Errors** look like `{"error":{"code":"…","message":"…"}}`. Clients branch on
-  `code`; `message` is for humans.
+  `code`; `message` is for humans. `GET /` is the one non-JSON success response (an
+  HTML page for people); its `404` and `405` errors stay JSON like every other route.
+- **Unknown fields.** Clients MUST ignore response fields they don't know.
 - **Device authentication:** `Authorization: Bearer bst_<base64url of 32 random bytes>`.
   - The server stores only SHA-256 of the token.
   - Tokens expire after `BOOKSYNC_TOKEN_TTL` without use (90 days by default). The
@@ -186,7 +188,9 @@ let extensions set it).
 
 | Method and path | Auth | Request | Responses |
 |---|---|---|---|
+| `GET /` | – | – | 200 HTML: a service-info page for people (status, version, how to connect, this table). Informational only; clients MUST NOT parse it. |
 | `GET /healthz` | – | – | 200 · 503 `unavailable` |
+| `GET /v1/info` | – | – | 200 `{service: "booksync", protocol: 1, version, status: "ok" \| "unavailable", registrationOpen, maxVaultBytes}`, also when storage is down. `protocol` is this document's major version. Servers older than this endpoint answer `404`; clients then fall back to `/healthz`. |
 | `GET /v1/auth/prelogin?username=` | – | – | 200 `{kdf, iterations}`. An unknown username gets the defaults (`pbkdf2-sha256`, 600000), so prelogin does not reveal which accounts exist. |
 | `POST /v1/auth/register` | – | `{username, authKey, kdf, iterations, wrappedVaultKey, deviceName}` | 201 `{userId, deviceId, deviceToken}` · 400 `invalid_request` · 403 `registration_closed` · 409 `username_taken` |
 | `POST /v1/auth/login` | – | `{username, authKey, deviceName}` | 200 `{userId, deviceId, deviceToken, wrappedVaultKey, kdf, iterations}` · 401 `invalid_credentials` |

@@ -1,0 +1,46 @@
+# BookSync on a Synology NAS (DSM 7.2+, Container Manager).
+#
+# DSM already owns ports 80/443 and manages Let's Encrypt certificates, so this
+# bundle has no Caddy: the server listens on the NAS loopback only and DSM's
+# reverse proxy terminates TLS in front of it. Setup is in README.md
+# ("Synology NAS"). In short:
+#   1. File Station: create docker/booksync/data, and put this file in
+#      docker/booksync.
+#   2. Container Manager > Project > Create: path /volume1/docker/booksync,
+#      "Use existing docker-compose.yml".
+#   3. Control Panel > Login Portal > Advanced > Reverse Proxy:
+#      HTTPS booksync.example.com:443 -> HTTP localhost:8080, and add the
+#      custom header X-Forwarded-For = $proxy_add_x_forwarded_for.
+name: booksync
+
+services:
+  booksync:
+    image: ghcr.io/fulgerx2007/booksync-server:latest
+    restart: unless-stopped
+    # The data directory is a bind mount owned by your DSM user, so run as that
+    # user instead of the image's nonroot (65532), which could not write to it.
+    # Find yours over SSH with `id <user>`; 1026:100 is DSM's first created
+    # user in the "users" group.
+    user: "1026:100"
+    environment:
+      # DSM's reverse proxy is the only way in (the port below is bound to
+      # 127.0.0.1), and it appends the client address to X-Forwarded-For.
+      BOOKSYNC_TRUST_PROXY_HEADERS: "true"
+      # Allow new accounts. Set to "false" once your accounts exist: there are
+      # no per-user quotas.
+      BOOKSYNC_ALLOW_REGISTRATION: "true"
+      # Other settings, with their defaults (see deploy/.env.example):
+      # BOOKSYNC_MAX_VAULT_BYTES: "10485760"
+      # BOOKSYNC_VAULT_KEEP_RECENT: "10"
+      # BOOKSYNC_VAULT_KEEP_DAYS: "30"
+      # BOOKSYNC_TOKEN_TTL: "2160h"
+      # BOOKSYNC_LOG_LEVEL: "info"
+    ports:
+      # Loopback only: reachable by DSM's reverse proxy, not by the LAN, so
+      # nobody can bypass it with a forged X-Forwarded-For. Change the host
+      # side if 8080 is taken.
+      - "127.0.0.1:8080:8080"
+    volumes:
+      # Relative to the project folder: /volume1/docker/booksync/data, where
+      # Hyper Backup and snapshots can see booksync.db.
+      - ./data:/data

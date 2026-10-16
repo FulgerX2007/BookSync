@@ -1,4 +1,4 @@
-import { expect, registerViaUi, status, test, waitForVersionAbove } from './fixtures';
+import { ROOTS, expect, registerViaUi, status, test, waitForVersionAbove } from './fixtures';
 
 // Bookmarks point at the test server, so opening one loads a real page.
 
@@ -17,7 +17,7 @@ test('finds bookmarks by any part of the title or URL, ignoring case and accents
   await search.fill('hub');
   await expect(results).toHaveCount(1);
   await expect(results.first()).toContainText('GitHub');
-  await expect(results.first()).toContainText('Bookmarks bar › Dev');
+  await expect(results.first()).toContainText(`${ROOTS.bar} › Dev`);
 
   await search.fill('docs/sta');
   await expect(results).toHaveText([/Docs/]);
@@ -109,12 +109,12 @@ test('bookmarks the current page into a chosen folder and says where it already 
   await popup.selectOption('#page-folder', readingId);
   await popup.click('#page-save');
   await expect(popup.locator('#this-page-form')).toBeHidden();
-  await expect(popup.locator('#this-page-hint')).toHaveText('Already bookmarked in Bookmarks bar › Dev › Reading');
+  await expect(popup.locator('#this-page-hint')).toHaveText(`Already bookmarked in ${ROOTS.bar} › Dev › Reading`);
   expect(await browserA.bookmarks((b, id) => b.getChildren(id), readingId)).toMatchObject([{ title: 'Article', url }]);
 
   // Reopening the popup on the same page shows where it is.
   const again = await browserA.openPopup(`?tab=${await browserA.tabIdOf(url)}`);
-  await expect(again.locator('#this-page-hint')).toHaveText('Already bookmarked in Bookmarks bar › Dev › Reading');
+  await expect(again.locator('#this-page-hint')).toHaveText(`Already bookmarked in ${ROOTS.bar} › Dev › Reading`);
   // The search box still has the focus, not the form.
   await expect(again.locator('#popup-search')).toBeFocused();
 });
