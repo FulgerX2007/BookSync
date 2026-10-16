@@ -768,19 +768,32 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
 - Modify: `.github/workflows/release.yml` (a separate `android-apk` job)
 - Modify: `Makefile` (`android-apk`; `dist` stays Android-free)
 
-- [ ] CI `android` job:
+- [x] CI `android` job:
   - setup-go, setup-java 17, the Android SDK, the pinned NDK and gomobile;
   - Go, Gradle and NDK caches, with download retries;
   - `make android-aar`, then `./gradlew testDebugUnitTest lintDebug assembleRelease` (R8)
-- [ ] mention in the PR that this job now gates every release through `workflow_call`, and
+- [x] mention in the PR that this job now gates every release through `workflow_call`, and
       its typical duration
-- [ ] release `android-apk` job:
+- [x] release `android-apk` job:
   - builds with `BOOKSYNC_VERSION`;
   - signs with the `ANDROID_KEYSTORE_*` secrets;
   - if the secrets are absent, attaches no APK and logs a warning (an unsigned APK can't be
     installed);
   - adds the APK to `SHA256SUMS`
-- [ ] run `make test` and `make android-test` locally; they must pass before the next task
+- [x] run `make test` and `make android-test` locally; they must pass before the next task
+- ➕ CI `android` job: Go plus Java 21 (Gradle cache), `android-actions/setup-android@v4`,
+  then platform 37 and NDK r29 installed with retries. After that: `make android-aar`, the
+  `buildSrc` tests, `testDebugUnitTest lintDebug assembleRelease`, and reports uploaded on
+  failure.
+- ➕ Release `android-apk` job: a signed APK only when `ANDROID_KEYSTORE_BASE64` (plus
+  `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`) is set;
+  otherwise a warning and no APK. The release job downloads `dist` and `android`, then
+  regenerates `SHA256SUMS` over everything published. `make dist` stays free of Android.
+- ⚠️ This job gates every release (through `workflow_call`) and adds the Android SDK, NDK
+  and Gradle downloads to it. With warm caches it should take minutes; it hasn't run on
+  GitHub yet.
+- Checked locally: `actionlint` is clean; a signed build with a throwaway keystore passes
+  `apksigner verify`, and `1.2.3-rc.1` gives versionCode 1020301.
 
 ### Task 18: Verify acceptance criteria
 - [ ] verify the Overview requirements:
