@@ -31,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -70,6 +71,8 @@ fun BookmarksScreen(
     onOpenUrl: (String) -> Unit,
     onSignOut: () -> Unit,
     onLeave: () -> Unit,
+    refreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     banner: @Composable () -> Unit = {},
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -92,10 +95,12 @@ fun BookmarksScreen(
     ) { pad ->
         Column(Modifier.fillMaxSize().padding(pad)) {
             banner()
-            when {
-                state.searching -> SearchResults(state, vm, onOpenUrl)
-                state.folder == null -> RootList(state, vm, titles)
-                else -> FolderList(state.items, vm, onOpenUrl)
+            PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize().testTag("pullToRefresh")) {
+                when {
+                    state.searching -> SearchResults(state, vm, onOpenUrl)
+                    state.folder == null -> RootList(state, vm, titles)
+                    else -> FolderList(state.items, vm, onOpenUrl)
+                }
             }
         }
     }
@@ -187,7 +192,10 @@ private fun pluralItems(n: Int): String = androidx.compose.ui.res.pluralStringRe
 @Composable
 private fun FolderList(items: List<VNode>, vm: BookmarksViewModel, onOpenUrl: (String) -> Unit) {
     if (items.isEmpty()) {
-        Text(stringResource(R.string.empty_folder), modifier = Modifier.padding(24.dp), style = MaterialTheme.typography.bodyMedium)
+        // A scrollable empty state, so pull-to-refresh still works here.
+        LazyColumn(Modifier.fillMaxSize()) {
+            item { Text(stringResource(R.string.empty_folder), modifier = Modifier.padding(24.dp), style = MaterialTheme.typography.bodyMedium) }
+        }
         return
     }
     LazyColumn(Modifier.fillMaxSize()) {

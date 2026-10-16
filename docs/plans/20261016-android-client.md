@@ -704,26 +704,35 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
 ### Task 15: Foreground sync orchestration and conflict dialogs
 
 **Files:**
-- Create: `.../sync/SyncController.kt`,
-  `ui/sync/{SyncStatusBar,RollbackDialog,MassDeletionDialog}.kt`
+- Create: `.../sync/SyncController.kt`, `ui/sync/SyncViews.kt` (status bar, rollback and
+  mass-deletion dialogs)
 - Create: tests `sync/SyncControllerTest.kt`, `ui/sync/SyncDialogsTest.kt`
 
-- [ ] `SyncController`, scoped to `ProcessLifecycleOwner` STARTED:
+- [x] `SyncController`, scoped to `ProcessLifecycleOwner` STARTED:
   - triggers on start, 3 s after the last edit, a 60 s poll, and pull-to-refresh;
   - single-flight plus exactly one follow-up;
   - `busy` from core → one follow-up;
   - backoff 30 s → 15 min with jitter, honoring `retryAfter`
-- [ ] status bar: last sync, offline, `conflict_exhausted`, `signed_out_reauth` (with a
+- [x] status bar: last sync, offline, `conflict_exhausted`, `signed_out_reauth` (with a
       sign-in action)
-- [ ] `RollbackDialog` (use local / accept server, never auto-resolved) and
+- [x] `RollbackDialog` (use local / accept server, never auto-resolved) and
       `MassDeletionDialog` (counts in both directions)
-- [ ] tests with `FakeCore` and virtual time:
+- [x] tests with `FakeCore` and virtual time:
   - debounce coalescing;
   - follow-up after `busy`;
   - backoff and `Retry-After`;
   - the poll stops when the app is backgrounded;
   - `rollback_detected` blocks syncs until resolved
-- [ ] run `make android-test`; it must pass before the next task
+- [x] run `make android-test`; it must pass before the next task
+- ➕ `SyncController` is process-wide: it lives on `BookSyncApplication` and follows
+  `ProcessLifecycleOwner` (start and stop). `Blocked` (Rollback, Confirm, Reauth) stops
+  automatic and forced syncs until the user acts. Dismissing a prompt ("Later") keeps the
+  block, and the banner's "Review" reopens it.
+- ➕ `treeRevision` increments when a sync changed the local tree, and the browser re-reads
+  it. `AppViewModel` takes `onSignedIn` in its constructor, so the first sign-in from the
+  welcome screen starts a sync.
+- ➕ Pull-to-refresh uses Material 3 `PullToRefreshBox` (an empty folder stays scrollable).
+- Android tests: 58 pass; lint finds nothing.
 
 ### Task 16: Share target and one-shot sync worker
 

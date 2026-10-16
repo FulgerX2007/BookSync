@@ -80,4 +80,27 @@
         <item quantity="one">The folder and the %d item in it will be deleted on all your devices.</item>
         <item quantity="other">The folder and the %d items in it will be deleted on all your devices.</item>
     </plurals>
+
+    <string name="syncing">Syncing…</string>
+    <string name="synced_at">Synced %1$s</string>
+    <string name="sync_offline">Offline. Will sync when the server is reachable.</string>
+    <string name="sync_conflict">Other devices kept changing the bookmarks; retrying shortly.</string>
+    <string name="sync_reauth">The server signed this device out.</string>
+    <string name="sync_needs_review">Sync is paused until you decide.</string>
+    <string name="review">Review</string>
+    <string name="later">Later</string>
+    <string name="rollback_title">Server bookmarks went back in time</string>
+    <string name="rollback_text">The server holds an older copy than this device has already seen, for example after a server backup was restored. Choose what to keep.</string>
+    <string name="rollback_use_local">Use this device\'s bookmarks (best on your most up-to-date device)</string>
+    <string name="rollback_accept_remote">Accept the server\'s version (removes here what the backup lacks)</string>
+    <string name="mass_deletion_title">Delete many bookmarks?</string>
+    <string name="mass_deletion_text">This sync would delete %1$s and %2$s.</string>
+    <plurals name="mass_deletion_local">
+        <item quantity="one">%d bookmark on this device</item>
+        <item quantity="other">%d bookmarks on this device</item>
+    </plurals>
+    <plurals name="mass_deletion_remote">
+        <item quantity="one">%d on the server</item>
+        <item quantity="other">%d on the server</item>
+    </plurals>
 </resources>

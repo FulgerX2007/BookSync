@@ -22,7 +22,11 @@ sealed interface Route {
 }
 
 /** Top-level state: which screen, the core status, and one-time notices. */
-class AppViewModel(private val core: BookSyncCore) : ViewModel() {
+class AppViewModel(
+    private val core: BookSyncCore,
+    /** Called after the user signs in or finishes registration (starts a sync). */
+    private val onSignedIn: () -> Unit = {},
+) : ViewModel() {
     private val _route = MutableStateFlow<Route>(Route.Loading)
     val route: StateFlow<Route> = _route.asStateFlow()
 
@@ -32,9 +36,6 @@ class AppViewModel(private val core: BookSyncCore) : ViewModel() {
     /** A code to show once (state_unreadable), or a failed sign-out. */
     private val _notice = MutableStateFlow<String?>(null)
     val notice: StateFlow<String?> = _notice.asStateFlow()
-
-    /** Called after the user signs in or finishes registration. */
-    var onSignedIn: () -> Unit = {}
 
     init {
         viewModelScope.launch {

@@ -21,9 +21,8 @@ class AppViewModelTest {
     @Test
     fun registrationFlow() {
         val core = FakeCore()
-        val app = AppViewModel(core)
         var signedIn = 0
-        app.onSignedIn = { signedIn++ }
+        val app = AppViewModel(core) { signedIn++ }
         app.showRegister()
         assertEquals(Route.Register, app.route.value)
         app.back()
