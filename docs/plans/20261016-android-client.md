@@ -511,45 +511,66 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
 **Files:**
 - Create: `internal/client/engine/{engine,session}.go`, `session_test.go`
 
-- [ ] `Engine{store, api, mu (state), runMu (single-flight)}`; `Register` (generate the
+- [x] `Engine{store, api, mu (state), runMu (single-flight)}`; `Register` (generate the
       SyncID and vault key, return the kit), `Login`, `Logout` (server logout, then
       `ClearSession`), and `Edit(func(*VaultDoc) error)` (bumps `localRev`)
-- [ ] a 401 on any call → `ClearCredentials`, status `signed_out_reauth`; a `Login` as the
+- [x] a 401 on any call → `ClearCredentials`, status `signed_out_reauth`; a `Login` as the
       same user keeps `base`; a different user requires `Logout` first (`different_user`)
-- [ ] tests against the real server:
+- [x] tests against the real server:
   - register then login on a second engine;
   - wrong password or SyncID → `invalid_credentials`;
   - 401 after a device revoke keeps `base`;
   - `different_user`;
   - `Edit` when signed out → error
-- [ ] run `make test`; it must pass before the next task
+- [x] run `make test`; it must pass before the next task
+- ➕ Register and Login need a signed-out device. The one exception is re-login after a 401
+  into the same account (same server and username; the userId is checked after login),
+  which keeps `base`, `lastSeq` and local edits. Anything else is `already_signed_in` or
+  `different_user`. A login whose key unwrap or userId check fails revokes the new token
+  server-side.
+- ➕ Editing is allowed while waiting for re-auth (the edits sync after sign-in). After a
+  401, `Status().NeedsReauth` is set and the sync status is `signed_out`, as in the
+  extension.
+- ➕ Tests run in parallel: each register or login does real PBKDF2 (600k iterations, which
+  the server enforces).
 
 ### Task 10: Engine sync run and convergence
 
 **Files:**
 - Create: `internal/client/engine/sync.go`, `sync_test.go`, `convergence_test.go`
 
-- [ ] `SyncOnce(recovery, confirm)` exactly as in Technical Details: the state lock is never
+- [x] `SyncOnce(recovery, confirm)` exactly as in Technical Details: the state lock is never
       held across HTTP, and a concurrent run returns `busy`
-- [ ] adopt remote when there is no `base`, else `local_not_empty`; the rollback branches
+- [x] adopt remote when there is no `base`, else `local_not_empty`; the rollback branches
       (`use_local` forced upload, `accept_remote` `lastSeq` reset); the guard; restarts;
       `conflict_exhausted`
-- [ ] table-driven tests, one per branch:
+- [x] table-driven tests, one per branch:
   - 304, 404, 200;
   - rollback by `seq` and by an emptied vault;
   - both recoveries;
   - the guard plus a confirmation, and a stale confirmation;
   - a 412 race
-- [ ] fault tests:
+- [x] fault tests:
   - an edit injected during the PUT survives and the run restarts;
   - "PUT ok, then Save fails" → the next run makes zero PUTs and ends equal;
   - a failed PUT doesn't advance `base`;
   - two concurrent `SyncOnce` → one `busy`;
   - a converged run makes zero PUTs, including against a remote with localized root titles
-- [ ] convergence property: 3 Go devices, random edits interleaved with syncs against one
+- [x] convergence property: 3 Go devices, random edits interleaved with syncs against one
       server, all equal at quiescence
-- [ ] run `make test` and `go test -cover ./internal/client/...` (≥ 80 %); it must pass
+- [x] run `make test` and `go test -cover ./internal/client/...` (≥ 80 %); it must pass
       before the next task
+- ➕ `Sync` never returns an error: failures are `Result{Status: "error", Code, Message,
+  RetryAfterMs}`. A 401 is `signed_out`, and a concurrent run is `busy`.
+  `ConfirmDeletions` uses the stored `pendingConfirmation`; `ResolveRollback` takes
+  `use_local` or `accept_remote`.
+- ➕ The `Rollback` record keeps `remoteSeq` (nil when the vault was emptied) and `lastSeq`
+  for the dialog.
+- ➕ An unexported `beforeCommit` hook simulates a crash between the upload and the commit
+  (`TestCrashAfterUploadConverges`).
+- Convergence: 3 devices, 60 rounds by default, 900 at `BOOKSYNC_PROP_RUNS=3000`.
+  Coverage: `internal/client/engine` 92.2 %; every `internal/client` package is ≥ 85 %.
+  The engine tests take about 22 s under `-race`, mostly PBKDF2.
 
 ### Task 11: gomobile facade and Make wiring
 

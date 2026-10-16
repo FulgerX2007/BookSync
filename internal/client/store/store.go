@@ -78,9 +78,11 @@ type Session struct {
 }
 
 // Rollback records a detected server rollback awaiting the user's choice.
+// RemoteSeq is nil when the server's vault was emptied.
 type Rollback struct {
-	RemoteVersion int64 `json:"remoteVersion"`
-	RemoteSeq     int64 `json:"remoteSeq"`
+	RemoteVersion int64  `json:"remoteVersion"`
+	RemoteSeq     *int64 `json:"remoteSeq"`
+	LastSeq       int64  `json:"lastSeq"`
 }
 
 // Sync is the sync state of protocol §4 and §6.

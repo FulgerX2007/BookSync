@@ -51,7 +51,7 @@ func sample() *State {
 	st.Session = &Session{ServerURL: "https://s.example", Username: "alice", DeviceToken: "bst_x", SyncID: []byte{1, 2}, Iterations: 600000, WrappedVaultKey: []byte{3}, VaultKey: []byte{4}}
 	st.Local.Nodes["a"] = &vault.Node{GUID: "a", Kind: vault.Bookmark, Title: "A", URL: ""}
 	st.Local.Nodes[vault.RootToolbar].Children = []vault.GUID{"a"}
-	st.Sync = Sync{Base: st.Local.Clone(), Version: 4, LastSeq: 9, Status: "ok", PendingConfirmation: &merge.Pending{RemoteVersion: &v, DeletionsToLocal: 20}, Rollback: &Rollback{RemoteVersion: 3, RemoteSeq: 2}}
+	st.Sync = Sync{Base: st.Local.Clone(), Version: 4, LastSeq: 9, Status: "ok", PendingConfirmation: &merge.Pending{RemoteVersion: &v, DeletionsToLocal: 20}, Rollback: &Rollback{RemoteVersion: 3, RemoteSeq: &v, LastSeq: 9}}
 	st.LocalRev = 7
 	return st
 }
@@ -81,7 +81,7 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Session.DeviceToken != "bst_x" || got.LocalRev != 7 || got.Sync.LastSeq != 9 || *got.Sync.PendingConfirmation.RemoteVersion != 4 || got.Sync.Rollback.RemoteSeq != 2 {
+	if got.Session.DeviceToken != "bst_x" || got.LocalRev != 7 || got.Sync.LastSeq != 9 || *got.Sync.PendingConfirmation.RemoteVersion != 4 || *got.Sync.Rollback.RemoteSeq != 4 {
 		t.Fatalf("state = %+v", got)
 	}
 	if !vault.Equal(got.Local, want.Local) || !vault.Equal(got.Sync.Base, want.Sync.Base) || got.Local.Nodes["a"].URL != "" {
