@@ -245,12 +245,12 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
   - Target size is under 2 MB in total.
 - **Android:**
   - `android/` is a Gradle KTS project with a single `app` module. Package
-    `io.booksync.android`; minSdk 26, targetSdk 36; Compose with Material 3;
+    `io.booksync.android`; minSdk 26, targetSdk 36, compileSdk 37; Compose with Material 3;
     kotlinx-serialization.
   - The AAR comes from `make android-aar`
     (`gomobile bind -target=android/arm64,android/amd64 -androidapi 26`), output
     `android/app/libs/booksync-core.aar`; it is git-ignored. R8 keep rules cover `go.**` and
-    `mobile.**`.
+    `io.booksync.core.**`.
   - Versions: `versionName` comes from `BOOKSYNC_VERSION`. `versionCode` is
     `X*1000000 + Y*10000 + Z*100 + (rcN or 99 for a final release)`, so `1.2.3-rc.1` gives
     1020301 and `1.2.3` gives 1020399. A non-tag build gets 1.
@@ -272,16 +272,41 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
 - Create: `internal/client/vault/guid.go`, `guid_test.go` (`NewGUID`, a real first piece)
 - Create: `android/` minimal stub app (kept as the Task 12 starting point)
 
-- [ ] `mobile/go.mod`: `replace ../`, `golang.org/x/mobile` pinned to a version that
+- [x] `mobile/go.mod`: `replace ../`, `golang.org/x/mobile` pinned to a version that
       supports the Go 1.27 toolchain; `spike.go` exposes `Ping(url) string`, which calls
       `vault.NewGUID` and does one HTTPS GET
-- [ ] build the AAR with gomobile and a pinned NDK; call it from a stub Compose app on an
-      emulator; confirm DNS and system TLS roots work and that `assembleRelease` with R8
-      keeps the bound classes
-- [ ] write the `guid_test.go` cases: length 12, alphabet, uniqueness over 10k samples
-- [ ] record the pinned versions (x/mobile, NDK, AGP, Kotlin) in this plan; ⚠️ stop and
-      re-plan if binding a nested module or Go 1.27 fails
-- [ ] run `make test`; it must pass before the next task
+- [x] build the AAR with gomobile and a pinned NDK (arm64 + x86_64, about 9.7 MB, about
+      30 s); `assembleRelease` with R8 keeps `go.*` and `io.booksync.core.mobile.Mobile.ping`
+      (checked with `dexdump`)
+- [x] write the `guid_test.go` cases: length 12, alphabet, uniqueness over 10k samples
+- [x] record the pinned versions (below). Binding a nested module that imports the root's
+      `internal/` packages works, and the root `go.mod` stays untouched
+- [x] run `make test`; it must pass before the next task
+- ⚠️ Running the app on an emulator wasn't possible here (the container has no `/dev/kvm`).
+  Go's `crypto/x509` reads `/system/etc/security/cacerts` on Android, and gomobile builds
+  with cgo, so DNS uses bionic. The real on-device check (DNS, TLS, the `Ping` result on
+  screen) moves to Post-Completion.
+
+**Pinned toolchain (from the spike):**
+
+| Tool | Version |
+|---|---|
+| `golang.org/x/mobile` (gomobile, gobind, bind) | `v0.0.0-20261011034528-197770444867` |
+| NDK | `29.0.14206865` (r29) |
+| Android Gradle Plugin | `9.4.1` (built-in Kotlin) |
+| Kotlin (compose compiler plugin) | `2.4.21` |
+| Gradle wrapper | `9.8.1` |
+| Compose BOM / activity-compose | `2026.09.00` / `1.13.0` |
+| compileSdk / targetSdk / minSdk | `37` (Compose 1.12 requires it) / `36` / `26` |
+| JDK | 21 |
+
+- `gomobile bind -javapkg io.booksync.core` puts the facade at
+  `io.booksync.core.mobile.Mobile`. The R8 keep rules are `go.**` and
+  `io.booksync.core.**`.
+- ⚠️ Maven Central may answer `429` from shared egress. For local builds, use
+  `--init-script` with Google's Central mirror
+  (`maven-central.storage-download.googleapis.com/maven2/`). The project files themselves
+  are unchanged.
 
 ### Task 2: Golden conformance corpus from the TS reference
 
@@ -508,7 +533,7 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
 - [ ] the Gradle setup:
   - versions from `BOOKSYNC_VERSION` with the rc-aware `versionCode`;
   - `allowBackup=false`; `INTERNET` only;
-  - R8 keep rules for `go.**` and `mobile.**`
+  - R8 keep rules for `go.**` and `io.booksync.core.**`
 - [ ] `GoCore`: a singleton in `BookSyncApplication`; NFC-normalizes passwords; runs on
       `Dispatchers.IO`; maps error JSON to `CoreException(code)`
 - [ ] `KeystoreKeyWrapper`: an `AndroidKeyStore` AES-256-GCM key, behind a `KeyProvider`
@@ -664,6 +689,8 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
 *Items requiring manual intervention or external systems - no checkboxes, informational only*
 
 **Manual verification:**
+- On-device check left over from the Task 1 spike: Go DNS and system TLS roots work from the
+  AAR (an emulator wasn't available in the dev container).
 - Emulator and physical device (Android 8, 14 and 16):
   - register on Android, then join from Chromium and Firefox; edits converge both ways;
   - share from Chrome, Firefox and a non-browser app;
