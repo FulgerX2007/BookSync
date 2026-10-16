@@ -490,14 +490,21 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
 **Files:**
 - Create: `internal/client/ops/ops.go`, `ops_test.go`
 
-- [ ] ops mirroring `ops.ts`: `AddBookmark`, `AddFolder`, `Rename`, `SetURL`, `Move(guid,
+- [x] ops mirroring `ops.ts`: `AddBookmark`, `AddFolder`, `Rename`, `SetURL`, `Move(guid,
       parent, after)`, `Delete` (recursive); roots locked; no move into own descendant; the
       result always passes `Validate`
-- [ ] `ParseURL` mirrors `parseUrl`: it requires a scheme, and a host for special schemes
+- [x] `ParseURL` mirrors `parseUrl`: it requires a scheme, and a host for special schemes
       (`example.com` is rejected)
-- [ ] tests: each op's success case; errors (root locked, unknown GUID, cycle, empty
+- [x] tests: each op's success case; errors (root locked, unknown GUID, cycle, empty
       title/URL rules as in TS, relative URL)
-- [ ] run `make test`; it must pass before the next task
+- [x] run `make test`; it must pass before the next task
+- ➕ Positions are `First`, `After(g)` or `End`, matching the extension's `Position`. Moves are
+  single-node for v1; `moveMany` is not needed on Android yet. `CountSubtree` feeds the
+  delete confirmation.
+- ➕ `ParseURL` approximates WHATWG `new URL()`: an absolute URL; special schemes (http,
+  https, ws, wss, ftp) need a valid host. It only gates input, so the remaining leniency
+  can't affect sync.
+- Coverage: `internal/client/ops` 99.1 %.
 
 ### Task 9: Engine session (register, login, logout, 401)
 
