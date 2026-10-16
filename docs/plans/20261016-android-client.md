@@ -410,7 +410,7 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
 - Create: `internal/client/merge/{merge3,guard}.go` and their `_test.go` files
 - Create: `internal/client/merge/{gen,property}_test.go`
 
-- [ ] port `merge.ts` function by function, with traceable names. It covers:
+- [x] port `merge.ts` function by function, with traceable names. It covers:
   - per-GUID decisions;
   - edit beats delete, and remote wins on a true conflict;
   - Dogear rehoming;
@@ -418,18 +418,25 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
   - cycle resolution;
   - roots locked and canonically titled;
   - returning `stats`
-- [ ] `Guard(stats, sizes)` and `Confirmation` matching (`remoteVersion` plus counts no
+- [x] `Guard(stats, sizes)` and `Confirmation` matching (`remoteVersion` plus counts no
       higher)
-- [ ] tests: replay of `merge3.json` (doc and stats) and `guard.json`; table tests per §4.4
+- [x] tests: replay of `merge3.json` (doc and stats) and `guard.json`; table tests per §4.4
       row; guard boundaries (19 vs 20, exactly 25 %, a reused confirmation with a different
       version or higher counts)
-- [ ] property tests (`gen_test.go` ports `applyEdits` exactly):
+- [x] property tests (`gen_test.go` ports `applyEdits` exactly):
   - the output always passes `Validate`;
   - determinism;
   - `merge3(b,b,r) ≡ r` and `merge3(b,l,b) ≡ l`;
   - roots untouched
-- [ ] run `make test` and once with `BOOKSYNC_PROP_RUNS=3000`; it must pass before the next
+- [x] run `make test` and once with `BOOKSYNC_PROP_RUNS=3000`; it must pass before the next
       task
+- ➕ `opt` models JS `Guid | undefined`, so the parent comparisons (`lp === rp`, …) match
+  exactly; `edited` also compares kinds (TS: a folder's undefined url never equals a
+  bookmark's url).
+- ➕ The Go generator (`gen_test.go`) ports `applyEdits` and `arbEdit`'s weights. fast-check's
+  own random stream can't be reproduced, so the property runs explore other trees than TS
+  does; exact parity rests on the corpus (176 `merge3` cases, all equal, stats included).
+- 3000 property runs take about 6 s. Coverage: `internal/client/merge` 97.4 %.
 
 ### Task 6: Go API client
 
