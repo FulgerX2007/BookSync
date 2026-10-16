@@ -3,7 +3,7 @@ GOLANGCI_LINT ?= golangci-lint
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build run test test-go test-mobile test-ext lint fmt e2e package dist docker-smoke android-aar android-test android-apk
+.PHONY: build run test test-go test-mobile test-ext lint fmt e2e e2e-edge package dist docker-smoke android-aar android-test android-apk
 
 build:
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/booksync-server ./cmd/booksync-server
@@ -26,6 +26,10 @@ test-ext:
 
 e2e:
 	cd extension && npm run e2e
+
+# The same e2e suite in the installed Microsoft Edge (stable channel).
+e2e-edge:
+	cd extension && BOOKSYNC_E2E_BROWSER=msedge npm run e2e
 
 # Store-ready zips in extension/dist/packages (version from extension/package.json).
 package:

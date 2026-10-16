@@ -2,7 +2,6 @@
 package api
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -20,6 +19,8 @@ type Deps struct {
 	Hasher *auth.Hasher
 	// Now is the clock used for token expiry; defaults to time.Now.
 	Now func() time.Time
+	// Version is the server build version shown to clients; defaults to "dev".
+	Version string
 }
 
 // Server routes and serves API requests.
@@ -42,6 +43,9 @@ func NewServer(cfg config.Config, deps Deps) http.Handler {
 	if deps.Now == nil {
 		deps.Now = time.Now
 	}
+	if deps.Version == "" {
+		deps.Version = "dev"
+	}
 	s := &Server{
 		cfg:           cfg,
 		deps:          deps,
@@ -56,6 +60,8 @@ func NewServer(cfg config.Config, deps Deps) http.Handler {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
+	s.mux.HandleFunc("GET /{$}", s.handleHome)
+	s.mux.HandleFunc("GET /v1/info", s.handleInfo)
 	s.mux.HandleFunc("GET /v1/auth/prelogin", s.limitByIP(s.handlePrelogin))
 	s.mux.HandleFunc("POST /v1/auth/register", s.limitByIP(s.handleRegister))
 	s.mux.HandleFunc("POST /v1/auth/login", s.limitByIP(s.handleLogin))
@@ -103,14 +109,9 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	if s.deps.Store != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-		defer cancel()
-		if err := s.deps.Store.Ping(ctx); err != nil {
-			s.log.Error("health check failed", "err", err)
-			writeError(w, http.StatusServiceUnavailable, codeUnavailable, "storage unavailable")
-			return
-		}
+	if !s.storageOK(r.Context()) {
+		writeError(w, http.StatusServiceUnavailable, codeUnavailable, "storage unavailable")
+		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

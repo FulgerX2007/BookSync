@@ -132,7 +132,7 @@ const parseETag = (h: string | null): number | undefined => {
   return m ? Number(m[1]) : undefined;
 };
 
-type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
+export type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 
 export class HttpApiClient implements ApiClient {
   readonly baseUrl: string;

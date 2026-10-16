@@ -54,3 +54,30 @@ table.history th {
   border-bottom: 1px solid var(--border);
   font-size: 13px;
 }
+
+/* A server check result: a coloured dot and one line of text. */
+.check {
+  margin-top: 8px;
+  min-height: 1.2em;
+}
+.check.ok,
+.check.bad {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.check.ok::before,
+.check.bad::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.check.ok {
+  color: var(--ok);
+}
+.check.bad {
+  color: var(--danger);
+}

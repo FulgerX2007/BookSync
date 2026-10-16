@@ -24,6 +24,7 @@ reference client. The Android app uses three pieces:
 | Go format | `make fmt`; CI fails on unformatted files |
 | Extension only | `cd extension && npm run check` (tsc, eslint, vitest) |
 | e2e (real Chromium + real server) | `make e2e` (uses `CHROMIUM_PATH`, `/opt/pw-browsers/chromium`, or Playwright's full Chromium via `channel: 'chromium'`; never its headless shell, which can't load extensions) |
+| e2e in Microsoft Edge | `make e2e-edge` (`BOOKSYNC_E2E_BROWSER=msedge`; needs Edge stable installed, e.g. `npx playwright install msedge`). Edge names the roots "Favorites bar" / "Other favorites": use `ROOTS` from `e2e/fixtures.ts`, never hardcoded root titles |
 | Container smoke test | `make docker-smoke` (`SMOKE_BUILD=0` reuses a prebuilt image) |
 | All release artifacts | `make dist` (`VERSION=X.Y.Z` stamps the server and the extension); pushing a `vX.Y.Z` tag, or creating a release in the GitHub UI, runs `.github/workflows/release.yml` |
 | Longer property runs | `cd extension && FC_RUNS=3000 npx vitest run src/sync` |
@@ -52,6 +53,13 @@ reference client. The Android app uses three pieces:
   by the distroless image. `internal/config` reads env vars into one struct.
   `internal/store` is SQLite; `internal/auth` is Argon2id and tokens; `internal/api`
   holds the HTTP handlers.
+- **Home page (`GET /`, `internal/api/home.*`).** Rendered by `html/template` from the
+  same `serverInfo` as `GET /v1/info`.
+  - No JavaScript. The CSP is `default-src 'none'` plus a `style-src` hash.
+  - CSS lives only in `home.css`. It is hashed at init and inserted as `template.CSS`.
+    Never put CSS in `home.html`: `html/template` rewrites literal `<style>` text, so the
+    hash would stop matching. No inline `style=` attributes either.
+  - Keep its endpoint table (`homeEndpoints`) in step with `docs/protocol.md` §3.2.
 - **Dependencies.**
   - The stdlib covers HTTP (`net/http`, Go 1.22+ pattern routes), `log/slog` and
     `database/sql`.
@@ -111,6 +119,10 @@ reference client. The Android app uses three pieces:
   - Anything that edits holds the refresh gate, so a live refresh never destroys an
     inline rename, a dialog or a drag.
   - Popup status re-renders must stay inside `#status-app`.
+- **Probing a server** from a UI page goes through `checkServer` / `serverOrigin`
+  (`src/api/server-check.ts`); its wording comes from `describeServerCheck`, so it is
+  unit-tested. Host permissions are requested synchronously in the click: Firefox drops
+  the user gesture after an `await`.
 - **UI ↔ background** goes through typed messages: `background/messages.ts` (the
   `Protocol` map) and `router.ts`. UI pages call `send(type, req)` from
   `ui/shared/rpc.ts`.

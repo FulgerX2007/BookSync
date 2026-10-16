@@ -35,6 +35,11 @@ for _ in $(seq 1 30); do
 	sleep 1
 done
 curl --noproxy "*" -fsSk "$base/healthz" | grep -q '"ok"'
+curl --noproxy "*" -fsSk "$base/v1/info" | grep -q '"service":"booksync"'
+# Read the whole page first: grep -q exits on its match, and the page is
+# larger than a pipe buffer, so piping would fail curl with a write error.
+home=$(curl --noproxy "*" -fsSk "$base/")
+grep -q 'class="pill ok">Online<' <<<"$home"
 
 user="smoke$RANDOM"
 body=$(printf '{"username":"%s","authKey":"%s","kdf":"pbkdf2-sha256","iterations":600000,"wrappedVaultKey":"%s","deviceName":"smoke"}' \

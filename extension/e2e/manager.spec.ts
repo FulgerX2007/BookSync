@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, managerRow as row, test } from './fixtures';
+import { ROOTS, expect, managerRow as row, test } from './fixtures';
 
 test('opens from the popup and shows the synced roots as a tree', async ({ browserA }) => {
   await browserA.bookmarks(async (b) => {
@@ -15,8 +15,8 @@ test('opens from the popup and shows the synced roots as a tree', async ({ brows
   await manager.waitForURL(/manager\.html$/);
 
   // Roots are expanded, other folders collapsed.
-  await expect(row(manager, 'Bookmarks bar')).toBeVisible();
-  await expect(row(manager, 'Other bookmarks')).toBeVisible();
+  await expect(row(manager, ROOTS.bar)).toBeVisible();
+  await expect(row(manager, ROOTS.other)).toBeVisible();
   await expect(row(manager, 'Example')).toContainText('https://example.com/');
   await expect(row(manager, 'Misc')).toBeVisible();
   await expect(row(manager, 'Work').locator('.count')).toHaveText('1');
@@ -84,7 +84,7 @@ const children = (browser: import('./fixtures').ExtBrowser, parentId: string) =>
 
 test('creates a folder whose name sticks through the refresh its creation triggers', async ({ browserA }) => {
   const manager = await browserA.openManager();
-  await expect(row(manager, 'Other bookmarks')).toBeVisible();
+  await expect(row(manager, ROOTS.other)).toBeVisible();
   await manager.click('#new-folder');
   const input = manager.locator('input.rename');
   await expect(input).toBeFocused();
@@ -169,10 +169,10 @@ test('deletes a single bookmark without asking, and never offers to edit or dele
   await expect(manager.locator('#confirm-dialog')).toHaveCount(0);
   expect(await children(browserA, '1')).toEqual([]);
 
-  await row(manager, 'Bookmarks bar').click();
+  await row(manager, ROOTS.bar).click();
   await expect(manager.locator('#edit-selected')).toBeDisabled();
   await expect(manager.locator('#delete-selected')).toBeDisabled();
-  await expect(row(manager, 'Bookmarks bar').locator('.actions')).toHaveCount(0);
+  await expect(row(manager, ROOTS.bar).locator('.actions')).toHaveCount(0);
 });
 
 /** Bookmarks bar: A/B/C/{Deep}, Receipts/{}, Filler 0..39 (so Deep is far down). */
@@ -195,7 +195,7 @@ test('finds a deeply nested bookmark by part of its URL and reveals it in the tr
   const results = manager.locator('#results .result');
   await expect(results).toHaveCount(1);
   await expect(results.first()).toContainText('Deep');
-  await expect(results.first()).toContainText('Bookmarks bar › A › B › C');
+  await expect(results.first()).toContainText(`${ROOTS.bar} › A › B › C`);
 
   await results.first().click();
   await expect(manager.locator('#manager-search')).toHaveValue('');
@@ -207,7 +207,7 @@ test('finds folders by name, and Escape returns to the tree', async ({ browserA 
   await deepTree(browserA);
   const manager = await browserA.openManager();
   await manager.fill('#manager-search', 'receip');
-  await expect(manager.locator('#results .result')).toHaveText([/Receipts.*Other bookmarks/]);
+  await expect(manager.locator('#results .result')).toHaveText([new RegExp(`Receipts.*${ROOTS.other}`)]);
   await manager.fill('#manager-search', 'nothing like this');
   await expect(manager.locator('#no-results')).toBeVisible();
   await manager.locator('#manager-search').press('Escape');
@@ -263,7 +263,7 @@ test('moves into a collapsed folder and into a root', async ({ browserA }) => {
   await expect.poll(() => titles(browserA, ids.box)).toEqual(['z']);
   await expect(row(manager, 'z')).toBeVisible(); // Box opened to show it
 
-  await dragOnto(manager, 'Box', 'Other bookmarks', 'inside');
+  await dragOnto(manager, 'Box', ROOTS.other, 'inside');
   await expect.poll(() => titles(browserA, '2')).toEqual(['Box']);
   await expect.poll(() => titles(browserA, '1')).toEqual(['List', 'Parent']);
 });

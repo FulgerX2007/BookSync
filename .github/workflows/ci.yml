@@ -65,9 +65,13 @@ jobs:
         run: npx web-ext lint -s dist/firefox --self-hosted=false
 
   e2e:
-    name: End-to-end (Chromium + Go server)
+    name: End-to-end (${{ matrix.browser }} + Go server)
     needs: [go, extension]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, msedge]
     defaults:
       run:
         working-directory: extension
@@ -83,15 +87,20 @@ jobs:
           cache-dependency-path: extension/package-lock.json
       - run: npm ci
       # Full Chromium only: the headless shell cannot load extensions.
-      - run: npx playwright install --with-deps --no-shell chromium
+      - if: matrix.browser == 'chromium'
+        run: npx playwright install --with-deps --no-shell chromium
+      # GitHub's Ubuntu image ships Edge stable; install it only if missing.
+      - if: matrix.browser == 'msedge'
+        run: command -v microsoft-edge-stable || npx playwright install --with-deps msedge
       - run: npm run e2e
         env:
           CI: 'true'
+          BOOKSYNC_E2E_BROWSER: ${{ matrix.browser }}
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.browser }}
           path: |
             extension/playwright-report
             extension/test-results

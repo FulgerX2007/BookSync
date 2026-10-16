@@ -108,6 +108,10 @@ docker compose -f deploy/docker-compose.yml up -d --build
 curl https://booksync.example.com/healthz # → {"status":"ok"}
 ```
 
+Open `https://booksync.example.com/` in a browser to see the server's status page: whether
+it is online, its version, whether sign-up is open, the address to enter in the
+extension and the API reference. `GET /v1/info` returns the same facts as JSON.
+
 - **Network.** Only Caddy is published. The BookSync container is reachable solely
   through it, and it trusts the client IP Caddy appends to `X-Forwarded-For`.
 - **Data.** Everything lives in the `booksync-data` volume (`/data/booksync.db`).
@@ -131,6 +135,40 @@ To update, change the tag and repeat. Each
 [release](https://github.com/FulgerX2007/BookSync/releases) also carries standalone
 server binaries for Linux, macOS and Windows. They read the same environment variables
 and belong behind a TLS-terminating proxy, as in the compose bundle.
+
+### Synology NAS
+
+DSM already uses ports 80 and 443 and manages certificates, so
+[deploy/synology/docker-compose.yml](deploy/synology/docker-compose.yml) does without
+Caddy. It runs the released image on `127.0.0.1:8080`, and DSM's reverse proxy provides
+HTTPS. It needs DSM 7.2+ with Container Manager.
+
+1. **Files.** In File Station, create `docker/booksync/data` and copy the compose file
+   into `docker/booksync`.
+2. **User.** The container runs as `1026:100` so it can write to `data/`. Over SSH,
+   run `id <your-dsm-user>`. If the uid or gid differs, change `user:` to match.
+3. **Project.** Container Manager → Project → Create, path `/volume1/docker/booksync`,
+   "Use existing docker-compose.yml".
+4. **Certificate.** Point `booksync.example.com` at the NAS. Then add a Let's Encrypt
+   certificate in Control Panel → Security → Certificate.
+5. **Reverse proxy.** Control Panel → Login Portal → Advanced → Reverse Proxy → Create:
+   - source `HTTPS`, `booksync.example.com`, port `443`;
+   - destination `HTTP`, `localhost`, port `8080`;
+   - Custom Header → Create: `X-Forwarded-For` = `$proxy_add_x_forwarded_for`.
+     Without it, every client shares one rate-limit bucket.
+
+   In the Certificate settings, assign the new certificate to this hostname.
+6. **Check.** Open `https://booksync.example.com/`: the status page should say
+   **Online** and show the `https://` address to enter in the extension.
+
+- **Data** is in `/volume1/docker/booksync/data/booksync.db`, so Hyper Backup and
+  snapshots cover it. A snapshot is only consistent with the project stopped. Otherwise,
+  use the online backup command below with `-v /volume1/docker/booksync/data:/data`.
+- **Updating.** The image tag is `latest`. In Container Manager, stop the project and
+  choose Action → Build (it pulls), or run `docker compose pull && docker compose up -d`
+  in the folder. Pin a tag such as `0.1.0` if you prefer explicit upgrades.
+- **Settings** are environment variables in the compose file (table below);
+  `BOOKSYNC_DOMAIN` and the port variables don't apply here.
 
 ### Configuration
 
@@ -256,15 +294,20 @@ npm run build            # → dist/chromium and dist/firefox
 
 **Settings page:**
 
+- **Test connection** before connecting, and a **Server** card once signed in, showing
+  whether the server is reachable (with **Check now**);
 - devices (with revoke);
 - your SyncID and emergency kit;
 - password change (with key rotation);
 - the version history, with restore;
 - account deletion.
 
-**Browser account sync.** Don't turn on the browser's own bookmark sync (Google, Edge
-or Firefox account) on top of BookSync. BookSync detects it and pauses until you
-acknowledge it.
+**Browser account sync.** Turn off the browser's own bookmark sync (Google, Microsoft
+or Firefox account) before using BookSync. Running both duplicates bookmarks. BookSync
+detects it only in Chrome 134+, through the `syncing` flag Chrome sets on bookmark
+folders that belong to a Google account, and pauses until you acknowledge it. It does
+not detect Firefox Sync, and Microsoft Edge sync has not been confirmed to set that
+flag. In those browsers, turning it off is up to you.
 
 ## Finding and organizing bookmarks
 
@@ -352,6 +395,7 @@ The repository contains the Go server and the TypeScript WebExtension.
 cmd/booksync-server/   server entry point (+ `healthcheck` subcommand for the container)
 internal/              config, store (SQLite + migrations), auth (Argon2id, tokens), api (HTTP)
 deploy/                Dockerfile, docker-compose.yml, Caddyfile, .env.example, smoke.sh
+  synology/            compose file for Synology Container Manager (behind DSM reverse proxy)
 internal/client/       Go client core for the Android app: crypto, vault, merge, api, store,
                        ops (edits), engine (session + sync); testserver for client tests
 mobile/                gomobile facade over internal/client (nested Go module)
@@ -409,6 +453,7 @@ Plain HTTP is accepted only for `localhost` and `127.0.0.1`.
 | `make android-test` | the AAR, then the Android version tests, JVM unit and UI tests (Robolectric) and lint |
 | `make android-apk` | the AAR, then the release APK (signed when the `ANDROID_KEYSTORE_*` variables are set) |
 | `make e2e` | Playwright: two Chromium profiles syncing through a real server built from this repo |
+| `make e2e-edge` | the same suite in the installed Microsoft Edge (`npx playwright install msedge` installs it) |
 | `make docker-smoke` | builds the image, starts the compose stack and checks TLS, health and registration |
 | `make package` | store-ready extension zips |
 | `make dist` | every release artifact in `dist/` (see below) |
@@ -426,8 +471,8 @@ In `extension/`:
 For the Go client, `BOOKSYNC_PROP_RUNS=3000 go test ./internal/client/...` runs the merge
 and convergence properties longer.
 
-CI (`.github/workflows/ci.yml`) runs the Go, extension, e2e, Android and docker-smoke
-jobs on pushes to `main` and on pull requests.
+CI (`.github/workflows/ci.yml`) runs the Go, extension, e2e (Chromium and Edge), Android
+and docker-smoke jobs on pushes to `main` and on pull requests.
 
 ### Releasing
 

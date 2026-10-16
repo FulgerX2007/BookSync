@@ -2,6 +2,7 @@
 // manage the account (devices, password, emergency kit, deletion).
 import type { EmergencyKit, StatusView } from '../../background/messages';
 import { normalizeServerUrl } from '../../api/client';
+import { checkServer, describeServerCheck, serverOrigin, type ServerCheck } from '../../api/server-check';
 import { parseSyncId } from '../../crypto/syncid';
 import { ext } from '../../platform/ext';
 import { defaultDeviceName } from '../shared/device-name';
@@ -16,7 +17,15 @@ let status: StatusView;
 /** A freshly shown emergency kit blocks everything else until confirmed. */
 let shownKit: EmergencyKit | null = null;
 let connectedServer: string | null = null;
+/** The successful check that led to connectedServer (null after a page load). */
+let connectedFacts: ServerCheck | null = null;
 let authTab: 'register' | 'login' = 'login';
+/**
+ * The signed-in Server card's last check. Module state, so the page's
+ * frequent full re-renders redraw the result instead of blanking it.
+ */
+let serverCard: { url: string; result: ServerCheck | 'no_permission'; at: number } | null = null;
+let serverCheckRunning = false;
 
 function rememberedServer(): string {
   try {
@@ -46,7 +55,10 @@ async function busy(button: HTMLButtonElement, errorId: string, fn: () => Promis
 
 function render(): void {
   if (shownKit) return renderKit(shownKit);
-  if (!status.signedIn) return renderSignedOut();
+  if (!status.signedIn) {
+    serverCard = null;
+    return renderSignedOut();
+  }
   renderSignedIn();
 }
 
@@ -62,9 +74,20 @@ function renderSignedOut(): void {
         { class: 'card' },
         h('h2', {}, 'Connect to your server'),
         h('p', { class: 'muted' }, 'Enter the address of your BookSync server.'),
+        h(
+          'p',
+          { class: 'muted', id: 'native-sync-note' },
+          'First turn off this browser’s own bookmark sync (Google, Microsoft or Firefox account). BookSync can’t always detect it, and running both duplicates bookmarks.',
+        ),
         h('label', { for: 'server-url' }, 'Server address'),
         h('input', { id: 'server-url', type: 'url', placeholder: 'https://booksync.example.com', value: server, autocomplete: 'url' }),
-        h('div', { class: 'row' }, h('button', { id: 'connect', class: 'primary', onclick: onConnect }, 'Continue')),
+        h(
+          'div',
+          { class: 'row' },
+          h('button', { id: 'connect', class: 'primary', onclick: onConnect }, 'Continue'),
+          h('button', { id: 'test-connection', onclick: onTestConnection }, 'Test connection'),
+        ),
+        h('div', { id: 'connect-check', class: 'check', role: 'status' }),
         h('div', { id: 'connect-error', class: 'error', role: 'alert' }),
       ),
     );
@@ -99,33 +122,63 @@ function switchTab(tab: 'register' | 'login'): void {
 function onChangeServer(ev: Event): void {
   ev.preventDefault();
   connectedServer = null;
+  connectedFacts = null;
   render();
 }
 
-function onConnect(ev: Event): void {
-  const button = ev.currentTarget as HTMLButtonElement;
+/** Renders a server check as a coloured status line into `target`. */
+function showCheck(target: HTMLElement, check: ServerCheck): void {
+  const { tone, text } = describeServerCheck(check);
+  target.className = `check ${tone}`;
+  replace(target, text);
+}
+
+/**
+ * Validates the typed address and asks for host permission. Must run
+ * synchronously inside the click: Firefox drops the user gesture after an await.
+ */
+function requestServer(): { url: string; granted: Promise<boolean> } | null {
+  byId('connect-check').textContent = '';
   const err = byId('connect-error');
   err.textContent = '';
-  let url: string;
   try {
-    url = normalizeServerUrl(value('server-url'));
+    const url = normalizeServerUrl(value('server-url'));
+    return { url, granted: ext().permissions.request({ origins: [serverOrigin(url)] }) };
   } catch (e) {
     err.textContent = errorText(e);
-    return;
+    return null;
   }
-  // Must run synchronously inside the click: Firefox drops the user gesture after an await.
-  const u = new URL(url);
-  const granted = ext().permissions.request({ origins: [`${u.protocol}//${u.hostname}/*`] });
-  void busy(button, 'connect-error', async () => {
-    if (!(await granted)) throw new Error('BookSync needs permission to talk to this server.');
-    const res = await fetch(`${url}/healthz`, { cache: 'no-store' }).catch(() => null);
-    if (!res?.ok) throw new Error('No BookSync server answered at that address.');
+}
+
+/** Checks the server with permission granted; the result shows under the buttons. */
+async function probe(req: { url: string; granted: Promise<boolean> }): Promise<ServerCheck> {
+  if (!(await req.granted)) throw new Error('BookSync needs permission to talk to this server.');
+  const check = await checkServer(req.url);
+  showCheck(byId('connect-check'), check);
+  return check;
+}
+
+function onTestConnection(ev: Event): void {
+  const req = requestServer();
+  if (!req) return;
+  void busy(ev.currentTarget as HTMLButtonElement, 'connect-error', async () => void (await probe(req)));
+}
+
+function onConnect(ev: Event): void {
+  const req = requestServer();
+  if (!req) return;
+  void busy(ev.currentTarget as HTMLButtonElement, 'connect-error', async () => {
+    const check = await probe(req);
+    if (!check.ok) return;
     try {
-      localStorage.setItem(LAST_SERVER_KEY, url);
+      localStorage.setItem(LAST_SERVER_KEY, req.url);
     } catch {
       // Per-viewer convenience only.
     }
-    connectedServer = url;
+    connectedServer = req.url;
+    connectedFacts = check;
+    // Nobody can create an account here, so start where they can act.
+    if (check.registrationOpen === false) authTab = 'login';
     render();
   });
 }
@@ -134,6 +187,7 @@ function registerForm(): HTMLElement {
   return h(
     'form',
     { id: 'register-form', onsubmit: onRegister },
+    connectedFacts?.ok && connectedFacts.registrationOpen === false && h('p', { class: 'error', id: 'registration-closed' }, 'Sign-up is closed on this server.'),
     h('label', { for: 'reg-username' }, 'Username'),
     h('input', { id: 'reg-username', type: 'text', autocomplete: 'username', required: true }),
     h('label', { for: 'reg-password' }, 'Password'),
@@ -296,6 +350,7 @@ function renderSignedIn(): void {
       h('div', { id: 'kit-reveal' }),
     ),
     actionCard(),
+    h('section', { class: 'card', id: 'server-card' }, ...serverCardBody()),
     h('section', { class: 'card', id: 'devices-card' }, h('h2', {}, 'Devices'), h('ul', { class: 'devices', id: 'devices' }, h('li', { class: 'muted' }, 'Loading…')), h('div', { id: 'devices-error', class: 'error' })),
     h('section', { class: 'card', id: 'history-card' }),
     passwordCard(),
@@ -315,6 +370,68 @@ function renderSignedIn(): void {
   );
   void loadDevices();
   renderHistorySlot();
+  // Once per page load (and per server), not on every re-render.
+  if (serverCard?.url !== status.serverUrl) void runServerCheck();
+}
+
+// ---- server card ---------------------------------------------------------------
+
+function serverCardBody(): (HTMLElement | string)[] {
+  const line = h('div', { id: 'server-check', class: 'check', role: 'status' });
+  if (serverCard && serverCard.url === status.serverUrl) {
+    if (serverCard.result === 'no_permission') {
+      line.className = 'check bad';
+      replace(line, 'Permission missing: BookSync may no longer talk to this server. Click Check now to allow it.');
+    } else {
+      showCheck(line, serverCard.result);
+    }
+  } else {
+    line.className = 'check muted';
+    replace(line, 'Checking…');
+  }
+  const at = serverCard ? new Date(serverCard.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+  return [
+    h('h2', {}, 'Server'),
+    h('p', { class: 'mono', id: 'server-address' }, status.serverUrl ?? ''),
+    line,
+    h(
+      'div',
+      { class: 'row' },
+      h('button', { id: 'check-server', onclick: onCheckServer, disabled: serverCheckRunning }, serverCheckRunning ? 'Checking…' : 'Check now'),
+      at && h('span', { class: 'muted', id: 'server-checked-at' }, `Checked ${at}`),
+    ),
+  ];
+}
+
+function redrawServerCard(): void {
+  const card = document.getElementById('server-card');
+  if (card) replace(card, ...serverCardBody());
+}
+
+/**
+ * Checks the signed-in server. Without a `granted` promise (the automatic
+ * check), it only looks at the permission and never prompts.
+ */
+async function runServerCheck(granted?: Promise<boolean>): Promise<void> {
+  const url = status.serverUrl;
+  if (!url || serverCheckRunning) return;
+  serverCheckRunning = true;
+  redrawServerCard();
+  try {
+    const allowed = await (granted ?? ext().permissions.contains({ origins: [serverOrigin(url)] }));
+    serverCard = { url, result: allowed ? await checkServer(url) : 'no_permission', at: Date.now() };
+  } finally {
+    serverCheckRunning = false;
+    redrawServerCard();
+  }
+}
+
+function onCheckServer(): void {
+  const url = status.serverUrl;
+  if (!url) return;
+  // Requested inside the click (Firefox drops the gesture after an await).
+  // When the permission is still granted, this resolves without a prompt.
+  void runServerCheck(ext().permissions.request({ origins: [serverOrigin(url)] }));
 }
 
 function statusLine(): string {
