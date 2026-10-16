@@ -1,25 +1,23 @@
 package io.booksync.android
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.core.net.toUri
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import io.booksync.android.ui.BookSyncApp
 import io.booksync.android.ui.SignOutDialog
+import io.booksync.android.ui.bookmarks.BookmarksScreen
+import io.booksync.android.ui.bookmarks.BookmarksViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -28,17 +26,33 @@ class MainActivity : ComponentActivity() {
         val core = (application as BookSyncApplication).core
         setContent {
             BookSyncApp(core) { app ->
-                // Placeholder home until the bookmark browser (plan Task 14).
-                var confirm by remember { mutableStateOf(false) }
-                val status by app.status.collectAsStateWithLifecycle()
-                Scaffold { pad ->
-                    Column(Modifier.fillMaxSize().padding(pad).padding(24.dp)) {
-                        Text(status.username.orEmpty())
-                        Button(onClick = { confirm = true }) { Text(stringResource(R.string.sign_out)) }
-                    }
+                val browser: BookmarksViewModel = viewModel(factory = viewModelFactory { initializer { BookmarksViewModel(core) } })
+                var confirmSignOut by remember { mutableStateOf(false) }
+                BookmarksScreen(
+                    vm = browser,
+                    onOpenUrl = ::openInBrowser,
+                    onSignOut = { confirmSignOut = true },
+                    onLeave = ::finish,
+                )
+                if (confirmSignOut) {
+                    SignOutDialog(
+                        onConfirm = {
+                            confirmSignOut = false
+                            app.signOut()
+                        },
+                        onDismiss = { confirmSignOut = false },
+                    )
                 }
-                if (confirm) SignOutDialog(onConfirm = { confirm = false; app.signOut() }, onDismiss = { confirm = false })
             }
+        }
+    }
+
+    /** Hands a web link to the user's browser of choice. */
+    private fun openInBrowser(url: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).addCategory(Intent.CATEGORY_BROWSABLE))
+        } catch (_: ActivityNotFoundException) {
+            // No browser installed: nothing sensible to do.
         }
     }
 }

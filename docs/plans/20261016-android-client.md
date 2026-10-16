@@ -680,17 +680,26 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
 - Create: tests `search/BookmarkSearchTest.kt` (ported from `search.test.ts`),
   `ui/bookmarks/BookmarksViewModelTest.kt`, `ui/bookmarks/FolderScreenTest.kt`
 
-- [ ] `BookmarkSearch`: an exact port of `search.ts` (NFKD, strip marks, lowercase, the
+- [x] `BookmarkSearch`: an exact port of `search.ts` (NFKD, strip marks, lowercase, the
       decoded URL, ranking, folder path)
-- [ ] roots at the top level, drill-down with breadcrumbs and back handling; a folder search
+- [x] roots at the top level, drill-down with breadcrumbs and back handling; a folder search
       result reveals that folder
-- [ ] tap a bookmark → `ACTION_VIEW` (http/https only); long press → the edit sheet (rename,
+- [x] tap a bookmark → `ACTION_VIEW` (http/https only); long press → the edit sheet (rename,
       URL, move through a picker that hides its own descendants, delete with the child
       count); add bookmark or folder here; roots have no edit actions
-- [ ] tests: the ported search cases, plus accented queries (`café` ↔ `cafe`); ViewModel
+- [x] tests: the ported search cases, plus accented queries (`café` ↔ `cafe`); ViewModel
       edits call core and then refresh; compose tests (roots lack edit actions, the picker
       hides descendants, a non-http URL isn't opened)
-- [ ] run `make android-test`; it must pass before the next task
+- [x] run `make android-test`; it must pass before the next task
+- ➕ `BookmarkSearch` also ports `decodeURI` exactly (escapes of `;/?:@&=+$,#` stay encoded;
+  malformed sequences leave the URL as is). The 12 `search.test.ts` cases pass, including
+  the 10k-bookmark timing check.
+- ➕ Edits re-read the tree from the core; the UI never edits its own copy. An
+  `invalid_url` keeps the dialog open; other errors close it with a snackbar. If a sync
+  removed the open folder, the browser falls back to the root list.
+- ➕ Links open through `ACTION_VIEW` with `CATEGORY_BROWSABLE` (the user's browser), for
+  http(s) only.
+- Android tests: 43 pass; lint finds nothing; the release build is fine.
 
 ### Task 15: Foreground sync orchestration and conflict dialogs
 

@@ -49,4 +49,35 @@
     <string name="error_invalid_move">A folder cannot be moved into itself.</string>
     <string name="error_not_signed_in">Sign in first.</string>
     <string name="notice_state_unreadable">Your saved data on this device could not be unlocked (for example after restoring a backup) and was reset. Sign in again.</string>
+
+    <string name="root_toolbar">Bookmarks Toolbar</string>
+    <string name="root_menu">Bookmarks Menu</string>
+    <string name="root_other">Other Bookmarks</string>
+    <string name="root_mobile">Mobile Bookmarks</string>
+    <string name="search">Search</string>
+    <string name="search_hint">Search bookmarks</string>
+    <string name="clear">Clear</string>
+    <string name="more">More</string>
+    <string name="add">Add</string>
+    <string name="add_bookmark">Add bookmark</string>
+    <string name="add_folder">Add folder</string>
+    <string name="rename">Rename</string>
+    <string name="edit_url">Edit URL</string>
+    <string name="move">Move</string>
+    <string name="move_to">Move to</string>
+    <string name="delete">Delete</string>
+    <string name="delete_title">Delete “%1$s”?</string>
+    <string name="title">Title</string>
+    <string name="url">URL</string>
+    <string name="empty_folder">This folder is empty.</string>
+    <string name="no_results">No bookmarks match.</string>
+    <string name="cannot_open">This link cannot be opened in a browser.</string>
+    <plurals name="items">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
+    <plurals name="delete_folder_contents">
+        <item quantity="one">The folder and the %d item in it will be deleted on all your devices.</item>
+        <item quantity="other">The folder and the %d items in it will be deleted on all your devices.</item>
+    </plurals>
 </resources>
