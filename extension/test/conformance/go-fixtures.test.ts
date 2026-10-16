@@ -19,7 +19,7 @@ function load<I, E>(file: string): Fixture<I, E> {
   return JSON.parse(readFileSync(DIR + file, 'utf8')) as Fixture<I, E>;
 }
 
-// TODO(android plan Task 3): the Go side writes these files; until then the tests are skipped.
+// Skipped only in a checkout that predates the Go fixtures.
 const haveGo = existsSync(DIR + 'envelope-go.json') && existsSync(DIR + 'wrap-go.json');
 
 describe.skipIf(!haveGo)('Go-written fixtures', () => {

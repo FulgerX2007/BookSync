@@ -347,23 +347,34 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
 - Create: `internal/client/crypto/{keys,cipher,syncid}.go` and their `_test.go` files
 - Create: `internal/client/conformance/conformance.go` (a corpus loader for tests)
 
-- [ ] `keys.go`:
+- [x] `keys.go`:
   - `NormalizeUsername`, and `DeriveKeys(u, nfcPassword, sid, iterations)` with stdlib PBKDF2
     and HKDF;
   - `CheckKDF` enforces `pbkdf2-sha256` and 600 000 ≤ iterations ≤ 10 000 000;
   - an unexported test-only bypass mirrors `allowWeak`
-- [ ] `cipher.go`: `WrapVaultKey`/`UnwrapVaultKey` and `SealVault`/`OpenVault` (`BSV1`, a
+- [x] `cipher.go`: `WrapVaultKey`/`UnwrapVaultKey` and `SealVault`/`OpenVault` (`BSV1`, a
       fresh IV, gzip, the AADs from §1.3/§1.4; a decryption failure is an error)
-- [ ] `syncid.go`: `New`, `Format`, `Parse` with the §1.5 rules
-- [ ] tests:
+- [x] `syncid.go`: `New`, `Format`, `Parse` with the §1.5 rules
+- [x] tests:
   - the §1.2 vector as a literal;
   - replay of `keys`, `syncid` and `envelope` (decrypt and compare docs);
   - error cases: wrong user AAD, a tampered byte, a short blob, bad magic, weak KDF, malformed
     SyncIDs
-- [ ] the Go `-update` test writes `envelope-go.json`/`wrap-go.json`. Its edge docs cover an
+- [x] the Go `-update` test writes `envelope-go.json`/`wrap-go.json`. Its edge docs cover an
       empty folder, an empty URL, an empty title, non-ASCII, and `<>&`. Un-skip the TS test
       and make it pass
-- [ ] run `make test`; it must pass before the next task
+- [x] run `make test`; it must pass before the next task
+- ➕ The Go `-update` test (`TestGoFixtures`) writes `envelope-go.json` and `wrap-go.json` from
+  a deterministic byte stream, so a rerun only changes them when the code changes. It also
+  checks on every run that Go can read them back.
+- ➕ For now the envelope plaintexts are TS edge docs re-encoded with `encoding/json` (TODO in
+  `fixtures_test.go`). Task 4 switches them to `vault.Marshal`.
+- ➕ `OpenVault` caps decompressed plaintext at 64 MiB (`bad_format`), as protection against a
+  gzip bomb. TS has no cap; real vaults are far below it.
+- ➕ golangci-lint v2.14.0 must be built with Go 1.27
+  (`GOTOOLCHAIN=go1.27.2 go install …@v2.14.0`); the preinstalled binary (Go 1.25) refuses the
+  module.
+- Coverage: `internal/client/crypto` 90.6 %.
 
 ### Task 4: Go vault model (exact JSON, Validate, Equal, diffStats)
 
