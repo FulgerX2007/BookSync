@@ -468,18 +468,22 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
 **Files:**
 - Create: `internal/client/store/store.go`, `store_test.go`
 
-- [ ] the `KeyWrapper` interface (`Wrap`/`Unwrap` of 32 bytes); `Store` loads or creates the
+- [x] the `KeyWrapper` interface (`Wrap`/`Unwrap` of 32 bytes); `Store` loads or creates the
       data key, then `Load`/`Save` the state with AES-GCM and an atomic write
-- [ ] `ClearSession()` (sign-out: everything, including `local`) vs `ClearCredentials()`
+- [x] `ClearSession()` (sign-out: everything, including `local`) vs `ClearCredentials()`
       (401: only `deviceToken` and `vaultKey`)
-- [ ] an unreadable state or an `Unwrap` failure → the `state_unreadable` code, and the bad
+- [x] an unreadable state or an `Unwrap` failure → the `state_unreadable` code, and the bad
       files are moved aside; never a crash
-- [ ] tests:
+- [x] tests:
   - round-trip;
   - a crash between temp write and rename keeps the old state;
   - a tampered `state.bin` → `state_unreadable`;
   - `ClearCredentials` keeps `base`, `version`, `lastSeq` and `local`
-- [ ] run `make test`; it must pass before the next task
+- [x] run `make test`; it must pass before the next task
+- ➕ `ClearSession` also bumps `LocalRev`, so a sync in flight during sign-out can never
+  commit into the cleared state.
+- ➕ Quarantined files are kept as `*.unreadable-<ns>` for diagnosis instead of being deleted.
+- Coverage: `internal/client/store` 85.9 % (the rest is I/O error paths).
 
 ### Task 8: Tree edit operations
 
