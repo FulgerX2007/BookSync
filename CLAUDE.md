@@ -2,7 +2,13 @@
 
 BookSync is end-to-end encrypted bookmark sync. A Go server (`cmd/`, `internal/`,
 `deploy/`) stores encrypted vault snapshots. A TypeScript MV3 WebExtension
-(`extension/`), built for Chromium and Firefox, does all crypto and merging.
+(`extension/`), built for Chromium and Firefox, does all crypto and merging, and is the
+reference client. The Android app uses three pieces:
+
+- `internal/client/`, a Go port of the client core;
+- `mobile/`, its gomobile facade;
+- `android/`, a Kotlin + Compose app. It is its own bookmark store, because Android
+  browsers don't expose their bookmarks.
 
 - [README.md](README.md) covers what the project is and how to self-host it.
 - [docs/protocol.md](docs/protocol.md) is the normative spec. Update it together with
@@ -13,20 +19,27 @@ BookSync is end-to-end encrypted bookmark sync. A Go server (`cmd/`, `internal/`
 
 | Task | Command |
 |---|---|
-| Everything a commit must pass | `make test` (Go `-race`, then `npm run check` in `extension/`) |
-| Go lint | `make lint` (golangci-lint **v2.14+ built with Go 1.27**; set `GOLANGCI_LINT=…` if it's not on `PATH`) |
+| Everything a commit must pass | `make test` (Go `-race` for both Go modules, then `npm run check` in `extension/`) |
+| Go lint | `make lint` (golangci-lint **v2.14+ built with Go 1.27**, for the root and `mobile/`; set `GOLANGCI_LINT=…` if it's not on `PATH`) |
 | Go format | `make fmt`; CI fails on unformatted files |
 | Extension only | `cd extension && npm run check` (tsc, eslint, vitest) |
 | e2e (real Chromium + real server) | `make e2e` (uses `CHROMIUM_PATH`, `/opt/pw-browsers/chromium`, or Playwright's full Chromium via `channel: 'chromium'`; never its headless shell, which can't load extensions) |
 | Container smoke test | `make docker-smoke` (`SMOKE_BUILD=0` reuses a prebuilt image) |
 | All release artifacts | `make dist` (`VERSION=X.Y.Z` stamps the server and the extension); pushing a `vX.Y.Z` tag, or creating a release in the GitHub UI, runs `.github/workflows/release.yml` |
 | Longer property runs | `cd extension && FC_RUNS=3000 npx vitest run src/sync` |
+| Go client properties | `BOOKSYNC_PROP_RUNS=3000 go test ./internal/client/merge ./internal/client/engine` |
+| Golden corpus | `cd extension && npm run conformance:gen` (`CONFORMANCE_ENVELOPES=1` also rewrites `envelope.json`); `cd internal/client/crypto && go test -run TestGoFixtures -update` rewrites the Go → TS fixtures |
+| Android | `make android-aar` (the Go core AAR; needs the SDK and NDK r29), then `make android-test` (buildSrc tests, JVM unit and Robolectric UI tests, lint) or `make android-apk` |
+| Kotlin fixtures | `cd mobile && go test -run TestKotlinFixtures -update` (Kotlin model tests decode them) |
 | Coverage | `go test -cover ./internal/...` (keep ≥ 80 %); `npx vitest run --coverage` (keep ≥ 90 % statements for `src/sync`, `src/crypto`, `src/browser`, `src/bookmarks`) |
 
 - Run `npm run check` (or `make test`) before every commit. A lint error must never
   land.
 - `go.mod` has `ignore ./extension`, because `node_modules` contains a Go package.
   Keep it.
+- `mobile/` is a **nested module** (`replace … => ../`). That keeps `golang.org/x/mobile`,
+  and gomobile and gobind (pinned as `tool` directives), out of the root `go.mod`. Root
+  `./...` skips it; `make test`, `lint`, `fmt` and CI cover it explicitly.
 - The release workflow calls `ci.yml` through `workflow_call`. A job added to CI
   therefore also gates releases.
 - Release versions come from the tag. The extension gets `X.Y.Z` through
@@ -114,6 +127,66 @@ BookSync is end-to-end encrypted bookmark sync. A Go server (`cmd/`, `internal/`
     - `bookmark-trees.ts`: a fake browser plus the real adapter, for `src/bookmarks`
       tests.
 
+## Go client core (`internal/client`, `mobile/`)
+
+- **Packages.**
+  - `crypto`, `vault`, `merge`: function-by-function ports of the extension's
+    `src/crypto`, `src/model/vault.ts`, `merge.ts` and `guard.ts`.
+  - `api`: the HTTP client, with `toApiError`'s mapping.
+  - `store`: sealed state (AES-GCM under a data key wrapped by a platform `KeyWrapper`).
+  - `ops`: tree edits with `ops.ts`'s rules.
+  - `engine`: the session and the sync run.
+  - `testserver`: the real `internal/api` over a temp SQLite, plus a fault-injecting
+    `RoundTripper`.
+- **Dependencies.** Stdlib only (`crypto/pbkdf2`, `crypto/hkdf`, …); no new modules in the
+  root `go.mod`. Go has no NFC normalization, so callers pass NFC passwords (Kotlin
+  normalizes).
+- **Parity is the corpus.** When TS code in `src/crypto`, `src/model`, `src/sync/merge.ts`
+  or `guard.ts` changes:
+  1. regenerate `testdata/conformance` (`npm run conformance:gen`);
+  2. make the Go replay pass;
+  3. commit both.
+
+  Never hand-edit corpus files.
+- **JSON.** Use `vault.Parse` and `vault.Marshal`, never plain `encoding/json`, on vault
+  documents. They follow the presence rules in protocol §2 ("Encoding"). One Go upload
+  with `children: null` would make every extension refuse the vault.
+- **Ordering.** Sort GUIDs with `vault.SortGUIDs` / `CompareGUID` (UTF-16 order, like JS
+  `.sort()`), never `sort.Strings`.
+- **Engine locks.** `mu` guards state for short sections and is never held across HTTP;
+  `runMu.TryLock` makes `Sync` single-flight (`busy`).
+- **Facade.** `mobile/` uses bindable types only. Errors cross as `{code, message}` JSON;
+  everything else crosses as JSON strings. Its Go tests write the Kotlin fixtures in
+  `android/app/src/test/resources/fixtures` and fail on drift.
+- **Tests.**
+  - Run against `testserver`, never mocks.
+  - Registration and login run real PBKDF2 at 600k iterations, which the server enforces,
+    so engine tests use `t.Parallel()`.
+
+## Android app (`android/`)
+
+- **Toolchain.** AGP 9 with built-in Kotlin; compileSdk and targetSdk 37, minSdk 26. Lint
+  runs with `warningsAsErrors`: a lint finding must never land.
+- **Versioning.** `android/buildSrc` derives `versionName`/`versionCode` from
+  `BOOKSYNC_VERSION` (rc-aware); it has its own tests.
+- **Talking to the core.** UI code uses the `BookSyncCore` interface, never the AAR
+  classes. `GoCore` is the only implementation; `FakeCore` (test sources) backs the JVM
+  tests, because the native library can't load under Robolectric.
+- **One core per process.** `BookSyncApplication` (`CoreProvider`) owns the core and the
+  `SyncController`; activities and the share worker reuse them.
+- **Sync** runs only in the foreground (`ProcessLifecycleOwner`), plus one WorkManager
+  job after a share. `Blocked` states (rollback, mass deletion, re-auth) stop automatic
+  syncs until the user answers. Never resolve them in code.
+- **Search** is a Kotlin port of `search.ts` (NFKD, `decodeURI`); keep it in step with
+  the TS tests ported to `BookmarkSearchTest`.
+- **Secrets.** Login, register and the emergency kit use `SecureScreen()` (`FLAG_SECURE`).
+  Backups are off (`allowBackup=false` plus data-extraction rules).
+- **Network in restricted environments.** If Maven Central rate-limits:
+  - run Gradle with an init script that puts Google's Central mirror first;
+  - set `ROBOLECTRIC_REPO_URL` for Robolectric's runtime downloads.
+
+  CI needs neither.
+
 ## Invariants that must hold
 
 Breaking any of these causes data loss, duplication or ping-pong between browsers. The
@@ -161,6 +234,16 @@ with a higher `FC_RUNS`.
   `base` exists, is `rollback_detected`. Never resolve it automatically.
 - A mass-deletion confirmation is bound to `remoteVersion` and to the confirmed
   deletion counts.
+
+**App-as-store engine (`internal/client/engine`)**
+
+- One atomic commit after the upload: `local = merged`, `base`, `version` and
+  `lastSeq`, only if `localRev` is unchanged. On a mismatch, write nothing and restart.
+  An edit made during a run is never lost.
+- A first sync (no `base`) adopts the remote and requires an empty local tree
+  (`local_not_empty` otherwise). It never merges an unknown local tree into an account.
+- After a 401, only the device token and the vault key go. Re-login is allowed only into
+  the same account (server, username and `userId`).
 
 **Crypto (`src/crypto/`)**
 

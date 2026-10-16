@@ -5,7 +5,8 @@ yourself.
 
 BookSync keeps bookmarks in two-way sync between the Chromium family (Chrome, Edge,
 Brave, Vivaldi, Opera) and Firefox. Each browser sends its changes within a few seconds
-and picks up everyone else's within about a minute.
+and picks up everyone else's within about a minute. An Android app carries the same
+bookmarks on your phone.
 
 Native browser sync only works inside one vendor's ecosystem, and it stores your
 bookmarks with that vendor. BookSync's server stores only ciphertext. It never sees a
@@ -296,6 +297,53 @@ your other browsers through the normal sync.
   - **Locked roots.** The root folders (Bookmarks bar, Other bookmarks, …) can't be
     renamed, moved or deleted.
 
+## Android app
+
+Android browsers don't let other apps read or write their bookmarks. Since Android 6
+none of them do (Chrome, Firefox, Edge, Brave, Samsung Internet), and Firefox for
+Android's add-ons have no bookmarks API. So the app doesn't sync a phone browser.
+Instead **it is a BookSync device of its own**: it keeps your bookmarks, opens them in
+whichever browser you like, and syncs them with your desktop browsers.
+
+- **Install.** Download `booksync-android-X.Y.Z.apk` from the
+  [releases](https://github.com/FulgerX2007/BookSync/releases) when one is attached, or
+  build it yourself (see [Development](#development)). It needs Android 8.0 or newer.
+- **Sign in or register.**
+  - Sign in with the same server, username, password and SyncID as your browsers.
+  - Or create the account on the phone and save the emergency kit it shows. The kit
+    screen doesn't allow screenshots; copy the kit or share it to your password
+    manager.
+- **Browse and edit.**
+  - The four top-level folders hold your synced bookmarks.
+  - Tap a folder to open it, or a bookmark to open it in your browser (http and https
+    links only).
+  - Long-press for **Rename**, **Edit URL**, **Move** and **Delete**, and use **+** to
+    add a bookmark or folder.
+  - **Search** works like the extension's: any part of a title or URL, ignoring case
+    and accents.
+- **Save from any app.** In a browser or any other app, choose **Share → Save to
+  BookSync**, pick a folder, and save. The bookmark is uploaded in the background as
+  soon as the phone is online.
+- **When it syncs.**
+  - While the app is open: at start, a few seconds after an edit, every minute, and
+    when you pull down to refresh.
+  - When the app is closed: only to upload something you shared.
+  - The bar under the title shows the state.
+  - The app asks before a large deletion, and when the server holds an older copy than
+    the phone has seen.
+- **Signing out** removes the bookmarks from the phone. They stay on the server and your
+  other devices.
+
+**Security on the phone.**
+
+- Everything BookSync stores on the phone is encrypted with a key that the Android
+  Keystore protects.
+- The app is excluded from backups and device-to-device transfer. A phone restored from
+  a backup therefore starts signed out; sign in again.
+- **Private certificate authorities:** the app connects with Go's TLS stack, which trusts
+  Android's system certificates but not ones you installed yourself. Your server needs a
+  publicly trusted certificate, which the bundled Caddy obtains automatically.
+
 ## Development
 
 The repository contains the Go server and the TypeScript WebExtension.
@@ -304,6 +352,11 @@ The repository contains the Go server and the TypeScript WebExtension.
 cmd/booksync-server/   server entry point (+ `healthcheck` subcommand for the container)
 internal/              config, store (SQLite + migrations), auth (Argon2id, tokens), api (HTTP)
 deploy/                Dockerfile, docker-compose.yml, Caddyfile, .env.example, smoke.sh
+internal/client/       Go client core for the Android app: crypto, vault, merge, api, store,
+                       ops (edits), engine (session + sync); testserver for client tests
+mobile/                gomobile facade over internal/client (nested Go module)
+android/               Kotlin + Jetpack Compose app (bindings to the core AAR, UI, share target)
+testdata/conformance/  golden corpus: TS reference → Go replay, and Go → TS fixtures
 extension/
   src/crypto/          SyncID, key derivation, vault encryption
   src/model/           vault document, tree validation, URL match key
@@ -328,6 +381,12 @@ docs/protocol.md       normative protocol reference
 - **Chromium for the e2e tests:** `npx playwright install chromium` in `extension/`,
   or point `CHROMIUM_PATH` at a Chromium binary.
 - **Docker,** for `make docker-smoke`.
+- **For the Android app:**
+  - JDK 21;
+  - the Android SDK with platform 37 and NDK `29.0.14206865`, with `ANDROID_HOME` and
+    `ANDROID_NDK_HOME` set.
+
+  `make android-aar` installs the pinned gomobile from `mobile/go.mod` into `bin/`.
 
 ### Running locally
 
@@ -343,9 +402,12 @@ Plain HTTP is accepted only for `localhost` and `127.0.0.1`.
 
 | Command | What it runs |
 |---|---|
-| `make test` | Go tests with `-race`, plus the extension's typecheck, lint and unit tests (`npm run check`) |
-| `make test-go` / `make test-ext` | either half |
-| `make lint` | golangci-lint |
+| `make test` | Go tests with `-race` (server, client core and the `mobile/` facade), plus the extension's typecheck, lint and unit tests (`npm run check`) |
+| `make test-go` / `make test-mobile` / `make test-ext` | one part |
+| `make lint` | golangci-lint, for both Go modules |
+| `make android-aar` | the Go core as `android/app/libs/booksync-core.aar` |
+| `make android-test` | the AAR, then the Android version tests, JVM unit and UI tests (Robolectric) and lint |
+| `make android-apk` | the AAR, then the release APK (signed when the `ANDROID_KEYSTORE_*` variables are set) |
 | `make e2e` | Playwright: two Chromium profiles syncing through a real server built from this repo |
 | `make docker-smoke` | builds the image, starts the compose stack and checks TLS, health and registration |
 | `make package` | store-ready extension zips |
@@ -357,9 +419,15 @@ In `extension/`:
 - `npx vitest run --coverage` measures coverage.
 - `FC_RUNS=3000 npx vitest run src/sync` runs the property tests (merge, first sync,
   multi-device convergence) longer than the default.
+- `npm run conformance:gen` regenerates `testdata/conformance/` after a change to the
+  reference sync, crypto or model code. `npm run check` fails while the corpus is stale,
+  and the Go tests replay it.
 
-CI (`.github/workflows/ci.yml`) runs the Go, extension, e2e and docker-smoke jobs on
-pushes to `main` and on pull requests.
+For the Go client, `BOOKSYNC_PROP_RUNS=3000 go test ./internal/client/...` runs the merge
+and convergence properties longer.
+
+CI (`.github/workflows/ci.yml`) runs the Go, extension, e2e, Android and docker-smoke
+jobs on pushes to `main` and on pull requests.
 
 ### Releasing
 
@@ -380,7 +448,19 @@ The Release workflow (`.github/workflows/release.yml`) then:
    - server archives for linux, darwin (amd64 and arm64) and windows (amd64);
    - both extension zips;
    - a source archive (Firefox Add-ons asks for one when reviewing);
+   - `booksync-android-X.Y.Z.apk`, if signing is configured;
    - `SHA256SUMS`.
+
+**Android signing.** The APK is attached only when these repository secrets exist:
+
+- `ANDROID_KEYSTORE_BASE64` (the upload keystore, base64-encoded);
+- `ANDROID_KEYSTORE_PASSWORD`;
+- `ANDROID_KEY_ALIAS`;
+- `ANDROID_KEY_PASSWORD`.
+
+Without them the release succeeds without an APK and the workflow logs a warning: an
+unsigned APK can't be installed. The app's `versionCode` comes from the tag:
+`X·1000000 + Y·10000 + Z·100`, plus `N` for `-rc.N` or 99 for a final release.
 
 A tag such as `v0.2.0-rc.1` publishes a pre-release. It gets no `0.2` or `latest`
 image tag, and its extension carries `0.2.0`, because browser stores accept only plain

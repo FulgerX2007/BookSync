@@ -796,41 +796,52 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
   `apksigner verify`, and `1.2.3-rc.1` gives versionCode 1020301.
 
 ### Task 18: Verify acceptance criteria
-- [ ] verify the Overview requirements:
+- [x] verify the Overview requirements:
   - register and sign in;
   - browse, search, add, rename, move and delete;
   - open in browser;
   - share-to-add;
   - Go↔TS parity (the corpus and the interop test pass)
-- [ ] verify edge cases:
+- [x] verify edge cases:
   - 401 re-login resumes `merge3`;
   - the rollback and mass-deletion dialogs;
   - an edit during the PUT;
   - a crash after the PUT;
   - offline edits;
   - Keystore loss → signed out cleanly
-- [ ] run the full suite: `make test`, `make lint`, `make android-test`
-- [ ] run `make e2e` (extension regression) and the Go property tests with
+- [x] run the full suite: `make test`, `make lint`, `make android-test`
+- [x] run `make e2e` (extension regression) and the Go property tests with
       `BOOKSYNC_PROP_RUNS=3000`
-- [ ] verify coverage: `go test -cover ./internal/...` ≥ 80 % (including `internal/client`);
+- [x] verify coverage: `go test -cover ./internal/...` ≥ 80 % (including `internal/client`);
       TS thresholds unchanged
+- Results:
+  - **Go:** `make test` passes; the Go lint (`make lint`, both modules) and gofmt are clean.
+    Coverage: api 94.2 %, crypto 90.6 %, engine 92.2 %, merge 97.4 %, ops 99.1 %, store
+    85.9 %, vault 97.7 %, mobile 94.7 %. The server packages are unchanged (≥ 80 %).
+  - **Property runs** at `BOOKSYNC_PROP_RUNS=3000`: merge and engine convergence pass.
+  - **Extension:** `make e2e` (Chromium plus the Go server) passes 37 of 37; the TS
+    corpus and the Go-fixture tests pass.
+  - **Android:** 68 JVM tests pass (unit, Robolectric UI, buildSrc); lint finds nothing;
+    the R8 release build works.
+- ⚠️ No emulator or device run was possible in this container (no KVM). On-device checks
+  are listed under Post-Completion.
 
 ### Task 19: [Final] Update documentation
-- [ ] `docs/protocol.md`: add a "Clients without a browser tree" section covering:
+- [x] `docs/protocol.md`: add a "Clients without a browser tree" section covering:
   - the app-as-store model (replaces §5 and the apply step of §4.1);
   - the commit-after-upload with the `localRev` check;
   - the adopt-remote first sync rule;
   - the NFC precondition;
   - the exact JSON presence rules for `url`/`children` (normative for every client);
   - the conformance corpus
-- [ ] `README.md`: Android install, why it doesn't sync the phone's browser, the private-CA
+- [x] `README.md`: Android install, why it doesn't sync the phone's browser, the private-CA
       limitation
-- [ ] `CLAUDE.md`:
+- [x] `CLAUDE.md`:
   - the `internal/client`, `mobile/` and `android/` layout;
   - the commands (`android-aar`, `android-test`, `conformance:gen`);
   - the rule "a change to TS sync/model code → regenerate the corpus; Go must replay it";
   - the gomobile and NDK pins
-- [ ] move this plan to `docs/plans/completed/`
+- [x] move this plan to `docs/plans/completed/`
 
 ## Post-Completion
 *Items requiring manual intervention or external systems - no checkboxes, informational only*
