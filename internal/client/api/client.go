@@ -21,8 +21,8 @@ import (
 
 // Error codes (ApiErrorCode in the extension). Clients branch on them.
 const (
-	CodeUnauthorized       = "unauthorized" // device token missing, revoked or expired
-	CodeInvalidCredentials = "invalid_credentials"
+	CodeUnauthorized       = "unauthorized"        // device token missing, revoked or expired
+	CodeInvalidCredentials = "invalid_credentials" //nolint:gosec // an error code, not a credential
 	CodeRateLimited        = "rate_limited"
 	CodeVersionConflict    = "version_conflict"
 	CodeTooLarge           = "too_large"

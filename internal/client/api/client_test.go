@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -139,15 +140,9 @@ func TestRateLimitedCarriesRetryAfter(t *testing.T) {
 		}
 	}
 	var e *Error
-	if CodeOf(err) != CodeRateLimited || !asError(err, &e) || e.RetryAfter <= 0 || e.Status != http.StatusTooManyRequests {
+	if !errors.As(err, &e) || e.Code != CodeRateLimited || e.RetryAfter <= 0 || e.Status != http.StatusTooManyRequests {
 		t.Fatalf("err = %#v, want rate_limited with Retry-After", err)
 	}
-}
-
-func asError(err error, target **Error) bool {
-	e, ok := err.(*Error)
-	*target = e
-	return ok
 }
 
 // A malicious server cannot weaken key derivation.
@@ -204,7 +199,11 @@ func TestMalformedResponses(t *testing.T) {
 	if _, err := c.Prelogin(ctx, "a"); CodeOf(err) != CodeNotFound {
 		t.Errorf("404: %v", err)
 	}
-	if _, err := c.send(ctx, http.MethodGet, "/teapot", nil, nil, false); CodeOf(err) != CodeServer {
+	resp, err := c.send(ctx, http.MethodGet, "/teapot", nil, nil, false)
+	if err == nil {
+		drain(resp)
+	}
+	if CodeOf(err) != CodeServer {
 		t.Errorf("418: %v", err)
 	}
 }
