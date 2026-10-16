@@ -442,20 +442,26 @@ android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile fac
 
 **Files:**
 - Create: `internal/client/api/client.go`, `client_test.go`
+- ➕ Create: `internal/client/testserver/testserver.go` (the real server over SQLite in a temp
+  dir, plus a request-counting and fault-injecting `RoundTripper`; reused by the engine tests)
 
-- [ ] methods:
+- [x] methods:
   - `Prelogin`, `Register`, `Login`, `Logout`;
   - `GetVault(ifNoneMatch)` → `(blob, version, notModified, empty)`;
   - `PutVault(blob, ifMatch | createOnly)`
-- [ ] `*APIError{Status, Code, RetryAfter, CurrentVersion}`; refuse `http:` except loopback;
+- [x] `*APIError{Status, Code, RetryAfter, CurrentVersion}`; refuse `http:` except loopback;
       `CheckKDF` on the prelogin and login responses
-- [ ] tests against the real `internal/api` server (`auth.NewTestHasher()`):
+- [x] tests against the real `internal/api` server (`auth.NewTestHasher()`):
   - the register → login → put → get → 304 → logout flow;
   - 412 carries `currentVersion`, and 401 after logout;
   - 429 `Retry-After`;
   - a downgraded KDF from a fake handler is refused;
   - non-loopback `http://` is refused
-- [ ] run `make test`; it must pass before the next task
+- [x] run `make test`; it must pass before the next task
+- ➕ Error mapping follows `toApiError` exactly (by status, refined by the server code);
+  `NormalizeServerURL` follows `normalizeServerUrl` (HTTPS, or HTTP to localhost,
+  127.0.0.1 or [::1]; no credentials, query or fragment). Downloads are capped at 64 MiB.
+- Coverage: `internal/client/api` 94.2 %.
 
 ### Task 7: Sealed local state store
 
