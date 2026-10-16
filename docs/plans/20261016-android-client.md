@@ -8,38 +8,42 @@
   bookmarks to other apps (Chrome, Firefox, Edge, Brave, Samsung Internet), and Firefox for
   Android's WebExtensions lack the `bookmarks` API. So the app is its **own bookmark store**.
   Its local tree plays the role the browser tree plays for the extension.
-- **Architecture.** A new **Go client core** (crypto, vault model, `merge3`, `firstSync`,
-  guard, API client, engine, local state) is exposed to a thin **Kotlin + Jetpack Compose**
-  UI through `gomobile bind`. The same core can later back a Go CLI, which
-  `docs/protocol.md` already anticipates.
+- **Architecture.** A new **Go client core** (crypto, vault model, `merge3`, guard, API
+  client, engine, sealed local state, edit operations) is exposed to a thin **Kotlin +
+  Jetpack Compose** UI through `gomobile bind`.
 - **Parity.** The Go port must compute exactly what the TS extension computes. A golden
   corpus generated from the TS reference and replayed by Go tests enforces this, and CI fails
-  on drift.
+  on drift. Go-written envelopes are decrypted and parsed by a TS test, so Go output is proven
+  readable by every extension.
 - **v1 scope:** auth and account (register, sign in, emergency kit, sign out, 401 re-login),
-  browse, search and edit, and the share target. Sync runs on foreground, after edits, on
-  pull-to-refresh and once after a share. **Out of scope:** periodic background sync, the
-  device list, password change and key rotation, QR codes for the SyncID.
+  browse, search and edit, and the share target. Sync runs while the app is in the foreground
+  (start, 3 s after edits, a 60 s poll, pull-to-refresh) and once after a share. **Out of
+  scope:** periodic background sync, the device list, password change and key rotation, QR
+  codes for the SyncID, and `firstSync` content matching (see design decision 4).
 
 ## Context (from discovery)
 - **Server:** `cmd/booksync-server`, `internal/{api,auth,config,store}`. It is unchanged; the
   app uses the existing v1 API (§3 of `docs/protocol.md`).
 - **The reference client to port:**
   - `extension/src/crypto/` (`keys.ts`, `vault-cipher.ts`, `syncid.ts`);
-  - `extension/src/model/` (`vault.ts`, `url.ts`);
-  - `extension/src/sync/` (`merge.ts`, `first-sync.ts`, `guard.ts`, `engine.ts`; about 1.7k
-    lines);
+  - `extension/src/model/vault.ts` (`parseNode`, `validateTree`, `treesEqual`,
+    `diffStats`);
+  - `extension/src/sync/` (`merge.ts`, `guard.ts`, `engine.ts`);
   - `extension/src/api/client.ts`;
-  - `extension/src/bookmarks/` (`ops.ts`, `search.ts`, `tree.ts`) for edit and search
-    semantics.
+  - `extension/src/bookmarks/ops.ts` (edit semantics, `parseUrl`) and `search.ts` (ported to
+    **Kotlin**, see decision 7).
 - **Test assets to mirror:** `extension/test/builders.ts` (`doc()` and `outline()`),
-  `arbitraries.ts` (fast-check generators), and the property tests
-  `merge.property.test.ts`, `first-sync.test.ts` and `convergence.property.test.ts`.
-- **Build and CI:** `Makefile` (`test`, `lint`, `fmt`, `dist`), `.github/workflows/ci.yml`
-  (reused by `release.yml` through `workflow_call`, so a new CI job gates releases), and
-  `go.mod` (module `github.com/FulgerX2007/BookSync`, Go 1.26, toolchain 1.27.2,
-  `ignore ./extension`).
-- **Conventions:** stdlib-first Go; table-driven tests; real SQLite and `httptest` instead of
-  mocks; protocol.md is updated together with any change to sync rules.
+  `arbitraries.ts` (fast-check generators, including `applyEdits`), and
+  `merge.property.test.ts` and `convergence.property.test.ts`.
+- **Build and CI:**
+  - `Makefile` (`test`, `lint`, `fmt`, `dist`);
+  - `.github/workflows/ci.yml`, which `release.yml` reuses through `workflow_call`, so a new CI
+    job gates every release;
+  - `go.mod`: module `github.com/FulgerX2007/BookSync`, Go 1.26, toolchain 1.27.2,
+    `ignore ./extension`.
+- **Conventions:** stdlib-first Go; table-driven tests; a real SQLite database and `httptest`
+  instead of mocks; protocol.md is updated together with any change to sync rules; no change
+  to production crypto code.
 
 ## Development Approach
 - **testing approach**: Regular (code first, then tests in the same task)
@@ -54,26 +58,35 @@
   - tests cover both success and error scenarios
 - **CRITICAL: all tests must pass before starting next task** - no exceptions
 - **CRITICAL: update this plan file when scope changes during implementation**
-- run tests after each change (`make test`; for Android also `make android-test`)
+- run tests after each change (`make test`, which includes the `mobile/` module after
+  Task 11; plus `make android-test` for Android tasks)
 - maintain backward compatibility: no change to the wire format, the crypto or the server API
 
 ## Testing Strategy
 - **Go unit tests:** table-driven, stdlib `testing`, real `internal/api` server via
-  `httptest` plus a real SQLite database in `t.TempDir()`. No API mocks.
+  `httptest` plus a real SQLite database in `t.TempDir()`. No API mocks. A wrapping
+  `http.RoundTripper` counts requests and injects faults (for example "edit during the PUT"
+  or "fail after the PUT").
 - **Golden corpus:** `testdata/conformance/*.json`, generated by the TS reference and
-  replayed by Go. It covers `validateTree`, URL match keys, SyncID, crypto, `merge3`,
-  `firstSync` and the guard.
-- **Go property tests:** seeded `math/rand/v2` generators (no third-party property library).
-  They check that `merge3` is deterministic and always valid, that a converged run makes zero
-  uploads, and that N devices converge. `BOOKSYNC_PROP_RUNS` controls the run count, the
-  analogue of `FC_RUNS`.
-- **Kotlin unit tests:** JUnit plus Robolectric with `compose-ui-test`, run on the JVM. UI
-  and ViewModels depend on a `BookSyncCore` Kotlin interface, so tests use a fake; the native
-  Go `.so` isn't loadable under Robolectric.
-- **e2e:** the project's Playwright e2e covers the extension only. The Android app's
-  end-to-end coverage is (a) Go integration tests that run several Go devices against the
-  real server and (b) a manual emulator checklist in Post-Completion. Instrumented emulator
-  tests are deliberately not in CI, because they are too slow and flaky for the gate.
+  replayed by Go.
+  - Curated cases for `validate`, `syncid`, `keys` and `equal`.
+  - Curated cases plus a few hundred seeded random cases for `merge3` (merged doc **and**
+    stats) and the guard.
+  - TS envelopes are only decrypted by Go and compared as documents; the bytes are never
+    compared.
+- **Go → TS interop:** Go writes `envelope-go.json` and `wrap-go.json` (with edge-case docs),
+  and a vitest test decrypts and `parseVaultDoc`s them.
+- **Go property tests:** seeded `math/rand/v2` generators that port `arbitraries.ts`
+  `applyEdits` exactly. They check that `merge3` is deterministic and always valid, that a
+  converged run makes zero uploads, and that N devices converge. `BOOKSYNC_PROP_RUNS`
+  controls the run count, the analogue of `FC_RUNS`.
+- **Kotlin unit tests:** JUnit plus Robolectric with `compose-ui-test`, run on the JVM. The UI
+  and ViewModels depend on a `BookSyncCore` Kotlin interface and use a fake in tests. JSON
+  fixtures from Go tests guard the boundary.
+- **Real AAR:** CI runs `assembleRelease` with R8 so binding and keep-rules break the build.
+  Task 1's spike and the Post-Completion checklist cover running the app on an emulator.
+  Instrumented emulator tests are deliberately not in CI, because they would gate every
+  release.
 
 ## Progress Tracking
 - mark completed items with `[x]` immediately when done
@@ -85,75 +98,79 @@
 ## Solution Overview
 
 ```
-android/ (Kotlin, Compose)          mobile/ (Go, separate module, gomobile facade)
-  ui/ screens, ViewModels   ──JSON──▶  mobile.Core { Register, Login, Tree, Search,
-  core/BookSyncCore (iface)            AddBookmark, Move, Delete, Sync, ... }
-  core/GoCore (impl, .aar)                 │
-  security/KeystoreSecretBox ◀─iface─      ▼
-  share/ShareActivity              internal/client/
-  work/OneShotSyncWorker             crypto/  vault/  merge/  api/  store/  ops/  engine/
-                                           │
-                                           ▼  HTTPS (existing v1 API)
-                                   booksync-server (unchanged)
+android/ (Kotlin, Compose)              mobile/ (Go, nested module, gomobile facade)
+  ui/ screens, ViewModels   ──JSON──▶     mobile.Core { Register, Login, Tree, AddBookmark,
+  search/ (Kotlin, NFKD parity)                         Move, Delete, Sync, ... }
+  core/BookSyncCore (iface)                   │
+  core/GoCore (singleton, .aar)               ▼
+  security/KeystoreKeyWrapper ◀─iface─    internal/client/
+  share/ShareActivity                       crypto/ vault/ merge/ api/ store/ ops/ engine/
+  work/OneShotSyncWorker                      │  HTTPS (existing v1 API)
+                                              ▼
+                                          booksync-server (unchanged)
 ```
 
 **Key design decisions:**
 
 1. **The app is the store, so there is no projection or apply layer.** The local working
-   copy (`local`) is a `VaultDoc` that the user edits directly. A sync computes `merged` and
-   replaces `local` atomically, but only if `local` hasn't changed since the run read it. A
-   revision counter checks this; on a change the run restarts. This removes the id map,
-   `pendingApply`, `rebindPending`, skipped nodes and anchor positioning. All of §5 of the
-   protocol becomes inapplicable, and crash safety reduces to an atomic file replace. Every
-   URL scheme can be held; non-http(s) bookmarks are shown but not opened.
+   copy (`local`) is a `VaultDoc` edited directly. Protocol §5 does not apply: no id map, no
+   `pendingApply`, no skipped nodes, no anchors. Every URL scheme can be held; non-http(s)
+   bookmarks are shown but not opened.
 2. **The Go core lives in `internal/client/...`, and the facade sits in a nested module
    `mobile/`** (`mobile/go.mod` with `replace github.com/FulgerX2007/BookSync => ../`).
-   - `gomobile bind` requires `golang.org/x/mobile` in the binding module's `go.mod`. Keeping
-     the facade in a nested module keeps the root `go.mod` and the server's dependency list
-     untouched.
-   - Importing `internal/` from a nested module under the same path prefix is allowed (gopls
-     does the same with `x/tools/internal`).
-3. **Go dependencies: stdlib only for the core.** Go 1.26's stdlib has `crypto/pbkdf2`,
-   `crypto/hkdf`, `crypto/aes`, `crypto/cipher`, `compress/gzip` and `net/http`. No new
-   modules are added to the root `go.mod`.
-4. **NFC normalization happens in Kotlin.** `java.text.Normalizer` (NFC) runs before the
-   password crosses into Go, because Go's stdlib has no NFC and `x/text` would be a new
-   dependency. The facade documents this precondition. ⚠️ A future Go CLI must solve NFC
-   itself; that is decided then.
-5. **URL match key in Go** (`firstSync` content matching only).
-   - Go implements the WHATWG subset the corpus exercises: it lowercases the scheme and host,
-     drops default ports, encodes non-ASCII hosts as punycode (RFC 3492, about 100 lines,
-     lowercase mapping only, no full UTS-46), and drops an empty trailing `#`.
-   - ⚠️ Inputs outside the subset may produce a different key than TS. That only costs a
-     duplicate on first sync, never data loss; the limitation is documented in protocol.md.
-6. **Secrets.**
-   - The device token and the raw vault key never touch disk in plaintext. The whole state
-     file is sealed with a `SecretBox`: a Go interface implemented in Kotlin with an Android
-     Keystore AES-256-GCM key that can't be exported. Go calls `Seal`/`Open`.
+   - `gomobile bind` needs `golang.org/x/mobile` in the binding module's `go.mod`. A nested
+     module keeps the root `go.mod` and the server's dependency list untouched.
+   - The facade's path is under the module prefix, so importing `internal/` is legal.
+   - Task 1 proves the whole toolchain before anything else is built on it.
+3. **Go dependencies: stdlib only for the core.** That means `crypto/pbkdf2`, `crypto/hkdf`,
+   AES-GCM, `compress/gzip` and `net/http`. Two consequences:
+   - The NFC normalization of the password is done in Kotlin (`java.text.Normalizer`) before
+     the password crosses into Go. The facade documents this precondition.
+   - Search runs in Kotlin (decision 7).
+4. **First sync = adopt remote.** In this app `base == nil` only right after Register or
+   Login on fresh or signed-out state:
+   - sign-out clears `local`;
+   - a 401 keeps `base`, so re-login resumes `merge3`;
+   - share while signed out saves nothing.
+
+   So `local` is always just the four empty roots. The engine asserts this (any non-root node
+   → `local_not_empty`, never a silent merge) and sets `merged = remote ?? empty`. Porting
+   `firstSync`, the WHATWG URL match key and punycode is deferred until a client with
+   pre-existing local data (for example a Go CLI) needs it.
+5. **The JSON encoding is exact.** `VNode` has a custom `MarshalJSON`/`UnmarshalJSON`:
+   - bookmarks always carry `url` (even `""`) and never `children`;
+   - folders always carry `children` (`[]`, never `null`) and never `url`;
+   - there are no extra fields;
+   - `writtenAt` decodes from any JSON number, as TS accepts.
+
+   Otherwise one Go upload could make every extension fail with `bad_format`.
+6. **Secrets use envelope encryption.**
+   - A random 32-byte data key seals the state file with AES-GCM inside Go.
+   - Only that data key is wrapped by an Android Keystore AES-256-GCM key, which can't be
+     exported (`KeyWrapper` interface implemented in Kotlin). This avoids pushing megabytes
+     through the Keystore binder on every edit.
    - If the Keystore key is lost (for example after a restore to another device), the state
      is unreadable and the app shows "signed out".
    - `android:allowBackup="false"`, and `FLAG_SECURE` is set on the emergency kit and login
      screens.
-7. **Engine invariants are carried over unchanged:**
-   - `base`, `version` and `lastSeq` advance only after the local replace **and** the upload
-     succeed;
-   - a 401 clears only the token and the vault key;
-   - `seq` only grows, and `rollback_detected` is never auto-resolved (dialog:
-     `use_local`/`accept_remote`);
-   - the mass-deletion guard is bound to `remoteVersion` and the deletion counts;
-   - at most 3 restarts per run;
-   - once converged, a run makes zero uploads.
-8. **The Kotlin ↔ Go boundary uses JSON strings and gomobile-friendly types** (string,
-   `[]byte`, int64, bool, error, and interfaces implemented in Kotlin). Errors carry a
-   stable `code` (the same vocabulary as the extension: `invalid_credentials`,
-   `rollback_detected`, `needs_confirmation`, …), and Kotlin branches on the code.
-9. **Edits and search live in Go** (`internal/client/ops`), mirroring
-   `extension/src/bookmarks/ops.ts` and `search.ts`, roots locked included. Compose stays
-   thin and only renders and dispatches.
+7. **Search lives in Kotlin.** It reads the tree JSON and gets exact parity with `search.ts`
+   through `Normalizer.Form.NFKD`, removal of `\p{M}`, lowercasing, and the decoded URL.
+   `search.test.ts` cases are ported to JUnit. Edits stay in Go (`internal/client/ops`).
+8. **Locking and concurrency.**
+   - A short state lock guards reads and writes and is **never held across HTTP**.
+   - A separate run lock makes `SyncOnce` single-flight: a concurrent call returns `busy`.
+   - `GoCore` is a process-wide singleton created in `Application`, so the controller and the
+     worker share one engine.
+9. **The Kotlin ↔ Go boundary uses JSON strings and gomobile-friendly types.** Errors carry a
+   stable `code` from the extension's vocabulary (`invalid_credentials`,
+   `rollback_detected`, `needs_confirmation`, `conflict_exhausted`, `busy`,
+   `local_not_empty`, `state_unreadable`, …), and Kotlin branches on the code.
 
 ## Technical Details
-- **Local state file:**
-  - Path: `filesDir/booksync/state.bin`, sealed with `SecretBox`. The plaintext is JSON:
+- **Local state:**
+  - Files: `filesDir/booksync/key.bin` (the data key wrapped by `KeyWrapper`) and
+    `state.bin` (AES-GCM under the data key, AAD `booksync-android/state/v1`).
+  - Plaintext JSON:
 
     ```json
     { "format": 1,
@@ -161,457 +178,486 @@ android/ (Kotlin, Compose)          mobile/ (Go, separate module, gomobile facad
                    "syncId", "iterations", "wrappedVaultKey", "vaultKey" },
       "sync":    { "base": VaultDoc|null, "version", "lastSeq", "status", "lastError",
                    "pendingConfirmation": {remoteVersion, deletionsToLocal, deletionsToRemote}|null,
-                   "confirmedGuard": {...}|null, "rollback": {...}|null },
+                   "rollback": {remoteVersion, remoteSeq}|null },
       "local":   VaultDoc, "localRev": int }
     ```
 
-  - It is written as a temp file, then `fsync`, then `rename`. One `sync.Mutex` serializes
-    all access inside the core.
-- **One sync run** (adapting protocol §4.1):
-  1. snapshot `(local, localRev)`;
-  2. `GET /v1/vault` with `If-None-Match`;
-  3. rollback check;
-  4. `firstSync` when there is no `base`, otherwise `merge3`;
-  5. guard;
-  6. if `localRev` is unchanged, set `local = merged`, otherwise restart;
-  7. upload if `merged ≠ remote`, with `seq = max(remote.seq, lastSeq) + 1` and
-     `writtenBy = deviceId`;
-  8. on 412, restart;
-  9. commit `base`, `version` and `lastSeq`.
-
-  Step 6 and the commit are persisted in a single write after the upload. That keeps the
-  invariant that `base` advances only after both steps succeed: if the upload fails, `local`
-  holds `merged`, and the next run merges it again.
+  - Every write goes to a temp file, then `fsync`, `rename`, and a directory `fsync`.
+- **One sync run** (run lock held; the state lock is taken only for the short reads and
+  writes marked 🔒):
+  1. 🔒 snapshot `(local, localRev, base, version, lastSeq)`.
+  2. `GET /v1/vault` with `If-None-Match: "<version>"`:
+     - 304: `remote = base`, `remoteVersion = version`;
+     - 404: `remote = null`;
+     - 200: decrypt and validate.
+  3. **Rollback check:** `remote.seq < lastSeq`, or `remote == null` while `base` exists, →
+     `rollback_detected` (🔒 store `rollback`), unless a recovery choice was passed:
+     - `use_local`: `merged = local`, and the upload is forced even if `merged == remote`;
+     - `accept_remote`: `lastSeq = remote?.seq ?? 0`, then continue normally.
+  4. **Merge.** With no `base`: `merged = remote ?? empty` (asserting decision 4). Otherwise
+     `merge3(base, local, remote)`, which also gives the `stats`.
+  5. **Guard.** On trigger, 🔒 store `pendingConfirmation` and stop with
+     `needs_confirmation`, unless a matching confirmation was passed (same `remoteVersion`, no
+     more deletions in either direction).
+  6. **Upload** if `!Equal(merged, remote)` or `use_local`: `seq = max(remote.seq, lastSeq)
+     + 1`, `writtenBy = deviceId`, `writtenAt = now`. Use `If-Match` (or `If-None-Match: *`).
+     A 412 restarts the run.
+  7. 🔒 **Commit, atomically after the upload.** If `localRev` is still the snapshot's,
+     write `local = merged`, `base = merged`, `version`, `lastSeq` (the new `seq`, or
+     `max(lastSeq, remote.seq)` with no upload), clear `pendingConfirmation` and `rollback`,
+     and set status `ok`. If `localRev` changed, write nothing and restart.
+     - Restarting is safe: `base` is unchanged, so the next attempt runs
+       `merge3(base, editedLocal, ourUploadedVault)` and keeps the edit.
+  8. More than 3 restarts → `conflict_exhausted`.
+- **Crash safety:**
+  - A crash or failed save after a successful PUT leaves the old `local`, `base` and
+    `lastSeq`. The next run computes `merge3(oldBase, oldLocal, uploaded) == uploaded ==
+    remote`, so there is no upload and no ping-pong.
+  - A failed PUT writes nothing.
+- **`Equal`/`diffStats`:** exact ports of `treesEqual`/`nodesEqual` (root titles ignored) and
+  `diffStats`. GUIDs are validated as ASCII base64url, so Go's byte-order sorting equals JS
+  `.sort()`.
+- **New GUIDs:** 9 `crypto/rand` bytes encoded as base64url without padding, 12 characters
+  (protocol §2).
 - **Facade API** (`mobile` package, sketch):
-  - `NewCore(dir string, box SecretBox, deviceName string) (*Core, error)`
+  - `NewCore(dir string, wrapper KeyWrapper, deviceName string) (*Core, error)`
   - `Register(serverURL, username, nfcPassword string) (kitJSON string, err)`
   - `Login(serverURL, username, nfcPassword, syncID string) error`
-  - `Logout() error`, `Status() string` (JSON)
-  - `Children(folderGUID string) string`, `Search(query string, limit int) string`,
-    `Node(guid) string`
-  - `AddBookmark(parent, after, title, url string) (guid string, err)`, `AddFolder(...)`,
+  - `Logout() error`, `Status() string`
+  - `Tree() string` (the whole `local` doc; Kotlin derives children and search),
+    `LocalRev() int64`
+  - `AddBookmark(parent, after, title, url string) (guid string, err)`, `AddFolder`,
     `Rename`, `SetURL`, `Move(guid, parent, after)`, `Delete(guid)`
-  - `Sync(force bool) string`: a `SyncResult` JSON with `status`, `code` and counts
-  - `ResolveRollback(choice string) error`, `ConfirmDeletions() error`
+  - `Sync() string`: a `SyncResult` JSON with `status`, `code`, `retryAfter` and counts.
+    Backoff lives in Kotlin.
+  - `ResolveRollback(choice string) string`, `ConfirmDeletions() string`: each runs a sync
+    with that recovery or confirmation
   - `ParseSyncID(s string) (canonical string, err)`
-- **Golden corpus format:**
-  - Location: `testdata/conformance/{validate,urlkey,syncid,keys,envelope,merge3,firstsync,guard}.json`.
-  - Each file is `{ "generator": "...", "seed": N, "cases": [ {name, input, expected} ] }`.
-  - The generator is `extension/test/conformance/generate.ts`, run through
-    `npm run conformance:gen`. It takes fixed seeds and injects a deterministic GUID source.
-  - Cases are a curated list (one per row of the §4.4 table) plus about 2 000 seeded random
-    cases per algorithm. Each file stays under about 5 MB.
-  - Go→TS direction: `testdata/conformance/envelope-go.json` and `wrap-go.json` are written by
-    a Go test under `-update`. A TS test decrypts them, which proves Go output interoperates.
+- **Golden corpus:**
+  - Location: `testdata/conformance/{validate,equal,syncid,keys,envelope,merge3,guard}.json`.
+  - Each file is `{generator, seed, cases:[{name, input, expected}]}`.
+  - The generator is `extension/test/conformance/generate.test.ts`. It only writes when
+    `CONFORMANCE_WRITE=1` is set; `npm run conformance:gen` sets it.
+  - It stubs `crypto.getRandomValues` with a seeded source (fixed IVs, keys and GUIDs). **No
+    production code changes.**
+  - The drift check covers every file except `envelope.json`. Its bytes depend on the zlib
+    version, so it is regenerated only with `CONFORMANCE_ENVELOPES=1`.
+  - Target size is under 2 MB in total.
 - **Android:**
   - `android/` is a Gradle KTS project with a single `app` module. Package
-    `io.booksync.android`; minSdk 26, targetSdk 36; Compose with Material 3.
+    `io.booksync.android`; minSdk 26, targetSdk 36; Compose with Material 3;
+    kotlinx-serialization.
   - The AAR comes from `make android-aar`
     (`gomobile bind -target=android/arm64,android/amd64 -androidapi 26`), output
-    `android/app/libs/booksync-core.aar`; it is git-ignored.
-  - `versionName` comes from `BOOKSYNC_VERSION`. `versionCode` is `X*10000 + Y*100 + Z`, or 1
-    for non-tag builds.
-  - HTTP uses Go `net/http` inside the core. ⚠️ Go doesn't honor user-installed CAs on
-    Android. A self-hoster with a private CA needs a public cert, or a later Kotlin HTTP
-    bridge. This is documented in the README.
+    `android/app/libs/booksync-core.aar`; it is git-ignored. R8 keep rules cover `go.**` and
+    `mobile.**`.
+  - Versions: `versionName` comes from `BOOKSYNC_VERSION`. `versionCode` is
+    `X*1000000 + Y*10000 + Z*100 + (rcN or 99 for a final release)`, so `1.2.3-rc.1` gives
+    1020301 and `1.2.3` gives 1020399. A non-tag build gets 1.
+  - HTTP uses Go `net/http`. ⚠️ Go doesn't honor user-installed CAs on Android, so a
+    self-hoster needs a publicly trusted certificate. This is documented in the README.
 
 ## What Goes Where
-- **Implementation Steps** (`[ ]` checkboxes): Go core, facade, golden corpus, Android app,
-  Makefile/CI/release, protocol.md/README/CLAUDE.md.
+- **Implementation Steps** (`[ ]` checkboxes): gomobile spike, golden corpus, Go core,
+  facade, Android app, Makefile/CI/release, protocol.md/README/CLAUDE.md.
 - **Post-Completion** (no checkboxes): Play Store/F-Droid publishing, release signing
   secrets, manual device testing, an external security review.
 
 ## Implementation Steps
 
-### Task 1: Golden conformance corpus from the TS reference
+### Task 1: gomobile feasibility spike
 
 **Files:**
-- Create: `extension/test/conformance/generate.ts`
+- Create: `mobile/go.mod`, `mobile/spike.go` (temporary)
+- Create: `internal/client/vault/guid.go`, `guid_test.go` (`NewGUID`, a real first piece)
+- Create: `android/` minimal stub app (kept as the Task 12 starting point)
+
+- [ ] `mobile/go.mod`: `replace ../`, `golang.org/x/mobile` pinned to a version that
+      supports the Go 1.27 toolchain; `spike.go` exposes `Ping(url) string`, which calls
+      `vault.NewGUID` and does one HTTPS GET
+- [ ] build the AAR with gomobile and a pinned NDK; call it from a stub Compose app on an
+      emulator; confirm DNS and system TLS roots work and that `assembleRelease` with R8
+      keeps the bound classes
+- [ ] write the `guid_test.go` cases: length 12, alphabet, uniqueness over 10k samples
+- [ ] record the pinned versions (x/mobile, NDK, AGP, Kotlin) in this plan; ⚠️ stop and
+      re-plan if binding a nested module or Go 1.27 fails
+- [ ] run `make test`; it must pass before the next task
+
+### Task 2: Golden conformance corpus from the TS reference
+
+**Files:**
+- Create: `extension/test/conformance/generate.test.ts`
 - Create: `extension/test/conformance/go-fixtures.test.ts`
-- Modify: `extension/package.json` (`conformance:gen` script)
-- Modify: `extension/src/sync/first-sync.ts` (injectable GUID source, only if not already
-  injectable)
+- Modify: `extension/package.json` (`conformance:gen`)
 - Create: `testdata/conformance/*.json`
 - Modify: `.github/workflows/ci.yml` (drift check)
 
-- [ ] check whether `firstSync`/`merge3` already accept a deterministic GUID generator; if
-      not, add an optional parameter that defaults to the current random source (no behavior
-      change)
-- [ ] write `generate.ts`:
-  - curated cases (one per row of the §4.4 table, firstSync matching rules, guard
-    thresholds, validity rules, SyncID typos, URL key cases);
-  - seeded random cases from `test/arbitraries.ts`;
-  - crypto cases from fixed inputs: key derivation at 1 000 iterations, wrap and envelope
-    with fixed IVs through a test-only IV hook
-- [ ] add `npm run conformance:gen` and commit the generated `testdata/conformance/`
-- [ ] CI: in the extension job, regenerate and `git diff --exit-code testdata/conformance`
-- [ ] write `go-fixtures.test.ts`. It decrypts `envelope-go.json` and `wrap-go.json` and is
-      skipped with a TODO until Task 2 writes them
-- [ ] write tests: the generator is deterministic (two runs produce byte-identical output),
-      and every `expected` merge result passes `validateTree`
+- [ ] write `generate.test.ts`:
+  - a seeded `crypto.getRandomValues` stub;
+  - curated cases: each §4.4 row, root-title localization in `equal`, guard thresholds,
+    validity rules, SyncID typos, non-ASCII NFC passwords for keys;
+  - seeded `merge3` and guard cases from `arbitraries.ts`, recording `merged` and `stats`
+- [ ] add `npm run conformance:gen` and commit the output (under 2 MB in total)
+- [ ] CI: in the extension job, regenerate and run `git diff --exit-code
+      testdata/conformance` (excluding `envelope.json`)
+- [ ] write `go-fixtures.test.ts`. It decrypts `envelope-go.json`/`wrap-go.json` and asserts
+      `parseVaultDoc` succeeds with structural equality. It is skipped with a TODO until
+      Task 3
+- [ ] write tests: two generator runs produce byte-identical output (excluding the envelope),
+      and every expected `merged` passes `validateTree`
 - [ ] run `npm run check`; it must pass before the next task
 
-### Task 2: Go client crypto (keys, wrap, envelope, SyncID)
+### Task 3: Go client crypto (keys, wrap, envelope, SyncID)
 
 **Files:**
-- Create: `internal/client/crypto/keys.go`, `keys_test.go`
-- Create: `internal/client/crypto/cipher.go`, `cipher_test.go`
-- Create: `internal/client/crypto/syncid.go`, `syncid_test.go`
-- Create: `internal/client/conformance/conformance.go` (a loader shared by the Go tests)
+- Create: `internal/client/crypto/{keys,cipher,syncid}.go` and their `_test.go` files
+- Create: `internal/client/conformance/conformance.go` (a corpus loader for tests)
 
-- [ ] `keys.go`: `NormalizeUsername`, `Salt`, `DeriveKeys(u, nfcPassword, sid, iterations)`
-      → `authKey`, `kek`, using stdlib `crypto/pbkdf2` and `crypto/hkdf`; `CheckKDF(kdf,
-      iterations)` enforces `pbkdf2-sha256` and 600 000 ≤ iterations ≤ 10 000 000
-- [ ] `cipher.go`: `WrapVaultKey`/`UnwrapVaultKey` (AAD `booksync/v1/wrap|u`) and
-      `SealVault`/`OpenVault`:
-  - the `BSV1` magic, a fresh IV, gzip, AAD `booksync/v1/vault|u`;
-  - a decryption failure is an error, never an empty vault
-- [ ] `syncid.go`: `NewSyncID`, `FormatSyncID`, `ParseSyncID` with the Crockford rules from
-      protocol §1.5 (case, dashes, I/L/O, optional prefix, the mod-1021 check)
+- [ ] `keys.go`:
+  - `NormalizeUsername`, and `DeriveKeys(u, nfcPassword, sid, iterations)` with stdlib PBKDF2
+    and HKDF;
+  - `CheckKDF` enforces `pbkdf2-sha256` and 600 000 ≤ iterations ≤ 10 000 000;
+  - an unexported test-only bypass mirrors `allowWeak`
+- [ ] `cipher.go`: `WrapVaultKey`/`UnwrapVaultKey` and `SealVault`/`OpenVault` (`BSV1`, a
+      fresh IV, gzip, the AADs from §1.3/§1.4; a decryption failure is an error)
+- [ ] `syncid.go`: `New`, `Format`, `Parse` with the §1.5 rules
 - [ ] tests:
-  - the protocol §1.2 test vector, kept as a literal (never regenerated);
-  - replay of `keys`, `syncid` and `envelope` corpus files;
-  - error cases: wrong AAD user, a tampered byte, a short blob, bad magic, rejected KDF
-    params, malformed SyncIDs
-- [ ] Go writes `envelope-go.json` and `wrap-go.json` under `-update`. Un-skip the Task 1 TS
-      test and confirm it passes
+  - the §1.2 vector as a literal;
+  - replay of `keys`, `syncid` and `envelope` (decrypt and compare docs);
+  - error cases: wrong user AAD, a tampered byte, a short blob, bad magic, weak KDF, malformed
+    SyncIDs
+- [ ] the Go `-update` test writes `envelope-go.json`/`wrap-go.json`. Its edge docs cover an
+      empty folder, an empty URL, an empty title, non-ASCII, and `<>&`. Un-skip the TS test
+      and make it pass
 - [ ] run `make test`; it must pass before the next task
 
-### Task 3: Go vault model, validation and URL match key
+### Task 4: Go vault model (exact JSON, Validate, Equal, diffStats)
 
 **Files:**
-- Create: `internal/client/vault/vault.go`, `vault_test.go`
-- Create: `internal/client/vault/urlkey.go`, `urlkey_test.go`
+- Create: `internal/client/vault/{vault,json,equal}.go` and their `_test.go` files
 - Create: `internal/client/vault/builders_test.go` (Go analogue of `doc()`/`outline()`)
 
-- [ ] `VaultDoc`/`VNode` types with JSON tags matching protocol §2; the root GUID constants;
-      `NewEmpty()`; `Validate()` with error codes matching TS; a `format` higher than
-      supported → `ErrUnsupportedFormat`
-- [ ] `Equal(a, b)` (semantic: nodes and child order, ignoring `seq`, `writtenBy` and
-      `writtenAt`), `Clone`, `ParentIndex`
-- [ ] `URLMatchKey(u)`: the WHATWG subset from design decision 5, including RFC 3492 punycode
-- [ ] tests: replay of the `validate` and `urlkey` corpus files; each validity rule's failure
-      case; JSON round-trip; the punycode RFC 3492 sample strings
+- [ ] `VaultDoc`/`VNode`, the root constants, `NewEmpty`, and custom JSON per design
+      decision 5
+- [ ] `Validate()` with TS error codes, ASCII GUID check, and `ErrUnsupportedFormat` for a
+      higher `format`
+- [ ] `Equal` (ports `treesEqual`, root titles ignored), `DiffStats` and `Clone`
+- [ ] tests: replay of `validate` and `equal`; JSON round-trips for an empty folder (`[]`), an
+      empty URL (present), unknown fields rejected and a fractional `writtenAt`; one failure
+      case per validity rule
 - [ ] run `make test`; it must pass before the next task
 
-### Task 4: Port `merge3`
+### Task 5: Port `merge3` and the mass-deletion guard
 
 **Files:**
-- Create: `internal/client/merge/merge3.go`, `merge3_test.go`
-- Create: `internal/client/merge/property_test.go`
-- Create: `internal/client/merge/gen_test.go` (seeded random tree and edit generators)
+- Create: `internal/client/merge/{merge3,guard}.go` and their `_test.go` files
+- Create: `internal/client/merge/{gen,property}_test.go`
 
-- [ ] port `extension/src/sync/merge.ts` function by function, keeping names traceable in
-      comments:
+- [ ] port `merge.ts` function by function, with traceable names. It covers:
   - per-GUID decisions;
   - edit beats delete, and remote wins on a true conflict;
-  - Dogear orphan rehoming;
+  - Dogear rehoming;
   - child-order rules, then GUID-order append;
   - cycle resolution;
-  - roots locked
-- [ ] tests: replay of `merge3.json` (exact expected doc) and table-driven tests for each
-      §4.4 row
-- [ ] property tests (`BOOKSYNC_PROP_RUNS`, default 200):
+  - roots locked and canonically titled;
+  - returning `stats`
+- [ ] `Guard(stats, sizes)` and `Confirmation` matching (`remoteVersion` plus counts no
+      higher)
+- [ ] tests: replay of `merge3.json` (doc and stats) and `guard.json`; table tests per §4.4
+      row; guard boundaries (19 vs 20, exactly 25 %, a reused confirmation with a different
+      version or higher counts)
+- [ ] property tests (`gen_test.go` ports `applyEdits` exactly):
   - the output always passes `Validate`;
   - determinism;
-  - `merge3(b, b, r) == r` and `merge3(b, l, b) == l`;
-  - roots are untouched
+  - `merge3(b,b,r) ≡ r` and `merge3(b,l,b) ≡ l`;
+  - roots untouched
 - [ ] run `make test` and once with `BOOKSYNC_PROP_RUNS=3000`; it must pass before the next
       task
-
-### Task 5: Port `firstSync` and the mass-deletion guard
-
-**Files:**
-- Create: `internal/client/merge/firstsync.go`, `firstsync_test.go`
-- Create: `internal/client/merge/guard.go`, `guard_test.go`
-
-- [ ] `FirstSync(local, remote, knownGUIDs, newGUID)`:
-  - GUID matches first, then content matches top-down (folders by title, bookmarks by URL
-    key with title as tie-breaker);
-  - each remote node is matched at most once;
-  - a kind clash gets a fresh GUID;
-  - nothing remote is deleted or renamed
-- [ ] `Guard(local, remote, merged)`: deletion counts in both directions, triggered when a
-      count is > 25 % and ≥ 20; `Confirmation` is bound to `remoteVersion` and the counts
-- [ ] tests: replay of `firstsync.json` and `guard.json`, plus the property "every remote
-      node survives firstSync, unrenamed"
-- [ ] tests: guard boundary cases (19 vs 20 deletions, exactly 25 %, a confirmation reused
-      with a different version or higher counts → rejected)
-- [ ] run `make test`; it must pass before the next task
 
 ### Task 6: Go API client
 
 **Files:**
 - Create: `internal/client/api/client.go`, `client_test.go`
 
-- [ ] `Client{BaseURL, Token, HTTP}` methods:
+- [ ] methods:
   - `Prelogin`, `Register`, `Login`, `Logout`;
   - `GetVault(ifNoneMatch)` → `(blob, version, notModified, empty)`;
-  - `PutVault(blob, ifMatch | ifNoneMatchStar)`
-- [ ] map `{"error":{"code"}}` to a typed `*APIError{Status, Code, RetryAfter,
-      CurrentVersion}`; refuse `http:` except loopback; apply KDF checks to the prelogin and
-      login responses
-- [ ] tests against the **real** `internal/api` server (`httptest`, SQLite in
-      `t.TempDir()`, `auth.NewTestHasher()`):
+  - `PutVault(blob, ifMatch | createOnly)`
+- [ ] `*APIError{Status, Code, RetryAfter, CurrentVersion}`; refuse `http:` except loopback;
+      `CheckKDF` on the prelogin and login responses
+- [ ] tests against the real `internal/api` server (`auth.NewTestHasher()`):
   - the register → login → put → get → 304 → logout flow;
   - 412 carries `currentVersion`, and 401 after logout;
-  - 429 `Retry-After` parsing;
+  - 429 `Retry-After`;
   - a downgraded KDF from a fake handler is refused;
-  - an `http://` non-loopback URL is refused
+  - non-loopback `http://` is refused
 - [ ] run `make test`; it must pass before the next task
 
-### Task 7: Local sealed state store
+### Task 7: Sealed local state store
 
 **Files:**
 - Create: `internal/client/store/store.go`, `store_test.go`
 
-- [ ] `SecretBox` interface (`Seal([]byte) ([]byte, error)`, `Open([]byte) ([]byte,
-      error)`); `Store{dir, box}` with `Load`/`Save` (temp file, `fsync`, `rename`,
-      directory `fsync`)
-- [ ] the `State` struct from Technical Details; `ClearSession()` (sign-out: everything) vs
-      `ClearCredentials()` (401: only `deviceToken` and `vaultKey`)
-- [ ] an unreadable or unopenable state reads as signed out, with a distinct error code
-      (`state_unreadable`), never a crash; the bad file is moved aside
+- [ ] the `KeyWrapper` interface (`Wrap`/`Unwrap` of 32 bytes); `Store` loads or creates the
+      data key, then `Load`/`Save` the state with AES-GCM and an atomic write
+- [ ] `ClearSession()` (sign-out: everything, including `local`) vs `ClearCredentials()`
+      (401: only `deviceToken` and `vaultKey`)
+- [ ] an unreadable state or an `Unwrap` failure → the `state_unreadable` code, and the bad
+      files are moved aside; never a crash
 - [ ] tests:
   - round-trip;
-  - a crash between temp write and rename leaves the old state intact;
-  - an `Open` failure → `state_unreadable`;
+  - a crash between temp write and rename keeps the old state;
+  - a tampered `state.bin` → `state_unreadable`;
   - `ClearCredentials` keeps `base`, `version`, `lastSeq` and `local`
 - [ ] run `make test`; it must pass before the next task
 
-### Task 8: Tree edit operations and search
+### Task 8: Tree edit operations
 
 **Files:**
 - Create: `internal/client/ops/ops.go`, `ops_test.go`
-- Create: `internal/client/ops/search.go`, `search_test.go`
 
-- [ ] ops on a `*VaultDoc`, mirroring `extension/src/bookmarks/ops.ts`:
-  - `AddBookmark`, `AddFolder`, `Rename`, `SetURL`, `Move(guid, parent, after)`,
-    `Delete(guid)` (recursive);
-  - roots can't be moved, renamed or deleted;
-  - no move into own descendant;
-  - every result passes `Validate`
-- [ ] `Search(doc, query, limit)`, mirroring `src/bookmarks/search.ts`: matching rules,
-      ranking and the folder path in results
-- [ ] tests: success cases per op; error cases (root locked, unknown GUID, cycle, empty
-      title/URL rules as in TS); search table cases ported from `search.test.ts`
+- [ ] ops mirroring `ops.ts`: `AddBookmark`, `AddFolder`, `Rename`, `SetURL`, `Move(guid,
+      parent, after)`, `Delete` (recursive); roots locked; no move into own descendant; the
+      result always passes `Validate`
+- [ ] `ParseURL` mirrors `parseUrl`: it requires a scheme, and a host for special schemes
+      (`example.com` is rejected)
+- [ ] tests: each op's success case; errors (root locked, unknown GUID, cycle, empty
+      title/URL rules as in TS, relative URL)
 - [ ] run `make test`; it must pass before the next task
 
-### Task 9: Sync engine for an app-as-store client
+### Task 9: Engine session (register, login, logout, 401)
 
 **Files:**
-- Create: `internal/client/engine/engine.go`, `engine_test.go`
-- Create: `internal/client/engine/convergence_test.go`
+- Create: `internal/client/engine/{engine,session}.go`, `session_test.go`
 
-- [ ] `Engine` with `Register`, `Login`, `Logout`, `Edit(func(*VaultDoc) error)` (bumps
-      `localRev`), and `SyncOnce(force)`, implementing the run from Technical Details
-- [ ] rollback (`seq < lastSeq`, or an emptied vault while `base` exists) →
-      `rollback_detected` until `ResolveRollback(use_local|accept_remote)`; guard →
-      `needs_confirmation` until `ConfirmDeletions`; 3 restarts → `conflict_exhausted`
-- [ ] a 401 → `ClearCredentials`, status `signed_out_reauth`; a later `Login` as the same
-      user resumes `merge3` (no `firstSync`); a different user requires a full sign-out first
+- [ ] `Engine{store, api, mu (state), runMu (single-flight)}`; `Register` (generate the
+      SyncID and vault key, return the kit), `Login`, `Logout` (server logout, then
+      `ClearSession`), and `Edit(func(*VaultDoc) error)` (bumps `localRev`)
+- [ ] a 401 on any call → `ClearCredentials`, status `signed_out_reauth`; a `Login` as the
+      same user keeps `base`; a different user requires `Logout` first (`different_user`)
 - [ ] tests against the real server:
-  - first device creates the vault;
-  - a second device's `firstSync` keeps both sides;
-  - an edit during a run restarts it;
-  - a 412 race restarts;
-  - a converged run makes **zero** PUTs (count requests through a wrapping
-    `http.RoundTripper`);
-  - `base` is not advanced when the PUT fails
-- [ ] property test (`convergence_test.go`): N=3 Go devices, random edits interleaved with
-      syncs against one server, all devices equal at quiescence
-- [ ] tests: rollback both choices; the guard confirm flow; 401 re-login keeps `base`
-- [ ] run `make test` and `go test -cover ./internal/client/...` (≥ 80 %); must pass before the
-      next task
+  - register then login on a second engine;
+  - wrong password or SyncID → `invalid_credentials`;
+  - 401 after a device revoke keeps `base`;
+  - `different_user`;
+  - `Edit` when signed out → error
+- [ ] run `make test`; it must pass before the next task
 
-### Task 10: gomobile facade module
+### Task 10: Engine sync run and convergence
 
 **Files:**
-- Create: `mobile/go.mod`, `mobile/go.sum`
+- Create: `internal/client/engine/sync.go`, `sync_test.go`, `convergence_test.go`
+
+- [ ] `SyncOnce(recovery, confirm)` exactly as in Technical Details: the state lock is never
+      held across HTTP, and a concurrent run returns `busy`
+- [ ] adopt remote when there is no `base`, else `local_not_empty`; the rollback branches
+      (`use_local` forced upload, `accept_remote` `lastSeq` reset); the guard; restarts;
+      `conflict_exhausted`
+- [ ] table-driven tests, one per branch:
+  - 304, 404, 200;
+  - rollback by `seq` and by an emptied vault;
+  - both recoveries;
+  - the guard plus a confirmation, and a stale confirmation;
+  - a 412 race
+- [ ] fault tests:
+  - an edit injected during the PUT survives and the run restarts;
+  - "PUT ok, then Save fails" → the next run makes zero PUTs and ends equal;
+  - a failed PUT doesn't advance `base`;
+  - two concurrent `SyncOnce` → one `busy`;
+  - a converged run makes zero PUTs, including against a remote with localized root titles
+- [ ] convergence property: 3 Go devices, random edits interleaved with syncs against one
+      server, all equal at quiescence
+- [ ] run `make test` and `go test -cover ./internal/client/...` (≥ 80 %); it must pass
+      before the next task
+
+### Task 11: gomobile facade and Make wiring
+
+**Files:**
+- Modify: `mobile/go.mod`; delete `mobile/spike.go`
 - Create: `mobile/core.go`, `mobile/core_test.go`
-- Modify: `Makefile` (`android-aar`, `android-test` targets)
-- Modify: `go.mod` (`ignore ./android`)
+- Create: `android/app/src/test/resources/fixtures/*.json` (written by `core_test.go
+  -update`)
+- Modify: `Makefile` (`test-mobile` inside `test`, `android-aar`, `android-test`; `fmt` and
+  `lint` cover `mobile`)
+- Modify: `.github/workflows/ci.yml` (gofmt includes `mobile`)
 - Modify: `.gitignore` (`android/app/libs/*.aar`)
 
-- [ ] `mobile/go.mod`: module `github.com/FulgerX2007/BookSync/mobile`,
-      `replace github.com/FulgerX2007/BookSync => ../`, and `golang.org/x/mobile` pinned
 - [ ] `core.go`: the facade API from Technical Details:
-  - only gomobile-bindable types;
-  - JSON for trees and results;
-  - errors as `CoreError` JSON `{code, message}`;
-  - `SecretBox` as an exported Go interface implemented in Kotlin
-- [ ] `make android-aar`: `cd mobile && gomobile bind -target=android/arm64,android/amd64
-      -androidapi 26 -o ../android/app/libs/booksync-core.aar .`
-- [ ] tests (plain `go test` in `mobile/`):
-  - every exported method round-trips through JSON against a real `httptest` server;
+  - only bindable types;
+  - JSON results;
+  - errors as `{code, message}`;
+  - `KeyWrapper` as an exported interface
+- [ ] tests:
+  - every method round-trips against a real `httptest` server;
   - error codes are stable strings;
-  - a `nil` `SecretBox` is rejected
-- [ ] confirm `make lint` covers `mobile/`, or add it; run `make test`, which must pass before
-      the next task
+  - a nil `KeyWrapper` is rejected;
+  - the `-update` flag writes the Kotlin fixtures, and the CI drift check covers them
+- [ ] `make test` now runs `mobile/` tests; run it, and it must pass before the next task
 
-### Task 11: Android project scaffold, core binding and Keystore SecretBox
-
-**Files:**
-- Create: `android/settings.gradle.kts`, `android/build.gradle.kts`,
-  `android/gradle/libs.versions.toml`, `android/gradlew*`, `android/gradle/wrapper/*`
-- Create: `android/app/build.gradle.kts`, `android/app/src/main/AndroidManifest.xml`
-- Create: `android/app/src/main/java/io/booksync/android/core/BookSyncCore.kt` (interface and
-  models)
-- Create: `android/app/src/main/java/io/booksync/android/core/GoCore.kt` (AAR-backed impl)
-- Create: `android/app/src/main/java/io/booksync/android/security/KeystoreSecretBox.kt`
-- Create: `android/app/src/test/java/io/booksync/android/core/FakeCore.kt` and
-  `ModelsJsonTest.kt`
-- Create: `android/app/src/test/java/io/booksync/android/security/SecretBoxTest.kt`
-
-- [ ] Gradle KTS project:
-  - minSdk 26, targetSdk 36, Compose with Material 3, kotlinx-serialization;
-  - `versionName`/`versionCode` from `BOOKSYNC_VERSION`;
-  - `allowBackup=false`, the `INTERNET` permission only
-- [ ] `BookSyncCore` Kotlin interface plus data classes (`Node`, `SyncResult`, `Status`,
-      `CoreException(code)`); `GoCore` delegates to the AAR, NFC-normalizes passwords, and
-      runs calls on `Dispatchers.IO`
-- [ ] `KeystoreSecretBox`: an AES-256-GCM key in `AndroidKeyStore` that can't be exported; IV
-      prefixed; behind a small `KeyProvider` seam so the logic is JVM-testable
-- [ ] tests: JSON model decoding against fixture strings produced by `mobile/core_test.go`;
-      SecretBox seal/open round-trip, tamper → error, and wrong key → error (with a JVM
-      `KeyProvider`)
-- [ ] run `make android-test` (`./gradlew testDebugUnitTest lintDebug`); must pass before the
-      next task
-
-### Task 12: Auth screens (server, register with emergency kit, sign in, sign out)
+### Task 12: Android scaffold, core binding and Keystore key wrapper
 
 **Files:**
-- Create: `android/app/src/main/java/io/booksync/android/ui/auth/{AuthViewModel,ServerScreen,RegisterScreen,LoginScreen,EmergencyKitScreen}.kt`
-- Create: `android/app/src/main/java/io/booksync/android/ui/BookSyncApp.kt` (navigation)
-- Create: `android/app/src/test/java/io/booksync/android/ui/auth/AuthViewModelTest.kt`
-- Create: `android/app/src/test/java/io/booksync/android/ui/auth/AuthScreensTest.kt`
-  (Robolectric with compose-ui-test)
+- Modify: `android/` stub from Task 1 → `settings.gradle.kts`, `build.gradle.kts`,
+  `gradle/libs.versions.toml`, the wrapper, `app/build.gradle.kts`, `app/proguard-rules.pro`,
+  `AndroidManifest.xml`
+- Create: `.../BookSyncApplication.kt`, `core/{BookSyncCore,GoCore,Models}.kt`,
+  `security/KeystoreKeyWrapper.kt`
+- Create: tests `core/ModelsJsonTest.kt`, `core/FakeCore.kt`,
+  `security/KeystoreKeyWrapperTest.kt`, `build/VersionCodeTest.kt`
 
-- [ ] server URL entry with the http/https rule surfaced from the core error code
-- [ ] register: username and password (with confirmation), then the emergency kit screen
-      (username, server, formatted SyncID, copy and share-as-text, `FLAG_SECURE`, "I saved
-      it" checkbox gating continue)
-- [ ] sign in: username, password and SyncID, with live `ParseSyncID` validation before the
-      network call; a `signed_out_reauth` status pre-fills the username and server
-- [ ] sign out with a confirmation explaining that local bookmarks are removed from this
-      device
-- [ ] tests: ViewModel state transitions with `FakeCore` (success; `invalid_credentials`;
-      `username_taken`; `registration_closed`; `rate_limited`; bad SyncID); compose tests for
-      the kit checkbox gate and SyncID field validation
-- [ ] run `make android-test`; must pass before the next task
+- [ ] the Gradle setup:
+  - versions from `BOOKSYNC_VERSION` with the rc-aware `versionCode`;
+  - `allowBackup=false`; `INTERNET` only;
+  - R8 keep rules for `go.**` and `mobile.**`
+- [ ] `GoCore`: a singleton in `BookSyncApplication`; NFC-normalizes passwords; runs on
+      `Dispatchers.IO`; maps error JSON to `CoreException(code)`
+- [ ] `KeystoreKeyWrapper`: an `AndroidKeyStore` AES-256-GCM key, behind a `KeyProvider`
+      seam so it can be tested on the JVM
+- [ ] tests:
+  - model decoding from the Go fixtures;
+  - wrapper round-trip, tamper → error, wrong key → error;
+  - `versionCode` table (1.2.3, 1.2.3-rc.1, a non-tag build)
+- [ ] run `make android-test` (`testDebugUnitTest lintDebug`); it must pass before the next
+      task
 
-### Task 13: Bookmark browser (navigate, search, open, edit)
-
-**Files:**
-- Create: `android/app/src/main/java/io/booksync/android/ui/bookmarks/{BookmarksViewModel,FolderScreen,SearchBar,EditSheet,MovePicker}.kt`
-- Create: `android/app/src/test/java/io/booksync/android/ui/bookmarks/BookmarksViewModelTest.kt`
-- Create: `android/app/src/test/java/io/booksync/android/ui/bookmarks/FolderScreenTest.kt`
-
-- [ ] the four roots at the top level, folder drill-down with breadcrumbs and back handling
-- [ ] search through `core.search`, results with folder path; tapping a folder result reveals
-      it
-- [ ] tap a bookmark → `ACTION_VIEW` (only http/https; other schemes show "can't open"); long
-      press → edit sheet (rename, URL, move through a folder picker that excludes its own
-      descendants, delete with a confirmation that names the child count)
-- [ ] add bookmark and add folder in the current folder; roots show no edit actions
-- [ ] tests: ViewModel (navigation stack, edits call core then refresh, `CoreException`
-      surfaces a message); compose tests (roots lack edit actions, the move picker hides
-      descendants, a non-http URL isn't opened)
-- [ ] run `make android-test`; must pass before the next task
-
-### Task 14: Foreground sync orchestration and conflict dialogs
+### Task 13: Auth screens
 
 **Files:**
-- Create: `android/app/src/main/java/io/booksync/android/sync/SyncController.kt`
-- Create: `android/app/src/main/java/io/booksync/android/ui/sync/{SyncStatusBar,RollbackDialog,MassDeletionDialog}.kt`
-- Create: `android/app/src/test/java/io/booksync/android/sync/SyncControllerTest.kt`
-- Create: `android/app/src/test/java/io/booksync/android/ui/sync/SyncDialogsTest.kt`
+- Create: `.../ui/BookSyncApp.kt`,
+  `ui/auth/{AuthViewModel,ServerScreen,RegisterScreen,LoginScreen,EmergencyKitScreen}.kt`
+- Create: tests `ui/auth/AuthViewModelTest.kt`, `ui/auth/AuthScreensTest.kt`
 
-- [ ] `SyncController`:
-  - single-flight; an edit during a run → exactly one follow-up;
-  - triggers on app start (`ProcessLifecycleOwner`), 3 s after the last edit, and
-    pull-to-refresh (`force`);
-  - backoff 30 s → 15 min with jitter and `Retry-After`, in memory only (foreground scope)
-- [ ] status bar: last sync time, offline, `conflict_exhausted`, `signed_out_reauth` (with a
+- [ ] a server URL screen, with the http/https rule surfaced from the core code
+- [ ] register: password confirmation, then the emergency kit (username, server, SyncID;
+      copy and share as text; `FLAG_SECURE`; an "I saved it" checkbox gates continue)
+- [ ] sign in with live SyncID validation; `signed_out_reauth` pre-fills the server and
+      username
+- [ ] sign out with a confirmation saying local bookmarks are removed from this device
+- [ ] tests: ViewModel transitions with `FakeCore` (success, `invalid_credentials`,
+      `username_taken`, `registration_closed`, `rate_limited`, a bad SyncID); compose tests
+      for the kit gate and SyncID validation
+- [ ] run `make android-test`; it must pass before the next task
+
+### Task 14: Bookmark browser and Kotlin search
+
+**Files:**
+- Create: `.../search/BookmarkSearch.kt`,
+  `ui/bookmarks/{BookmarksViewModel,FolderScreen,SearchBar,EditSheet,MovePicker}.kt`
+- Create: tests `search/BookmarkSearchTest.kt` (ported from `search.test.ts`),
+  `ui/bookmarks/BookmarksViewModelTest.kt`, `ui/bookmarks/FolderScreenTest.kt`
+
+- [ ] `BookmarkSearch`: an exact port of `search.ts` (NFKD, strip marks, lowercase, the
+      decoded URL, ranking, folder path)
+- [ ] roots at the top level, drill-down with breadcrumbs and back handling; a folder search
+      result reveals that folder
+- [ ] tap a bookmark → `ACTION_VIEW` (http/https only); long press → the edit sheet (rename,
+      URL, move through a picker that hides its own descendants, delete with the child
+      count); add bookmark or folder here; roots have no edit actions
+- [ ] tests: the ported search cases, plus accented queries (`café` ↔ `cafe`); ViewModel
+      edits call core and then refresh; compose tests (roots lack edit actions, the picker
+      hides descendants, a non-http URL isn't opened)
+- [ ] run `make android-test`; it must pass before the next task
+
+### Task 15: Foreground sync orchestration and conflict dialogs
+
+**Files:**
+- Create: `.../sync/SyncController.kt`,
+  `ui/sync/{SyncStatusBar,RollbackDialog,MassDeletionDialog}.kt`
+- Create: tests `sync/SyncControllerTest.kt`, `ui/sync/SyncDialogsTest.kt`
+
+- [ ] `SyncController`, scoped to `ProcessLifecycleOwner` STARTED:
+  - triggers on start, 3 s after the last edit, a 60 s poll, and pull-to-refresh;
+  - single-flight plus exactly one follow-up;
+  - `busy` from core → one follow-up;
+  - backoff 30 s → 15 min with jitter, honoring `retryAfter`
+- [ ] status bar: last sync, offline, `conflict_exhausted`, `signed_out_reauth` (with a
       sign-in action)
-- [ ] `RollbackDialog` (use local / accept server, with the consequences explained; never
-      auto-resolved) and `MassDeletionDialog` (shows the counts in both directions, confirms
-      through `ConfirmDeletions`)
-- [ ] tests with `FakeCore` and a virtual-time `TestScope`: the debounce coalesces edits;
-      single-flight plus one follow-up; backoff honors `Retry-After`; a `rollback_detected`
-      result opens the dialog and runs no further syncs until resolved
-- [ ] run `make android-test`; must pass before the next task
+- [ ] `RollbackDialog` (use local / accept server, never auto-resolved) and
+      `MassDeletionDialog` (counts in both directions)
+- [ ] tests with `FakeCore` and virtual time:
+  - debounce coalescing;
+  - follow-up after `busy`;
+  - backoff and `Retry-After`;
+  - the poll stops when the app is backgrounded;
+  - `rollback_detected` blocks syncs until resolved
+- [ ] run `make android-test`; it must pass before the next task
 
-### Task 15: Share target and one-shot upload worker
+### Task 16: Share target and one-shot sync worker
 
 **Files:**
-- Create: `android/app/src/main/java/io/booksync/android/share/{ShareActivity,ShareViewModel}.kt`
-- Create: `android/app/src/main/java/io/booksync/android/work/OneShotSyncWorker.kt`
-- Modify: `android/app/src/main/AndroidManifest.xml` (an `ACTION_SEND` `text/plain` intent
-  filter)
-- Create: `android/app/src/test/java/io/booksync/android/share/ShareViewModelTest.kt`
-- Create: `android/app/src/test/java/io/booksync/android/work/OneShotSyncWorkerTest.kt`
+- Create: `.../share/{ShareActivity,ShareViewModel}.kt`, `work/OneShotSyncWorker.kt`
+- Modify: `AndroidManifest.xml` (`ACTION_SEND` `text/plain`)
+- Create: tests `share/ShareViewModelTest.kt`, `work/OneShotSyncWorkerTest.kt`
 
-- [ ] `ShareActivity` (a dialog-themed sheet):
-  - extract the first http(s) URL from `EXTRA_TEXT`, with the title from `EXTRA_SUBJECT`
+- [ ] `ShareActivity`:
+  - takes the first http(s) URL from `EXTRA_TEXT`, with the title from `EXTRA_SUBJECT`
     (falling back to the host);
-  - choose a folder (default: the last used, else `unfiled_____`);
-  - save through `core.addBookmark`;
-  - if not signed in, explain and open the app
-- [ ] after a save, enqueue a unique `OneTimeWorkRequest` (`KEEP`, network constraint) that
-      calls `core.sync(false)`. It is not periodic; a non-ok result is left for the next
-      foreground sync
-- [ ] tests: URL extraction table (plain URL, text with URL, multiple URLs, no URL → error);
-      signed-out path; `OneShotSyncWorker` maps core results to `Result.success`/`retry` (via
-      `TestListenableWorkerBuilder` under Robolectric)
-- [ ] run `make android-test`; must pass before the next task
+  - folder choice, defaulting to the last used, else `mobile______`;
+  - saves through core;
+  - signed out → explain and open the app
+- [ ] after a save, enqueue a unique `OneTimeWorkRequest` (`KEEP`, network constraint). It
+      calls the singleton `GoCore.sync()`; `busy` or a network error → `retry`, anything else
+      → `success`
+- [ ] tests: URL extraction table (plain, embedded, multiple, none); the signed-out path; the
+      worker's result mapping (`TestListenableWorkerBuilder` under Robolectric)
+- [ ] run `make android-test`; it must pass before the next task
 
-### Task 16: CI and release wiring
+### Task 17: CI and release wiring
 
 **Files:**
-- Modify: `.github/workflows/ci.yml` (new `android` job)
-- Modify: `.github/workflows/release.yml` (attach the APK)
-- Modify: `Makefile` (`android-apk`; add `android-test` to `dist` prerequisites as fits)
+- Modify: `.github/workflows/ci.yml` (`android` job)
+- Modify: `.github/workflows/release.yml` (a separate `android-apk` job)
+- Modify: `Makefile` (`android-apk`; `dist` stays Android-free)
 
-- [ ] `android` job:
-  - setup-go (same toolchain), setup-java 17, the Android SDK and a pinned NDK;
-  - `go install golang.org/x/mobile/cmd/gomobile@<pinned>`, then `gomobile init`;
-  - `make android-aar`, then `./gradlew testDebugUnitTest lintDebug assembleRelease`;
-  - cache Gradle and Go
-- [ ] the job also runs `cd mobile && go test ./... && golangci-lint run`; note in the PR that
-      the job now gates releases through `workflow_call`
-- [ ] release: build with `BOOKSYNC_VERSION`; sign when the signing secrets are present,
-      otherwise upload `booksync-android-X.Y.Z-unsigned.apk`; attach it to the GitHub release
-- [ ] write a test: extend `scripts/manifest.test.ts`-style coverage with a small Gradle
-      unit test for the `versionCode` derivation (`1.2.3` → 10203, non-tag → 1)
-- [ ] run `make test` and `make android-test` locally; must pass before the next task
+- [ ] CI `android` job:
+  - setup-go, setup-java 17, the Android SDK, the pinned NDK and gomobile;
+  - Go, Gradle and NDK caches, with download retries;
+  - `make android-aar`, then `./gradlew testDebugUnitTest lintDebug assembleRelease` (R8)
+- [ ] mention in the PR that this job now gates every release through `workflow_call`, and
+      its typical duration
+- [ ] release `android-apk` job:
+  - builds with `BOOKSYNC_VERSION`;
+  - signs with the `ANDROID_KEYSTORE_*` secrets;
+  - if the secrets are absent, attaches no APK and logs a warning (an unsigned APK can't be
+    installed);
+  - adds the APK to `SHA256SUMS`
+- [ ] run `make test` and `make android-test` locally; they must pass before the next task
 
-### Task 17: Verify acceptance criteria
-- [ ] verify all Overview requirements:
+### Task 18: Verify acceptance criteria
+- [ ] verify the Overview requirements:
   - register and sign in;
   - browse, search, add, rename, move and delete;
   - open in browser;
   - share-to-add;
-  - sync converges with the extension
-- [ ] verify edge cases: 401 re-login resumes merge3; rollback dialog; mass-deletion dialog;
-      an edit during sync; offline edits; Keystore loss → signed out cleanly
+  - Go↔TS parity (the corpus and the interop test pass)
+- [ ] verify edge cases:
+  - 401 re-login resumes `merge3`;
+  - the rollback and mass-deletion dialogs;
+  - an edit during the PUT;
+  - a crash after the PUT;
+  - offline edits;
+  - Keystore loss → signed out cleanly
 - [ ] run the full suite: `make test`, `make lint`, `make android-test`
-- [ ] run the e2e tests: `make e2e` (extension, regression only) and the Go convergence
-      property test with `BOOKSYNC_PROP_RUNS=3000`
-- [ ] verify coverage: `go test -cover ./internal/...` ≥ 80 % (including `internal/client/...`);
-      TS coverage thresholds unchanged
+- [ ] run `make e2e` (extension regression) and the Go property tests with
+      `BOOKSYNC_PROP_RUNS=3000`
+- [ ] verify coverage: `go test -cover ./internal/...` ≥ 80 % (including `internal/client`);
+      TS thresholds unchanged
 
-### Task 18: [Final] Update documentation
-- [ ] `docs/protocol.md`: add a "Clients without a browser tree" section (the app-as-store
-      model replaces §5 and §4.1 steps 1/2/7; the NFC precondition; the URL-match-key subset
-      caveat; Go↔TS conformance corpus as the parity mechanism)
-- [ ] `README.md`: Android app install, the private-CA limitation, why it doesn't sync the
-      phone browser
+### Task 19: [Final] Update documentation
+- [ ] `docs/protocol.md`: add a "Clients without a browser tree" section covering:
+  - the app-as-store model (replaces §5 and the apply step of §4.1);
+  - the commit-after-upload with the `localRev` check;
+  - the adopt-remote first sync rule;
+  - the NFC precondition;
+  - the exact JSON presence rules for `url`/`children` (normative for every client);
+  - the conformance corpus
+- [ ] `README.md`: Android install, why it doesn't sync the phone's browser, the private-CA
+      limitation
 - [ ] `CLAUDE.md`:
-  - `internal/client`, `mobile/` and `android/` layout;
-  - new commands (`make android-aar`, `android-test`, `conformance:gen`);
-  - the rule "regenerate the corpus when TS sync code changes; Go must replay it";
-  - keep `ignore ./android`
+  - the `internal/client`, `mobile/` and `android/` layout;
+  - the commands (`android-aar`, `android-test`, `conformance:gen`);
+  - the rule "a change to TS sync/model code → regenerate the corpus; Go must replay it";
+  - the gomobile and NDK pins
 - [ ] move this plan to `docs/plans/completed/`
 
 ## Post-Completion
@@ -624,16 +670,14 @@ android/ (Kotlin, Compose)          mobile/ (Go, separate module, gomobile facad
   - airplane-mode edits, then reconnect;
   - kill the app mid-sync;
   - revoke the device from the extension → re-login flow.
-- Backup restore to a new phone: confirm the app comes up signed out (Keystore key absent)
-  and recovers through sign-in.
-- Accessibility pass (TalkBack, font scaling) and dark theme.
+- Backup restore to a new phone: confirm the app comes up signed out and recovers through
+  sign-in.
+- Accessibility (TalkBack, font scaling) and dark theme.
 
 **External system updates:**
-- Release signing: create an upload keystore and add the `ANDROID_KEYSTORE_*` secrets to the
-  repository so release APKs are signed.
-- Distribution: Play Console listing (data-safety form: no data collected beyond the
-  self-hosted server) and/or F-Droid metadata (the gomobile build must be reproducible).
-- Security review of the Keystore usage and the at-rest state sealing before a public release.
-- Later candidates (out of v1): periodic WorkManager sync, device list and revoke, password
-  change and key rotation, SyncID QR scan, a Kotlin HTTP bridge for user-installed CAs, a Go
-  CLI on the same core.
+- Create an upload keystore and add the `ANDROID_KEYSTORE_*` repository secrets.
+- Distribution: Play Console (data-safety form) and/or F-Droid (reproducible gomobile build).
+- Security review of the Keystore key wrapping and the state sealing before a public release.
+- Later candidates: periodic background sync, device list and revoke, password change and key
+  rotation, SyncID QR scan, a Kotlin HTTP bridge for user CAs, `firstSync` with content
+  matching for a Go CLI.
