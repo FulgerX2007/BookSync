@@ -1,0 +1,1 @@
+{"signedIn":false,"needsReauth":true,"serverUrl":"https://sync.example","username":"alice","syncStatus":"rollback_detected","lastError":"x","pendingConfirmation":{"remoteVersion":7,"deletionsToLocal":25,"deletionsToRemote":0},"rollback":{"remoteVersion":7,"remoteSeq":3,"lastSeq":9},"localRev":0,"notice":"state_unreadable"}

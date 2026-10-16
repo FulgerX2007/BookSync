@@ -4,7 +4,10 @@ name: Release
 # everything, runs the full CI as a gate, then publishes:
 #   * a GitHub Release with server archives for every OS/arch, both extension
 #     zips, a source archive and SHA256SUMS (`make dist`);
-#   * the server image ghcr.io/<owner>/booksync-server for linux/amd64 and arm64.
+#   * the server image ghcr.io/<owner>/booksync-server for linux/amd64 and arm64;
+#   * the Android APK, signed with the ANDROID_KEYSTORE_* secrets (skipped,
+#     with a warning, when they are not configured: an unsigned APK cannot be
+#     installed).
 # The tag is the version: the server gets X.Y.Z[-suffix], the extension X.Y.Z
 # (stores need plain numbers). Creating a release in the GitHub UI pushes its
 # tag too; the workflow then attaches the artifacts to that release.
@@ -66,6 +69,67 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+  android-apk:
+    name: Android APK
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      NDK_VERSION: 29.0.14206865
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    steps:
+      - name: Signing configured?
+        if: env.HAS_KEYSTORE != 'true'
+        run: echo "::warning::ANDROID_KEYSTORE_BASE64 is not set; this release has no Android APK."
+      - uses: actions/checkout@v7
+        if: env.HAS_KEYSTORE == 'true'
+      - uses: actions/setup-go@v7
+        if: env.HAS_KEYSTORE == 'true'
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            mobile/go.sum
+      - uses: actions/setup-java@v6
+        if: env.HAS_KEYSTORE == 'true'
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+          cache-dependency-path: |
+            android/gradle/libs.versions.toml
+            android/gradle/wrapper/gradle-wrapper.properties
+            android/**/*.gradle.kts
+      - uses: android-actions/setup-android@v4
+        if: env.HAS_KEYSTORE == 'true'
+      - name: SDK packages
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          for i in 1 2 3; do
+            sdkmanager --install "platforms;android-37.0" "ndk;$NDK_VERSION" && break
+            sleep $((i * 10))
+          done
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/$NDK_VERSION" >>"$GITHUB_ENV"
+      - name: Build and sign
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          BOOKSYNC_VERSION: ${{ needs.version.outputs.version }}
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/upload.jks"
+          base64 -d <<<"$KEYSTORE_BASE64" >"$ANDROID_KEYSTORE_FILE"
+          make android-apk
+          mkdir -p apk
+          cp android/app/build/outputs/apk/release/app-release.apk "apk/booksync-android-$BOOKSYNC_VERSION.apk"
+      - uses: actions/upload-artifact@v7
+        if: env.HAS_KEYSTORE == 'true'
+        with:
+          name: android
+          path: apk/
+          if-no-files-found: error
+
   image:
     name: Server image
     needs: [version, ci]
@@ -107,15 +171,19 @@ jobs:
 
   release:
     name: GitHub Release
-    needs: [version, ci, dist, image]
+    needs: [version, ci, dist, image, android-apk]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      # dist, plus the APK when signing is configured.
       - uses: actions/download-artifact@v8
         with:
-          name: dist
+          pattern: '{dist,android}'
           path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: cd dist && rm -f SHA256SUMS && sha256sum -- * >SHA256SUMS
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
@@ -128,6 +196,8 @@ jobs:
           **Server image:** \`$IMAGE:$VERSION\` (linux/amd64, linux/arm64). Set \`BOOKSYNC_IMAGE\` in \`deploy/.env\` to use it with the compose bundle.
 
           **Extension:** \`booksync-chromium-${VERSION%%-*}.zip\` and \`booksync-firefox-${VERSION%%-*}.zip\` (stores need a plain X.Y.Z version); see "Installing the extension" in the README.
+
+          **Android:** \`booksync-android-$VERSION.apk\` when attached; see "Android app" in the README.
 
           Verify downloads with \`sha256sum -c SHA256SUMS\`.
           EOF

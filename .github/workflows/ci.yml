@@ -24,14 +24,23 @@ jobs:
         with:
           go-version-file: go.mod
       - name: gofmt
-        run: test -z "$(gofmt -l cmd internal)" || { gofmt -l cmd internal; exit 1; }
+        run: test -z "$(gofmt -l cmd internal mobile)" || { gofmt -l cmd internal mobile; exit 1; }
       - name: go vet
-        run: go vet ./...
+        run: go vet ./... && (cd mobile && go vet ./...)
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.14.0
+      - name: golangci-lint (mobile facade)
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.14.0
+          working-directory: mobile
       - name: Tests
+        run: go test -race ./...
+      # mobile/ is a nested module (the gomobile facade); ./... above skips it.
+      - name: Tests (mobile facade)
+        working-directory: mobile
         run: go test -race ./...
 
   extension:
@@ -95,6 +104,57 @@ jobs:
           path: |
             extension/playwright-report
             extension/test-results
+          retention-days: 7
+
+  # Android app: the Go core as an AAR (gomobile + NDK), then JVM unit/UI
+  # tests, lint (warnings are errors) and an R8 release build. Release
+  # workflows reuse this file, so this job gates every release too.
+  android:
+    name: Android app
+    runs-on: ubuntu-latest
+    env:
+      NDK_VERSION: 29.0.14206865
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            mobile/go.sum
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+          cache-dependency-path: |
+            android/gradle/libs.versions.toml
+            android/gradle/wrapper/gradle-wrapper.properties
+            android/**/*.gradle.kts
+      - uses: android-actions/setup-android@v4
+      - name: SDK packages
+        run: |
+          for i in 1 2 3; do
+            sdkmanager --install "platforms;android-37.0" "ndk;$NDK_VERSION" && break
+            sleep $((i * 10))
+          done
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/$NDK_VERSION" >>"$GITHUB_ENV"
+      - name: Go core AAR
+        run: make android-aar
+      - name: Version logic
+        working-directory: android
+        run: ./gradlew --console=plain -p buildSrc test
+      - name: Unit and UI tests, lint, release build
+        working-directory: android
+        run: ./gradlew --console=plain testDebugUnitTest lintDebug assembleRelease
+      - name: Upload reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-reports
+          path: |
+            android/app/build/reports
+            android/app/build/test-results
           retention-days: 7
 
   docker-smoke:

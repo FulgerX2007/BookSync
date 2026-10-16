@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BookSync</string>
+    <string name="welcome_tagline">End-to-end encrypted bookmarks, synced with your browsers.</string>
+    <string name="welcome_note">Your bookmarks are encrypted on this device with your password and SyncID. The server never sees them.</string>
+    <string name="sign_in">Sign in</string>
+    <string name="sign_in_again">Sign in again</string>
+    <string name="sign_out">Sign out</string>
+    <string name="create_account">Create account</string>
+    <string name="back">Back</string>
+    <string name="server_url">Server URL</string>
+    <string name="username">Username</string>
+    <string name="password">Password</string>
+    <string name="password_confirm">Repeat password</string>
+    <string name="password_hint">At least 10 characters</string>
+    <string name="password_mismatch">The passwords do not match</string>
+    <string name="sync_id">SyncID</string>
+    <string name="sync_id_hint">From your emergency kit</string>
+    <string name="register_note">You will get an emergency kit with your SyncID. Keep it safe: with your password it is the only way to sign in on other devices.</string>
+    <string name="reauth_note">This device was signed out by the server. Sign in again with the same account; your bookmarks on this device are kept.</string>
+    <string name="kit_title">Emergency kit</string>
+    <string name="kit_intro">Save this kit now: print it, or store it in your password manager. Without it and your password, nobody can recover your synced bookmarks.</string>
+    <string name="kit_saved">I saved my emergency kit</string>
+    <string name="copy">Copy</string>
+    <string name="share_or_save">Share or save</string>
+    <string name="continue_label">Continue</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="sign_out_title">Sign out?</string>
+    <string name="sign_out_message">This removes your bookmarks from this device. They stay on the server and your other devices.</string>
+
+    <string name="error_generic">Something went wrong. Please try again.</string>
+    <string name="error_invalid_credentials">Username, password or SyncID is incorrect.</string>
+    <string name="error_username_taken">This username is taken.</string>
+    <string name="error_registration_closed">This server does not accept new accounts.</string>
+    <string name="error_rate_limited">Too many attempts. Wait a minute and try again.</string>
+    <string name="error_insecure_url">Enter an https:// server URL.</string>
+    <string name="error_network">Could not reach the server.</string>
+    <string name="error_weak_password">The password needs at least 10 characters.</string>
+    <string name="error_invalid_username">Use 3–64 characters: a–z, 0–9, dot, underscore or dash.</string>
+    <string name="error_syncid_format">That is not a SyncID.</string>
+    <string name="error_syncid_typo">This SyncID has a typo.</string>
+    <string name="error_already_signed_in">This device is already signed in.</string>
+    <string name="error_different_user">This device still holds another account\'s bookmarks. Sign out first.</string>
+    <string name="error_weak_kdf">The server asked for weak key derivation; refusing.</string>
+    <string name="error_invalid_url">Enter a full URL, like https://example.com/.</string>
+    <string name="error_root_locked">Top-level folders cannot be changed.</string>
+    <string name="error_stale">Your bookmarks changed meanwhile. Please try again.</string>
+    <string name="error_invalid_move">A folder cannot be moved into itself.</string>
+    <string name="error_not_signed_in">Sign in first.</string>
+    <string name="notice_state_unreadable">Your saved data on this device could not be unlocked (for example after restoring a backup) and was reset. Sign in again.</string>
+
+    <string name="root_toolbar">Bookmarks Toolbar</string>
+    <string name="root_menu">Bookmarks Menu</string>
+    <string name="root_other">Other Bookmarks</string>
+    <string name="root_mobile">Mobile Bookmarks</string>
+    <string name="search">Search</string>
+    <string name="search_hint">Search bookmarks</string>
+    <string name="clear">Clear</string>
+    <string name="more">More</string>
+    <string name="add">Add</string>
+    <string name="add_bookmark">Add bookmark</string>
+    <string name="add_folder">Add folder</string>
+    <string name="rename">Rename</string>
+    <string name="edit_url">Edit URL</string>
+    <string name="move">Move</string>
+    <string name="move_to">Move to</string>
+    <string name="delete">Delete</string>
+    <string name="delete_title">Delete “%1$s”?</string>
+    <string name="title">Title</string>
+    <string name="url">URL</string>
+    <string name="empty_folder">This folder is empty.</string>
+    <string name="no_results">No bookmarks match.</string>
+    <string name="cannot_open">This link cannot be opened in a browser.</string>
+    <plurals name="items">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
+    <plurals name="delete_folder_contents">
+        <item quantity="one">The folder and the %d item in it will be deleted on all your devices.</item>
+        <item quantity="other">The folder and the %d items in it will be deleted on all your devices.</item>
+    </plurals>
+
+    <string name="syncing">Syncing…</string>
+    <string name="synced_at">Synced %1$s</string>
+    <string name="sync_offline">Offline. Will sync when the server is reachable.</string>
+    <string name="sync_conflict">Other devices kept changing the bookmarks; retrying shortly.</string>
+    <string name="sync_reauth">The server signed this device out.</string>
+    <string name="sync_needs_review">Sync is paused until you decide.</string>
+    <string name="review">Review</string>
+    <string name="later">Later</string>
+    <string name="rollback_title">Server bookmarks went back in time</string>
+    <string name="rollback_text">The server holds an older copy than this device has already seen, for example after a server backup was restored. Choose what to keep.</string>
+    <string name="rollback_use_local">Use this device\'s bookmarks (best on your most up-to-date device)</string>
+    <string name="rollback_accept_remote">Accept the server\'s version (removes here what the backup lacks)</string>
+    <string name="mass_deletion_title">Delete many bookmarks?</string>
+    <string name="mass_deletion_text">This sync would delete %1$s and %2$s.</string>
+    <plurals name="mass_deletion_local">
+        <item quantity="one">%d bookmark on this device</item>
+        <item quantity="other">%d bookmarks on this device</item>
+    </plurals>
+    <plurals name="mass_deletion_remote">
+        <item quantity="one">%d on the server</item>
+        <item quantity="other">%d on the server</item>
+    </plurals>
+
+    <string name="share_label">Save to BookSync</string>
+    <string name="share_title">Save to BookSync</string>
+    <string name="share_folder">Folder</string>
+    <string name="share_signed_out">Sign in to BookSync first, then share again.</string>
+    <string name="share_no_url">There is no web link in what was shared.</string>
+    <string name="open_app">Open BookSync</string>
+    <string name="save">Save</string>
+</resources>

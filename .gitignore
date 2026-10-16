@@ -5,6 +5,10 @@
 *.out
 coverage.*
 
+# Android: the core AAR is built by make android-aar
+android/app/libs/*.aar
+android/app/libs/*-sources.jar
+
 # Local databases
 *.db
 *.db-wal
