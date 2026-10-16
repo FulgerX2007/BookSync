@@ -54,6 +54,7 @@ GOMOBILE_BIN := $(CURDIR)/bin
 ANDROID_AAR  := android/app/libs/booksync-core.aar
 
 android-aar:
+	mkdir -p $(dir $(ANDROID_AAR))
 	cd mobile && GOBIN=$(GOMOBILE_BIN) $(GO) install golang.org/x/mobile/cmd/gomobile golang.org/x/mobile/cmd/gobind
 	cd mobile && PATH="$(GOMOBILE_BIN):$$PATH" gomobile bind -target=android/arm64,android/amd64 -androidapi 26 \
 		-javapkg io.booksync.core -trimpath -ldflags="-s -w" -o ../$(ANDROID_AAR) .
