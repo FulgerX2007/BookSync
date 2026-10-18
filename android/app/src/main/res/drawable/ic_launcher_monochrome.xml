@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed-icon layer (Android 13+): the launcher tints this single colour. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"
+        android:pathData="M41.9,32 H66.1 A3.5,3.5 0 0 1 69.6,35.5 V76 L54,66 L38.4,76 V35.5 A3.5,3.5 0 0 1 41.9,32 Z M51.6,52.06 A4.8,4.8 0 1 1 56.4,52.06 L57.8,60.3 L50.2,60.3 Z" />
+</vector>
