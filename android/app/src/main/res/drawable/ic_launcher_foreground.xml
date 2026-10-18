@@ -1,23 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A bookmark ribbon with a sync arc, centred in the adaptive-icon safe zone. -->
+<!-- Play Store icon concept 2, "Private Bookmark": an amber bookmark with a
+     keyhole cut out (even-odd fill), centred in the 66dp adaptive-icon safe zone.
+     Source artwork: android/store/icons/booksync-play-icon.svg. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M40,32h28a3,3 0,0 1,3 3v41l-17,-10l-17,10v-41a3,3 0,0 1,3 -3z" />
-    <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="3"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000"
-        android:pathData="M31,54a23,23 0,0 1,12 -20" />
-    <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="3"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000"
-        android:pathData="M77,54a23,23 0,0 1,-12 20" />
+        android:fillType="evenOdd"
+        android:pathData="M41.9,32 H66.1 A3.5,3.5 0 0 1 69.6,35.5 V76 L54,66 L38.4,76 V35.5 A3.5,3.5 0 0 1 41.9,32 Z M51.6,52.06 A4.8,4.8 0 1 1 56.4,52.06 L57.8,60.3 L50.2,60.3 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="38.4"
+                android:startY="32"
+                android:endX="69.6"
+                android:endY="76"
+                android:startColor="#FFFFD36B"
+                android:endColor="#FFF29D38" />
+        </aapt:attr>
+    </path>
 </vector>

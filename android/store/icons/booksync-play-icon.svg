@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1D2F66"/><stop offset="1" stop-color="#0B1430"/></linearGradient>
+ <linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFD36B"/><stop offset="1" stop-color="#F29D38"/></linearGradient>
+ <mask id="hole"><rect width="512" height="512" fill="#fff"/><path d="M256 218 m-30 0 a30 30 0 1 0 60 0 a30 30 0 1 0 -60 0 Z M241 236 L232 296 H280 L271 236 Z" fill="#000"/></mask>
+ <radialGradient id="glow" cx="0.5" cy="0.45" r="0.5"><stop offset="0" stop-color="#3D63C9" stop-opacity="0.55"/><stop offset="1" stop-color="#3D63C9" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="512" height="512" fill="url(#bg)"/>
+<circle cx="256" cy="240" r="210" fill="url(#glow)"/>
+<path d="M180.0 118 H332.0 A22 22 0 0 1 354.0 140 V394 L256 332 L158.0 394 V140 A22 22 0 0 1 180.0 118 Z" fill="url(#bm)" mask="url(#hole)"/>
+</svg>
