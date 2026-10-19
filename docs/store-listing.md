@@ -3,6 +3,8 @@
 Copy-paste text and images for the Chrome Web Store, Microsoft Edge Add-ons and
 Firefox Add-ons (AMO). Images are in [`extension/store/assets/`](../extension/store/assets/);
 `cd extension && npm run store:assets` regenerates them from the real extension.
+After the first manual publication, releases submit updates automatically:
+see [store-publishing.md](store-publishing.md).
 
 ## Packages
 
