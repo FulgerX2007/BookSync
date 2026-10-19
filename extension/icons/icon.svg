@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<!-- The Play Store icon (android/store/icons), as a rounded tile for browser toolbars. -->
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1D2F66"/><stop offset="1" stop-color="#0B1430"/></linearGradient>
+ <linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFD36B"/><stop offset="1" stop-color="#F29D38"/></linearGradient>
+ <mask id="hole"><rect width="512" height="512" fill="#fff"/><path d="M256 218 m-30 0 a30 30 0 1 0 60 0 a30 30 0 1 0 -60 0 Z M241 236 L232 296 H280 L271 236 Z" fill="#000"/></mask>
+</defs>
+<rect width="512" height="512" rx="104" fill="url(#bg)"/>
+<path d="M164 84 H348 A26 26 0 0 1 374 110 V428 L256 352 L138 428 V110 A26 26 0 0 1 164 84 Z" fill="url(#bm)" mask="url(#hole)"/>
+</svg>

@@ -269,7 +269,8 @@ npm run build            # → dist/chromium and dist/firefox
   Alternatively, use Firefox Developer Edition or Nightly with
   `xpinstall.signatures.required` set to `false`.
 
-`make package` builds store-ready zips in `extension/dist/packages/`.
+`make package` builds store-ready zips in `extension/dist/packages/`. The
+[privacy policy](docs/privacy.md) covers the extension and the Android app.
 
 ### First use
 
