@@ -22,7 +22,7 @@ class AppViewModelTest {
     fun registrationFlow() {
         val core = FakeCore()
         var signedIn = 0
-        val app = AppViewModel(core) { signedIn++ }
+        val app = AppViewModel(core, onSignedIn = { signedIn++ })
         app.showRegister()
         assertEquals(Route.Register, app.route.value)
         app.back()
@@ -56,5 +56,37 @@ class AppViewModelTest {
         app.signOut()
         assertEquals(Route.Welcome, app.route.value)
         assertEquals("network", app.notice.value)
+    }
+
+    @Test
+    fun deleteAccountKeepsDialogOnErrorAndLeavesOnSuccess() {
+        val core = FakeCore(Status(signedIn = true, serverUrl = "https://s", username = "alice"))
+        var signedOut = 0
+        val app = AppViewModel(core, onSignedOut = { signedOut++ })
+        app.showDeleteAccount()
+        assertEquals(AccountDeletion(), app.deletion.value)
+
+        app.deleteAccount("bob", "secret-password")
+        assertEquals(AccountDeletion(error = "username_mismatch"), app.deletion.value)
+        assertEquals(Route.Bookmarks, app.route.value)
+
+        core.failNext = CoreException("invalid_credentials", "wrong password")
+        app.deleteAccount("alice", "wrong")
+        assertEquals(AccountDeletion(error = "invalid_credentials"), app.deletion.value)
+        assertEquals(0, signedOut)
+
+        app.deleteAccount("alice", "secret-password")
+        assertNull(app.deletion.value)
+        assertEquals(Route.Welcome, app.route.value)
+        assertEquals(Status(), app.status.value)
+        assertEquals(1, signedOut)
+    }
+
+    @Test
+    fun cancelDeleteAccount() {
+        val app = AppViewModel(FakeCore(Status(signedIn = true, username = "alice")))
+        app.showDeleteAccount()
+        app.cancelDeleteAccount()
+        assertNull(app.deletion.value)
     }
 }

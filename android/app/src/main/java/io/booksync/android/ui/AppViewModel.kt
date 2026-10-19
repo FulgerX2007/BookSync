@@ -21,11 +21,16 @@ sealed interface Route {
     data object Bookmarks : Route
 }
 
+/** The account-deletion dialog: open while non-null. */
+data class AccountDeletion(val busy: Boolean = false, val error: String? = null)
+
 /** Top-level state: which screen, the core status, and one-time notices. */
 class AppViewModel(
     private val core: BookSyncCore,
     /** Called after the user signs in or finishes registration (starts a sync). */
     private val onSignedIn: () -> Unit = {},
+    /** Called once this device holds no account any more (resets the sync UI). */
+    private val onSignedOut: () -> Unit = {},
 ) : ViewModel() {
     private val _route = MutableStateFlow<Route>(Route.Loading)
     val route: StateFlow<Route> = _route.asStateFlow()
@@ -36,6 +41,9 @@ class AppViewModel(
     /** A code to show once (state_unreadable), or a failed sign-out. */
     private val _notice = MutableStateFlow<String?>(null)
     val notice: StateFlow<String?> = _notice.asStateFlow()
+
+    private val _deletion = MutableStateFlow<AccountDeletion?>(null)
+    val deletion: StateFlow<AccountDeletion?> = _deletion.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -96,8 +104,37 @@ class AppViewModel(
             } catch (e: CoreException) {
                 _notice.value = e.code
             }
-            refreshStatus()
-            _route.value = Route.Welcome
+            leave()
         }
+    }
+
+    fun showDeleteAccount() {
+        _deletion.value = AccountDeletion()
+    }
+
+    fun cancelDeleteAccount() {
+        if (_deletion.value?.busy != true) _deletion.value = null
+    }
+
+    /** Deletes the account on the server; on failure the dialog stays open with the error. */
+    fun deleteAccount(confirmUsername: String, password: String) {
+        if (_deletion.value?.busy != false) return
+        _deletion.value = AccountDeletion(busy = true)
+        viewModelScope.launch {
+            try {
+                core.deleteAccount(confirmUsername, password)
+            } catch (e: CoreException) {
+                _deletion.value = AccountDeletion(error = e.code)
+                return@launch
+            }
+            _deletion.value = null
+            leave()
+        }
+    }
+
+    private suspend fun leave() {
+        refreshStatus()
+        _route.value = Route.Welcome
+        onSignedOut()
     }
 }

@@ -82,6 +82,13 @@ func (c *Core) Login(serverURL, username, nfcPassword, syncID string) error {
 	return wrap(c.e.Login(bg, serverURL, username, nfcPassword, syncID))
 }
 
+// DeleteAccount permanently deletes the account on the server (all devices,
+// all vault versions) after checking the typed username and the password,
+// then signs out here. nfcPassword must be NFC-normalized.
+func (c *Core) DeleteAccount(confirmUsername, nfcPassword string) error {
+	return wrap(c.e.DeleteAccount(bg, confirmUsername, nfcPassword))
+}
+
 // Logout signs out and forgets this device's bookmarks.
 func (c *Core) Logout() error { return wrap(c.e.Logout(bg)) }
 

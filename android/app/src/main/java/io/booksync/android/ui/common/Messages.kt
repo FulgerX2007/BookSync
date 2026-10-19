@@ -24,6 +24,7 @@ fun messageFor(code: String?): Int = when (code) {
     "stale" -> R.string.error_stale
     "invalid_move" -> R.string.error_invalid_move
     "not_signed_in" -> R.string.error_not_signed_in
+    "username_mismatch" -> R.string.error_username_mismatch
     "state_unreadable" -> R.string.notice_state_unreadable
     else -> R.string.error_generic
 }

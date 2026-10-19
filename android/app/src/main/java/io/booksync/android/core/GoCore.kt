@@ -36,6 +36,8 @@ class GoCore private constructor(
         call { login(serverUrl, username, nfc(password), syncId) }
 
     override suspend fun logout() = call { logout() }
+    override suspend fun deleteAccount(confirmUsername: String, password: String) =
+        call { deleteAccount(confirmUsername, nfc(password)) }
     override suspend fun status(): Status = json { status() }
     override suspend fun tree(): Tree = json { tree() }
 

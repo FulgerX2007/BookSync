@@ -376,6 +376,10 @@ whichever browser you like, and syncs them with your desktop browsers.
     the phone has seen.
 - **Signing out** removes the bookmarks from the phone. They stay on the server and your
   other devices.
+- **Deleting the account** (menu → **Delete account**, confirmed with your username and
+  password) permanently removes the account and every synced copy from the server and
+  signs out all devices. Bookmarks already in your browsers stay there. See
+  [docs/account-deletion.md](docs/account-deletion.md) for the other ways to do it.
 
 **Security on the phone.**
 
@@ -452,6 +456,7 @@ Plain HTTP is accepted only for `localhost` and `127.0.0.1`.
 | `make android-aar` | the Go core as `android/app/libs/booksync-core.aar` |
 | `make android-test` | the AAR, then the Android version tests, JVM unit and UI tests (Robolectric) and lint |
 | `make android-apk` | the AAR, then the release APK (signed when the `ANDROID_KEYSTORE_*` variables are set) |
+| `make android-aab` | the AAR, then the release App Bundle for Google Play (signed the same way) |
 | `make e2e` | Playwright: two Chromium profiles syncing through a real server built from this repo |
 | `make e2e-edge` | the same suite in the installed Microsoft Edge (`npx playwright install msedge` installs it) |
 | `make docker-smoke` | builds the image, starts the compose stack and checks TLS, health and registration |
@@ -493,18 +498,21 @@ The Release workflow (`.github/workflows/release.yml`) then:
    - server archives for linux, darwin (amd64 and arm64) and windows (amd64);
    - both extension zips;
    - a source archive (Firefox Add-ons asks for one when reviewing);
-   - `booksync-android-X.Y.Z.apk`, if signing is configured;
+   - `booksync-android-X.Y.Z.apk` and `booksync-android-X.Y.Z.aab` (the bundle Google
+     Play takes), if signing is configured;
    - `SHA256SUMS`.
 
-**Android signing.** The APK is attached only when these repository secrets exist:
+**Android signing.** The APK and the AAB are attached only when these repository secrets
+exist:
 
 - `ANDROID_KEYSTORE_BASE64` (the upload keystore, base64-encoded);
 - `ANDROID_KEYSTORE_PASSWORD`;
 - `ANDROID_KEY_ALIAS`;
 - `ANDROID_KEY_PASSWORD`.
 
-Without them the release succeeds without an APK and the workflow logs a warning: an
-unsigned APK can't be installed. The app's `versionCode` comes from the tag:
+Without them the release succeeds without either and the workflow logs a warning: an
+unsigned APK can't be installed. With Play App Signing, this keystore is your *upload*
+key; Google re-signs the app for delivery. The app's `versionCode` comes from the tag:
 `X·1000000 + Y·10000 + Z·100`, plus `N` for `-rc.N` or 99 for a final release.
 
 A tag such as `v0.2.0-rc.1` publishes a pre-release. It gets no `0.2` or `latest`

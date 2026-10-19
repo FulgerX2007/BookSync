@@ -127,6 +127,13 @@ func TestEndToEndThroughTheFacade(t *testing.T) {
 	if r := decode[engine.Result](t, phone.ResolveRollback("nonsense")); r.Status != engine.StatusError {
 		t.Fatalf("ResolveRollback = %+v", r)
 	}
+	if err := tablet.DeleteAccount("bob", password); code(t, err) != engine.CodeUsernameMismatch {
+		t.Fatalf("DeleteAccount with the wrong username: %v", err)
+	}
+	noErr(t, tablet.DeleteAccount("alice", password))
+	if st := decode[engine.Status](t, tablet.Status()); st.SignedIn || st.Username != "" {
+		t.Fatalf("after delete: %+v", st)
+	}
 	noErr(t, phone.Logout())
 	if st := decode[engine.Status](t, phone.Status()); st.SignedIn || st.Username != "" {
 		t.Fatalf("after logout: %+v", st)
