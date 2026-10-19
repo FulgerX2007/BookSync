@@ -17,6 +17,10 @@ android {
         targetSdk = 37
         versionCode = BookSyncVersion.code(appVersion)
         versionName = appVersion
+        // Only the ABIs the Go core is built for (Makefile android-aar). Otherwise
+        // androidx's 32-bit libraries would make the app installable on 32-bit
+        // devices, where it would fail to load libgojni.
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
 
     signingConfigs {

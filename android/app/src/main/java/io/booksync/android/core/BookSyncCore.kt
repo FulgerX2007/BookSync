@@ -16,6 +16,12 @@ interface BookSyncCore {
     suspend fun register(serverUrl: String, username: String, password: String): Kit
     suspend fun login(serverUrl: String, username: String, password: String, syncId: String)
     suspend fun logout()
+
+    /**
+     * Permanently deletes the account on the server (all devices and vault
+     * versions), then signs out here. [confirmUsername] must match the account.
+     */
+    suspend fun deleteAccount(confirmUsername: String, password: String)
     suspend fun status(): Status
     suspend fun tree(): Tree
 

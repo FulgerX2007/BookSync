@@ -268,3 +268,20 @@ func TestParseETag(t *testing.T) {
 		}
 	}
 }
+
+func TestDeleteAccountAgainstRealServer(t *testing.T) {
+	srv := testserver.Start(t)
+	c := newClient(t, srv.URL)
+	authKey := randomBytes(32)
+	s := register(t, c, "alice", authKey)
+	c.SetToken(s.DeviceToken)
+	if err := c.DeleteAccount(ctx, randomBytes(32)); CodeOf(err) != CodeInvalidCredentials {
+		t.Fatalf("wrong key: %v", err)
+	}
+	if err := c.DeleteAccount(ctx, authKey); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.GetVault(ctx, 0); CodeOf(err) != CodeUnauthorized {
+		t.Fatalf("token still valid: %v", err)
+	}
+}

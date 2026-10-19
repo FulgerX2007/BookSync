@@ -30,6 +30,9 @@ const (
 	CodeWeakPassword    = "weak_password"
 	CodeLocalNotEmpty   = "local_not_empty"
 	CodeBusy            = "busy"
+	// CodeUsernameMismatch: the confirmation for a destructive action
+	// did not repeat the account's username.
+	CodeUsernameMismatch = "username_mismatch"
 )
 
 // MinPasswordLength is the extension's minimum, in characters.

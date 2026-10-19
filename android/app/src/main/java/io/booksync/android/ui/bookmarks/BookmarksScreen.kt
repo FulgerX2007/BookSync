@@ -71,6 +71,7 @@ fun BookmarksScreen(
     onOpenUrl: (String) -> Unit,
     onSignOut: () -> Unit,
     onLeave: () -> Unit,
+    onDeleteAccount: () -> Unit = {},
     refreshing: Boolean = false,
     onRefresh: () -> Unit = {},
     banner: @Composable () -> Unit = {},
@@ -89,7 +90,7 @@ fun BookmarksScreen(
     BackHandler { if (!vm.up()) onLeave() }
 
     Scaffold(
-        topBar = { BrowserTopBar(state, vm, titles, onSignOut) },
+        topBar = { BrowserTopBar(state, vm, titles, onSignOut, onDeleteAccount) },
         floatingActionButton = { state.folder?.takeIf { !state.searching }?.let { AddButton(it, vm) } },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { pad ->
@@ -109,7 +110,7 @@ fun BookmarksScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BrowserTopBar(state: BrowserState, vm: BookmarksViewModel, titles: (String) -> String, onSignOut: () -> Unit) {
+private fun BrowserTopBar(state: BrowserState, vm: BookmarksViewModel, titles: (String) -> String, onSignOut: () -> Unit, onDeleteAccount: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     TopAppBar(
         title = {
@@ -151,6 +152,11 @@ private fun BrowserTopBar(state: BrowserState, vm: BookmarksViewModel, titles: (
                 IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.more)) }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text(stringResource(R.string.sign_out)) }, onClick = { menu = false; onSignOut() })
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.delete_account)) },
+                        onClick = { menu = false; onDeleteAccount() },
+                        modifier = Modifier.testTag("deleteAccount"),
+                    )
                 }
             }
         },

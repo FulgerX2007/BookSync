@@ -70,7 +70,7 @@ jobs:
           if-no-files-found: error
 
   android-apk:
-    name: Android APK
+    name: Android APK and AAB
     needs: version
     runs-on: ubuntu-latest
     env:
@@ -79,7 +79,7 @@ jobs:
     steps:
       - name: Signing configured?
         if: env.HAS_KEYSTORE != 'true'
-        run: echo "::warning::ANDROID_KEYSTORE_BASE64 is not set; this release has no Android APK."
+        run: echo "::warning::ANDROID_KEYSTORE_BASE64 is not set; this release has no Android APK or AAB."
       - uses: actions/checkout@v7
         if: env.HAS_KEYSTORE == 'true'
       - uses: actions/setup-go@v7
@@ -120,9 +120,10 @@ jobs:
         run: |
           export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/upload.jks"
           base64 -d <<<"$KEYSTORE_BASE64" >"$ANDROID_KEYSTORE_FILE"
-          make android-apk
+          make android-apk android-aab
           mkdir -p apk
           cp android/app/build/outputs/apk/release/app-release.apk "apk/booksync-android-$BOOKSYNC_VERSION.apk"
+          cp android/app/build/outputs/bundle/release/app-release.aab "apk/booksync-android-$BOOKSYNC_VERSION.aab"
       - uses: actions/upload-artifact@v7
         if: env.HAS_KEYSTORE == 'true'
         with:
@@ -176,7 +177,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      # dist, plus the APK when signing is configured.
+      # dist, plus the APK and AAB when signing is configured.
       - uses: actions/download-artifact@v8
         with:
           pattern: '{dist,android}'
@@ -197,7 +198,7 @@ jobs:
 
           **Extension:** \`booksync-chromium-${VERSION%%-*}.zip\` and \`booksync-firefox-${VERSION%%-*}.zip\` (stores need a plain X.Y.Z version); see "Installing the extension" in the README.
 
-          **Android:** \`booksync-android-$VERSION.apk\` when attached; see "Android app" in the README.
+          **Android:** \`booksync-android-$VERSION.apk\` to install directly, and \`booksync-android-$VERSION.aab\` for Google Play, when attached; see "Android app" in the README.
 
           Verify downloads with \`sha256sum -c SHA256SUMS\`.
           EOF

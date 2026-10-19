@@ -28,6 +28,11 @@
     <string name="cancel">Cancel</string>
     <string name="sign_out_title">Sign out?</string>
     <string name="sign_out_message">This removes your bookmarks from this device. They stay on the server and your other devices.</string>
+    <string name="delete_account">Delete account</string>
+    <string name="delete_account_title">Delete your account?</string>
+    <string name="delete_account_message">This permanently deletes your account and all synced bookmarks from the server, and signs out every device. This device\'s bookmarks are removed; bookmarks in your browsers are kept. This cannot be undone.</string>
+    <string name="delete_account_confirm">Type your username (%1$s) and password to confirm.</string>
+    <string name="delete_account_action">Delete permanently</string>
 
     <string name="error_generic">Something went wrong. Please try again.</string>
     <string name="error_invalid_credentials">Username, password or SyncID is incorrect.</string>
@@ -48,6 +53,7 @@
     <string name="error_stale">Your bookmarks changed meanwhile. Please try again.</string>
     <string name="error_invalid_move">A folder cannot be moved into itself.</string>
     <string name="error_not_signed_in">Sign in first.</string>
+    <string name="error_username_mismatch">Type your username exactly to confirm.</string>
     <string name="notice_state_unreadable">Your saved data on this device could not be unlocked (for example after restoring a backup) and was reset. Sign in again.</string>
 
     <string name="root_toolbar">Bookmarks Toolbar</string>

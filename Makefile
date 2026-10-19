@@ -3,7 +3,7 @@ GOLANGCI_LINT ?= golangci-lint
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build run test test-go test-mobile test-ext lint fmt e2e e2e-edge package dist docker-smoke android-aar android-test android-apk
+.PHONY: build run test test-go test-mobile test-ext lint fmt e2e e2e-edge package dist docker-smoke android-aar android-test android-apk android-aab
 
 build:
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/booksync-server ./cmd/booksync-server
@@ -69,3 +69,7 @@ android-test: android-aar
 
 android-apk: android-aar
 	cd android && ./gradlew --console=plain assembleRelease
+
+# The Play Store upload format (signed with the upload key when ANDROID_KEYSTORE_* is set).
+android-aab: android-aar
+	cd android && ./gradlew --console=plain bundleRelease

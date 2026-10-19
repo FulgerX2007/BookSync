@@ -24,6 +24,7 @@ import io.booksync.android.sync.SyncController
 import io.booksync.android.ui.AppViewModel
 import io.booksync.android.ui.BookSyncApp
 import io.booksync.android.ui.SignOutDialog
+import io.booksync.android.ui.account.DeleteAccountDialog
 import io.booksync.android.ui.bookmarks.BookmarksScreen
 import io.booksync.android.ui.bookmarks.BookmarksViewModel
 import io.booksync.android.ui.sync.MassDeletionDialog
@@ -36,7 +37,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val booksync = application as BookSyncApplication
         setContent {
-            BookSyncApp(booksync.core, onSignedIn = booksync.sync::signedIn) { app ->
+            BookSyncApp(booksync.core, onSignedIn = booksync.sync::signedIn, onSignedOut = booksync.sync::reset) { app ->
                 Home(booksync.core, booksync.sync, app, ::openInBrowser, ::finish)
             }
         }
@@ -57,6 +58,8 @@ class MainActivity : ComponentActivity() {
 fun Home(core: BookSyncCore, sync: SyncController, app: AppViewModel, onOpenUrl: (String) -> Unit, onLeave: () -> Unit) {
     val browser: BookmarksViewModel = viewModel(factory = viewModelFactory { initializer { BookmarksViewModel(core, sync::onEdited) } })
     val ui by sync.ui.collectAsStateWithLifecycle()
+    val deletion by app.deletion.collectAsStateWithLifecycle()
+    val status by app.status.collectAsStateWithLifecycle()
     var confirmSignOut by remember { mutableStateOf(false) }
     var promptHidden by remember { mutableStateOf(false) }
 
@@ -68,6 +71,7 @@ fun Home(core: BookSyncCore, sync: SyncController, app: AppViewModel, onOpenUrl:
         onOpenUrl = onOpenUrl,
         onSignOut = { confirmSignOut = true },
         onLeave = onLeave,
+        onDeleteAccount = app::showDeleteAccount,
         refreshing = ui.running,
         onRefresh = sync::refresh,
         banner = { SyncStatusBar(ui, System.currentTimeMillis(), onSignIn = app::showReauth, onReview = { promptHidden = false }) },
@@ -92,9 +96,10 @@ fun Home(core: BookSyncCore, sync: SyncController, app: AppViewModel, onOpenUrl:
             onConfirm = {
                 confirmSignOut = false
                 app.signOut()
-                sync.reset()
             },
             onDismiss = { confirmSignOut = false },
         )
     }
+
+    deletion?.let { DeleteAccountDialog(status.username.orEmpty(), it, onDelete = app::deleteAccount, onDismiss = app::cancelDeleteAccount) }
 }

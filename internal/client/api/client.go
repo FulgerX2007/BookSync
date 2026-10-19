@@ -191,6 +191,21 @@ func (c *Client) Logout(ctx context.Context) error {
 	return err
 }
 
+// DeleteAccount deletes the account, its devices and every vault version.
+// The server re-verifies authKey: a wrong password or SyncID is
+// invalid_credentials and leaves the device signed in.
+func (c *Client) DeleteAccount(ctx context.Context, authKey []byte) error {
+	body, err := json.Marshal(map[string]any{"authKey": b64(authKey)})
+	if err != nil {
+		return err
+	}
+	resp, err := c.send(ctx, http.MethodPost, "/v1/account/delete", http.Header{"Content-Type": {"application/json"}}, bytes.NewReader(body), true)
+	if err == nil {
+		drain(resp)
+	}
+	return err
+}
+
 // GetStatus is the outcome of GetVault.
 type GetStatus int
 

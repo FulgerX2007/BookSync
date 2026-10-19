@@ -2,10 +2,20 @@
   "manifest_version": 3,
   "name": "BookSync",
   "description": "End-to-end encrypted bookmark sync across your browsers, through your own server.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
   "permissions": ["bookmarks", "storage", "alarms", "activeTab"],
   "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
   "action": {
     "default_title": "BookSync",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    },
     "default_popup": "popup.html"
   },
   "options_ui": {

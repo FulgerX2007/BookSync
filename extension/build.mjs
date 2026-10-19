@@ -37,6 +37,8 @@ for (const target of targets) {
   for (const file of staticFiles) {
     cpSync(file, `${outdir}/${file.split('/').pop()}`);
   }
+  mkdirSync(`${outdir}/icons`);
+  for (const size of [16, 32, 48, 128]) cpSync(`icons/icon-${size}.png`, `${outdir}/icons/icon-${size}.png`);
   writeFileSync(`${outdir}/manifest.json`, JSON.stringify(buildManifest(target, { e2e }), null, 2) + '\n');
   console.log(`built ${outdir}`);
 }

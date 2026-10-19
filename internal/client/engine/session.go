@@ -183,6 +183,32 @@ func (e *Engine) Logout(ctx context.Context) error {
 	return e.update(func(st *store.State) { st.ClearSession() })
 }
 
+// DeleteAccount permanently deletes the account on the server (every device
+// and every vault version) and then forgets it here, like Logout. The user
+// confirms by typing the username and the password; both are checked before
+// anything is deleted. The password must be NFC-normalized.
+func (e *Engine) DeleteAccount(ctx context.Context, confirmUsername, nfcPassword string) error {
+	ss := e.currentSession()
+	if ss == nil || ss.DeviceToken == "" {
+		return fail(CodeNotSignedIn, "sign in to delete the account")
+	}
+	if crypto.NormalizeUsername(confirmUsername) != ss.Username {
+		return fail(CodeUsernameMismatch, "type your username exactly to confirm")
+	}
+	keys, err := crypto.DeriveKeys(ss.Username, nfcPassword, ss.SyncID, ss.Iterations)
+	if err != nil {
+		return err
+	}
+	c, err := e.client(ss.ServerURL, ss.DeviceToken)
+	if err != nil {
+		return err
+	}
+	if err := c.DeleteAccount(ctx, keys.AuthKey); err != nil {
+		return e.checkAuth(err, ss.DeviceToken)
+	}
+	return e.update(func(st *store.State) { st.ClearSession() })
+}
+
 // revoke signs a token out server-side, best effort.
 func (e *Engine) revoke(ctx context.Context, serverURL, token string) {
 	if c, err := e.client(serverURL, token); err == nil {

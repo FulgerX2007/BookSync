@@ -38,6 +38,14 @@ class FakeCore(var status: Status = Status()) : BookSyncCore {
         tree = emptyTree()
     }
 
+    override suspend fun deleteAccount(confirmUsername: String, password: String) {
+        record("deleteAccount $confirmUsername")
+        if (!status.signedIn) throw CoreException("not_signed_in", "sign in first")
+        if (confirmUsername.trim().lowercase() != status.username) throw CoreException("username_mismatch", "type your username")
+        status = Status()
+        tree = emptyTree()
+    }
+
     override suspend fun status(): Status = status
     override suspend fun tree(): Tree = tree
 

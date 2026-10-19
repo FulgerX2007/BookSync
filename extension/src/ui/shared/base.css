@@ -28,6 +28,10 @@
 * {
   box-sizing: border-box;
 }
+/* A class that sets display (.notice is flex) must not reveal a hidden element. */
+[hidden] {
+  display: none !important;
+}
 body {
   margin: 0;
   background: var(--bg);

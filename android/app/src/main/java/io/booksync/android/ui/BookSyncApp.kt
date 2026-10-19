@@ -27,7 +27,8 @@ import io.booksync.android.ui.theme.BookSyncTheme
 fun BookSyncApp(
     core: BookSyncCore,
     onSignedIn: () -> Unit = {},
-    app: AppViewModel = viewModel(factory = viewModelFactory { initializer { AppViewModel(core, onSignedIn) } }),
+    onSignedOut: () -> Unit = {},
+    app: AppViewModel = viewModel(factory = viewModelFactory { initializer { AppViewModel(core, onSignedIn, onSignedOut) } }),
     home: @Composable (AppViewModel) -> Unit,
 ) {
     BookSyncTheme {

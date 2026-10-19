@@ -224,3 +224,46 @@ func TestCodeOf(t *testing.T) {
 		t.Fatal("unknown errors are internal")
 	}
 }
+
+func TestDeleteAccount(t *testing.T) {
+	t.Parallel()
+	srv := testserver.Start(t)
+	phone := newDevice(t, "phone")
+	kit := mustRegister(t, phone, srv.URL, "alice")
+	tablet := newDevice(t, "tablet")
+	mustLogin(t, tablet, srv.URL, "alice", kit.SyncID)
+	addBookmark(t, phone, "x")
+
+	// Wrong confirmations delete nothing and keep the device signed in.
+	for name, tc := range map[string]struct{ user, pw, code string }{
+		"wrong username": {"bob", password, CodeUsernameMismatch},
+		"wrong password": {"alice", "wrong password!", api.CodeInvalidCredentials},
+	} {
+		if err := phone.DeleteAccount(ctx, tc.user, tc.pw); CodeOf(err) != tc.code {
+			t.Fatalf("%s: err = %v, want %s", name, err, tc.code)
+		}
+		if !phone.Status().SignedIn {
+			t.Fatalf("%s: signed out", name)
+		}
+	}
+
+	if err := phone.DeleteAccount(ctx, " Alice ", password); err != nil {
+		t.Fatal(err)
+	}
+	if s := phone.Status(); s.SignedIn || s.NeedsReauth || s.Username != "" || len(phone.Tree().Nodes) != 4 {
+		t.Fatalf("after delete: %+v", s)
+	}
+	// The account is gone for every device and for new sign-ins.
+	if r := tablet.Sync(ctx, SyncOptions{}); r.Status != StatusSignedOut {
+		t.Fatalf("tablet Sync = %+v", r)
+	}
+	if err := newDevice(t, "x").Login(ctx, srv.URL, "alice", password, kit.SyncID); CodeOf(err) != api.CodeInvalidCredentials {
+		t.Fatalf("login after delete: %v", err)
+	}
+	// The name can be registered again.
+	mustRegister(t, newDevice(t, "y"), srv.URL, "alice")
+
+	if err := phone.DeleteAccount(ctx, "alice", password); CodeOf(err) != CodeNotSignedIn {
+		t.Fatalf("delete while signed out: %v", err)
+	}
+}
