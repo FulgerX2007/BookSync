@@ -119,22 +119,25 @@ unrelated purposes, not used for creditworthiness.
 
 ## Notes for reviewers
 
-All three stores have a field for reviewer notes or test instructions. Fill in a
-running demo server and a test account:
+All three stores have a field for reviewer notes or test instructions. The demo server
+is **https://booksync.conect.md**, and its reviewer account is `reviewer`, holding a few
+sample bookmarks. The password and SyncID are kept out of this repository; paste them
+in from wherever you store them.
 
 ```text
 BookSync needs a BookSync server. A test server and account are ready:
 
-  Server URL: https://<demo server>
-  Username:   <user>
+  Server URL: https://booksync.conect.md
+  Username:   reviewer
   Password:   <password>
-  SyncID:     <BS1-…>   (from the emergency kit)
+  SyncID:     <SyncID>
 
 To test:
 1. Click the toolbar icon → Open settings (the extension's options page).
 2. Enter the server URL and click Continue; allow access to that one site.
-3. Sign in with the account above. The account's bookmarks appear in the
-   browser within a few seconds, and edits sync back within a minute.
+3. Sign in with the account above. Its sample bookmarks (folders "Work",
+   "Reading", "Travel") appear in the browser within a few seconds, and
+   edits sync back within a minute.
 
 You can also create a new account on the same server ("Create account").
 Source: https://github.com/FulgerX2007/BookSync
