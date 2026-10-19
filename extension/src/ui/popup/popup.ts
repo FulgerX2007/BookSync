@@ -1,6 +1,8 @@
 // Toolbar popup: bookmark search on top, then the sync status at a glance and
 // the actions it may need. Status re-renders only touch #status-app.
 import type { MessageType, StatusView } from '../../background/messages';
+import { describeUsage } from '../../api/usage';
+import type { CachedUsage } from '../../storage/state';
 import { ext } from '../../platform/ext';
 import { openBookmarks } from '../shared/bookmarks';
 import { byId, h, replace, timeAgo } from '../shared/dom';
@@ -11,6 +13,7 @@ import { mountThisPage } from './this-page';
 
 const app = byId('status-app');
 let status: StatusView;
+let usage: CachedUsage | null = null;
 
 type Tone = 'ok' | 'warn' | 'bad' | '';
 
@@ -84,12 +87,32 @@ function view(): { tone: Tone; text: string; detail?: string; buttons: HTMLEleme
   }
 }
 
+/** Storage use: a quiet bar, or a warning card from 80 % of the account's limit. */
+function usageBlock(): HTMLElement | false {
+  if (!status.signedIn || !usage) return false;
+  const u = describeUsage(usage);
+  const fill = h('i', {});
+  fill.style.width = `${u.percent}%`;
+  const bar = h('div', { class: 'quota-bar', role: 'progressbar', 'aria-label': 'Server storage used', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': u.percent }, fill);
+  if (u.level === 'ok') {
+    return h('div', { id: 'quota', class: 'quota' }, h('div', { class: 'quota-row' }, h('span', {}, 'Storage'), h('span', {}, h('b', {}, `${u.percent}%`), ` · ${u.amount}`)), bar);
+  }
+  return h(
+    'div',
+    { id: 'quota', class: `quota-card ${u.level}`, role: 'status' },
+    h('div', { class: 'quota-title' }, h('span', {}, 'Server storage'), h('span', { class: 'quota-pct' }, `${u.percent}%`)),
+    bar,
+    h('p', {}, `${u.amount}. ${u.note}`),
+  );
+}
+
 function render(): void {
   const v = view();
   replace(
     app,
     h('div', { class: 'top' }, h('h1', {}, 'BookSync'), status.username && h('span', { class: 'muted' }, status.username)),
     h('div', { class: 'status' }, h('span', { class: `dot ${v.tone}` }), h('div', {}, h('div', { id: 'popup-status' }, h('strong', {}, v.text)), v.detail && h('div', { class: 'muted', id: 'popup-detail' }, v.detail))),
+    usageBlock(),
     h('div', { class: 'row' }, ...v.buttons),
     h('div', { id: 'popup-error', class: 'error', role: 'alert' }),
     status.signedIn && h('a', { href: '#', class: 'settings', onclick: (ev: Event) => (ev.preventDefault(), openSettings()) }, 'Settings'),
@@ -109,9 +132,22 @@ async function main(): Promise<void> {
   status = await send('getStatus');
   render();
   onStatus((s) => {
+    const versionChanged = s.version !== status.version;
     status = s;
     render();
+    if (versionChanged) void refreshUsage();
   });
+  void refreshUsage();
+}
+
+/** Asks the background (and through it the server) for the storage use; failures keep the last view. */
+async function refreshUsage(): Promise<void> {
+  try {
+    usage = await send('getUsage');
+    render();
+  } catch {
+    // Offline or signed out: the status line already says so.
+  }
 }
 
 void main();

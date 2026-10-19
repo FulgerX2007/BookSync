@@ -51,6 +51,7 @@ var homeEndpoints = []endpointRow{
 	{"DELETE", "/v1/devices/{id}", "device", "Sign another device out"},
 	{"POST", "/v1/account/password", "device", "Change the password, optionally rotating keys"},
 	{"POST", "/v1/account/delete", "device", "Delete the account and its data"},
+	{"GET", "/v1/account/usage", "device", "Vault size and this account's limit"},
 	{"GET", "/v1/vault", "device", "Download the encrypted vault"},
 	{"PUT", "/v1/vault", "device", "Upload a new vault version"},
 	{"GET", "/v1/vault/versions", "device", "List stored versions"},

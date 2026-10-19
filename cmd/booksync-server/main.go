@@ -27,9 +27,16 @@ func main() {
 	defer stop()
 
 	cmd := run
-	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
-		cmd = func(ctx context.Context, getenv func(string) string, _ io.Writer) error {
-			return healthcheck(ctx, getenv)
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "healthcheck":
+			cmd = func(ctx context.Context, getenv func(string) string, _ io.Writer) error {
+				return healthcheck(ctx, getenv)
+			}
+		case "quota":
+			cmd = func(ctx context.Context, getenv func(string) string, _ io.Writer) error {
+				return quota(ctx, os.Args[2:], getenv, os.Stdout)
+			}
 		}
 	}
 	if err := cmd(ctx, os.Getenv, os.Stderr); err != nil {

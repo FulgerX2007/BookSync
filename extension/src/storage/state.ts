@@ -85,6 +85,15 @@ export interface IdMapEntry {
 const KEY_SESSION = 'session';
 const KEY_VAULT_KEY = 'vaultKey';
 const KEY_SYNC = 'sync';
+const KEY_USAGE = 'usage';
+
+/** The last usage report from the server, kept so the popup can show it offline. */
+export interface CachedUsage {
+  vaultBytes: number;
+  maxVaultBytes: number;
+  /** ms epoch of the report. */
+  at: number;
+}
 
 export class StateStore {
   private constructor(private readonly dbp: Promise<Db>) {}
@@ -122,6 +131,18 @@ export class StateStore {
 
   async setVaultKey(key: CryptoKey): Promise<void> {
     await (await this.dbp).write(STORE_KV, (tx) => void tx.objectStore(STORE_KV).put(key, KEY_VAULT_KEY));
+  }
+
+  async getUsage(): Promise<CachedUsage | null> {
+    return (await (await this.dbp).get<CachedUsage>(STORE_KV, KEY_USAGE)) ?? null;
+  }
+
+  async setUsage(usage: CachedUsage | null): Promise<void> {
+    await (await this.dbp).write(STORE_KV, (tx) => {
+      const store = tx.objectStore(STORE_KV);
+      if (usage) store.put(usage, KEY_USAGE);
+      else store.delete(KEY_USAGE);
+    });
   }
 
   async getSync(): Promise<SyncState> {

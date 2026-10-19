@@ -148,6 +148,16 @@ describe('HttpApiClient vault', () => {
     expect(await c.putVault(new Uint8Array([3]), 1)).toEqual({ status: 'conflict', currentVersion: 9 });
   });
 
+  it('reads usage, and reports an older server and a malformed answer', async () => {
+    const f = mockFetch(json(200, { vaultBytes: 2048, maxVaultBytes: 1048576 }), err(404, 'not_found'), json(200, { vaultBytes: 'x' }));
+    const c = client(f);
+    expect(await c.usage()).toEqual({ vaultBytes: 2048, maxVaultBytes: 1048576 });
+    expect(f.requests[0]).toMatchObject({ url: 'https://sync.example/v1/account/usage', method: 'GET' });
+    expect(f.requests[0]!.headers.Authorization).toBe('Bearer bst_tok');
+    await expect(c.usage()).rejects.toMatchObject({ code: 'not_found' });
+    await expect(c.usage()).rejects.toMatchObject({ code: 'server' });
+  });
+
   it('lists and fetches history versions', async () => {
     const f = mockFetch(json(200, [{ version: 2, createdAt: 'x', deviceName: 'd', size: 3 }]), new Response(new Uint8Array([5]), { status: 200 }));
     const c = client(f);

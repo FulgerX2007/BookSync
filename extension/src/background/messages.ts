@@ -1,7 +1,7 @@
 // Typed protocol between the extension pages (popup, options) and the
 // background. Each entry maps a request type to its payload and result.
 import type { DeviceInfo, VersionInfo } from '../api/client';
-import type { PendingConfirmation, RootPins, SyncStatus } from '../storage/state';
+import type { CachedUsage, PendingConfirmation, RootPins, SyncStatus } from '../storage/state';
 
 export interface StatusView {
   signedIn: boolean;
@@ -28,6 +28,8 @@ export interface EmergencyKit {
 
 export interface Protocol {
   getStatus: { req: object; res: StatusView };
+  /** The vault's size and this account's limit; null when signed out or the server is too old. */
+  getUsage: { req: object; res: CachedUsage | null };
   syncNow: { req: object; res: StatusView };
   pauseSync: { req: object; res: StatusView };
   resumeSync: { req: object; res: StatusView };

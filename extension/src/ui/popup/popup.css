@@ -88,3 +88,62 @@ a.settings {
   color: var(--muted);
   font-size: 12px;
 }
+
+/* Server storage: a quiet bar, a card from 80 % (warn) and 95 % (full). */
+.quota {
+  margin: 10px 0 2px;
+}
+.quota-row,
+.quota-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.quota-row {
+  color: var(--muted);
+}
+.quota-row b {
+  color: var(--text);
+  font-weight: 600;
+}
+.quota-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--muted) 22%, transparent);
+  overflow: hidden;
+}
+.quota-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+}
+.quota-card {
+  --level: var(--warn);
+  margin: 10px 0 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--level);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--level) 8%, var(--card));
+}
+.quota-card.full {
+  --level: var(--danger);
+}
+.quota-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.quota-pct {
+  color: var(--level);
+}
+.quota-card .quota-bar > i {
+  background: var(--level);
+}
+.quota-card p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}

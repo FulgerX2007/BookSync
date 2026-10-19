@@ -70,6 +70,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("DELETE /v1/devices/{id}", s.requireDevice(s.handleRevokeDevice))
 	s.mux.HandleFunc("POST /v1/account/password", s.requireDevice(s.handleChangePassword))
 	s.mux.HandleFunc("POST /v1/account/delete", s.requireDevice(s.handleDeleteAccount))
+	s.mux.HandleFunc("GET /v1/account/usage", s.requireDevice(s.handleUsage))
 	s.mux.HandleFunc("GET /v1/vault", s.requireDevice(s.handleGetVault))
 	s.mux.HandleFunc("PUT /v1/vault", s.requireDevice(s.handlePutVault))
 	s.mux.HandleFunc("GET /v1/vault/versions", s.requireDevice(s.handleListVaultVersions))

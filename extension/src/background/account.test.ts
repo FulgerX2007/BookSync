@@ -181,6 +181,37 @@ describe('logout, delete and kit', () => {
   });
 });
 
+describe('usage', () => {
+  it('reports the vault size and the account limit, keeps it for offline, and is null when unknown', async () => {
+    const { server, a } = await registered();
+    const alice = server.userByName('alice')!;
+    alice.maxVaultBytes = 4 << 20;
+    const u = await a.account.usage();
+    expect(u).toEqual({ vaultBytes: server.latest(alice.userId)!.body.length, maxVaultBytes: 4 << 20, at: Date.UTC(2026, 9, 12) });
+
+    server.offline = true;
+    expect(await a.account.usage()).toEqual(u); // the cached report
+    server.offline = false;
+
+    server.supportsUsage = false; // a server older than the endpoint
+    expect(await a.account.usage()).toBeNull();
+    expect(await a.state.getUsage()).toBeNull();
+
+    server.supportsUsage = true;
+    await a.account.logout();
+    expect(await a.account.usage()).toBeNull();
+  });
+
+  it('a sync over the account limit fails with the server message and keeps local bookmarks', async () => {
+    const { server, a } = await registered();
+    server.userByName('alice')!.maxVaultBytes = server.latest(server.userByName('alice')!.userId)!.body.length + 10;
+    for (let i = 0; i < 30; i++) await a.fake.addBookmark('1', `Big ${i}`, `https://example.com/${'x'.repeat(200)}/${i}`);
+    await a.sync();
+    expect(await a.state.getSync()).toMatchObject({ status: 'error', lastError: "vault exceeds this account's size limit" });
+    expect(a.fake.findByTitle('Big 29')).toBeDefined();
+  });
+});
+
 describe('account message handlers', () => {
   it('validates required fields', async () => {
     const { a } = await registered();

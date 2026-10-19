@@ -16,7 +16,7 @@ import {
 } from '../crypto/keys';
 import { generateSyncId, parseSyncId } from '../crypto/syncid';
 import { encryptVault } from '../crypto/vault-cipher';
-import type { Session, StateStore } from '../storage/state';
+import type { CachedUsage, Session, StateStore } from '../storage/state';
 import type { SyncOptions, SyncResult } from '../sync/engine';
 import { emergencyKit } from './emergency-kit';
 import type { EmergencyKit, StatusView } from './messages';
@@ -220,6 +220,28 @@ export class Account {
     return client.listDevices();
   }
 
+  /**
+   * The vault's size and this account's limit. Asked on every popup open and
+   * kept, so the last answer still shows offline. Null when signed out, or
+   * when the server is older than the endpoint.
+   */
+  async usage(): Promise<CachedUsage | null> {
+    const session = await this.deps.state.getSession();
+    if (!session?.deviceToken) return null;
+    const { client } = await this.signedIn();
+    try {
+      const usage = { ...(await client.usage()), at: this.deps.now() };
+      await this.deps.state.setUsage(usage);
+      return usage;
+    } catch (e) {
+      if (e instanceof ApiError && (e.code === 'not_found' || e.code === 'unauthorized')) {
+        await this.deps.state.setUsage(null);
+        return null;
+      }
+      return this.deps.state.getUsage();
+    }
+  }
+
   async getEmergencyKit(): Promise<EmergencyKit> {
     const session = await this.deps.state.getSession();
     if (!session) throw new RequestError('not_signed_in', 'this browser is not signed in');
@@ -270,4 +292,5 @@ export function registerAccountHandlers(router: Router, account: Account): void 
   );
   router.register('deleteAccount', (r) => account.deleteAccount({ password: requireString(r, 'password') }));
   router.register('getEmergencyKit', () => account.getEmergencyKit());
+  router.register('getUsage', () => account.usage());
 }

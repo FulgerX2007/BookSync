@@ -179,17 +179,40 @@ Every setting is an environment variable in `deploy/.env`
 |---|---|---|
 | `BOOKSYNC_DOMAIN` | — | public DNS name; Caddy gets its certificate |
 | `BOOKSYNC_ALLOW_REGISTRATION` | `true` | allow new accounts |
-| `BOOKSYNC_MAX_VAULT_BYTES` | `10485760` | maximum encrypted vault size (10 MiB holds tens of thousands of bookmarks) |
+| `BOOKSYNC_MAX_VAULT_BYTES` | `10485760` | default encrypted vault limit per account (10 MiB holds tens of thousands of bookmarks); see [per-account limits](#per-account-storage-limits) |
 | `BOOKSYNC_VAULT_KEEP_RECENT` | `10` | newest versions always kept |
 | `BOOKSYNC_VAULT_KEEP_DAYS` | `30` | also keep the newest version of each day for this many days (`0` disables) |
 | `BOOKSYNC_TOKEN_TTL` | `2160h` | a device is signed out after this long without syncing |
 | `BOOKSYNC_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
 | `BOOKSYNC_HTTP_PORT` / `BOOKSYNC_HTTPS_PORT` | `80` / `443` | host ports Caddy listens on |
 
+### Per-account storage limits
+
+Every account gets `BOOKSYNC_MAX_VAULT_BYTES` unless you give it its own limit with the
+`quota` command:
+
+```sh
+# Show alice's limit and use
+docker compose -f deploy/docker-compose.yml exec booksync booksync-server quota alice
+#   alice: limit 10 MiB (server default), vault 230 KiB (2%)
+
+docker compose -f deploy/docker-compose.yml exec booksync booksync-server quota alice 50M
+docker compose -f deploy/docker-compose.yml exec booksync booksync-server quota alice default
+```
+
+- **Sizes** are in bytes, or with `K`, `M` or `G` (binary), between 1K and 64M.
+- **Running server.** The command works while the server runs, and the change applies
+  to the next upload.
+- **Over the limit.** An upload larger than the account's limit is refused, and that
+  account's syncing stops until bookmarks are removed or the limit is raised.
+- **Lowering a limit** below an account's current vault keeps what is stored.
+- **What users see.** The extension popup shows each user their use: a bar normally,
+  and a warning card from 80 % of their limit.
+
 ### Closing registration
 
-There are no per-user quotas, so an open server lets anyone store data on it. Once your
-accounts exist, close registration:
+Every new account gets the default limit, so an open server lets anyone store up to
+that much on it. Once your accounts exist, close registration:
 
 ```sh
 echo BOOKSYNC_ALLOW_REGISTRATION=false >> deploy/.env
@@ -290,6 +313,9 @@ the real extension.
 
 - The popup shows the sync state and offers **Sync now** and **Pause**. The badge shows
   `!` when BookSync needs you, and `‖` while paused.
+- **Storage** shows how much of your account's limit on the server the bookmarks use.
+  From 80 % it turns into a warning: at the limit, syncing stops until you remove
+  bookmarks or the server's admin raises the limit.
 - When BookSync needs a decision, the popup shows it:
   - confirming a large deletion;
   - a server restored from a backup;

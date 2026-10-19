@@ -2,7 +2,7 @@
 // with BOOKSYNC_E2E_BROWSER=msedge, Microsoft Edge) profiles with the
 // unpacked e2e build of the extension.
 import { test as base, chromium, expect, type BrowserContext, type Page, type Worker } from '@playwright/test';
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -68,6 +68,8 @@ export interface SyncServer {
   url: string;
   dir: string;
   dbPath: string;
+  /** Runs `booksync-server quota USERNAME [SIZE]` against this server's database; returns its output. */
+  quota(username: string, size?: string): string;
   stop(): Promise<void>;
 }
 
@@ -90,6 +92,8 @@ export async function startServer(env: Record<string, string> = {}): Promise<Syn
     url,
     dir,
     dbPath,
+    quota: (username, size) =>
+      execFileSync(serverBin, ['quota', username, ...(size ? [size] : [])], { env: { ...process.env, BOOKSYNC_DB_PATH: dbPath }, encoding: 'utf8' }),
     stop: async () => {
       if (proc.exitCode === null) {
         const exited = new Promise((r) => proc.once('exit', r));

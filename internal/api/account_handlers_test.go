@@ -209,3 +209,20 @@ func TestChangePasswordErrors(t *testing.T) {
 	// Nothing above changed the credentials.
 	e.login("alice", authKey(1), "still works")
 }
+
+// TestRotationUsesAccountLimit: a rotation over the server default succeeds
+// when the account's own limit allows it.
+func TestRotationUsesAccountLimit(t *testing.T) {
+	e := newTestEnv(t, func(c *config.Config) { c.MaxVaultBytes = 1024 })
+	auth := bearer(e.register("alice", authKey(1)).DeviceToken)
+	e.do(http.MethodPut, "/v1/vault", envelope("v1"), append(auth, "If-None-Match", "*")...)
+	if err := e.st.SetVaultLimit(context.Background(), "alice", 8192); err != nil {
+		t.Fatal(err)
+	}
+	b := changeBody(authKey(1), authKey(2))
+	b["rotation"] = map[string]any{"expectedVersion": 1, "vault": b64(envelope(string(make([]byte, 2000))))}
+	rec := e.do(http.MethodPost, "/v1/account/password", b, auth...)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("rotation under the account's limit: %d %s", rec.Code, rec.Body.String())
+	}
+}
