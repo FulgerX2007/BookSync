@@ -52,6 +52,10 @@ android {
         // A lint finding must never land, as for the Go and TS code.
         warningsAsErrors = true
         abortOnError = true
+        // These only report that something newer was released upstream, so they
+        // turn red without any change here and would block a release. Upgrades
+        // are deliberate commits instead.
+        disable += setOf("AndroidGradlePluginVersion", "GradleDependency", "OldTargetApi")
     }
 
     testOptions {

@@ -178,7 +178,10 @@ reference client. The Android app uses three pieces:
 ## Android app (`android/`)
 
 - **Toolchain.** AGP 9 with built-in Kotlin; compileSdk and targetSdk 37, minSdk 26. Lint
-  runs with `warningsAsErrors`: a lint finding must never land.
+  runs with `warningsAsErrors`: a lint finding must never land. The "newer version
+  available" checks are disabled: they turn red on an upstream release with no change
+  here, and once failed the v1.0.0 release gate. Upgrade Gradle with
+  `./gradlew wrapper --gradle-version X`, never by editing the properties file.
 - **Versioning.** `android/buildSrc` derives `versionName`/`versionCode` from
   `BOOKSYNC_VERSION` (rc-aware); it has its own tests.
 - **Talking to the core.** UI code uses the `BookSyncCore` interface, never the AAR
