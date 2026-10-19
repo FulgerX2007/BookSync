@@ -519,6 +519,11 @@ unsigned APK can't be installed. With Play App Signing, this keystore is your *u
 key; Google re-signs the app for delivery. The app's `versionCode` comes from the tag:
 `X·1000000 + Y·10000 + Z·100`, plus `N` for `-rc.N` or 99 for a final release.
 
+**Store submissions.** For a final version, the release then waits for your approval
+and submits the build to Firefox Add-ons, the Chrome Web Store, Edge Add-ons and the
+Google Play internal track. Each store needs its keys in the `stores` environment;
+[docs/store-publishing.md](docs/store-publishing.md) explains the setup.
+
 A tag such as `v0.2.0-rc.1` publishes a pre-release. It gets no `0.2` or `latest`
 image tag, and its extension carries `0.2.0`, because browser stores accept only plain
 numbers.

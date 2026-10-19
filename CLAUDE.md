@@ -43,6 +43,10 @@ reference client. The Android app uses three pieces:
   `./...` skips it; `make test`, `lint`, `fmt` and CI cover it explicitly.
 - The release workflow calls `ci.yml` through `workflow_call`. A job added to CI
   therefore also gates releases.
+- Store submissions are the release's last job (`stores` environment, approved by a
+  person) running `scripts/publish-stores.sh`. It is plain bash with curl, jq and
+  openssl, so no third-party action sees the store keys. Keep it `shellcheck`-clean,
+  and keep docs/store-publishing.md in step with it.
 - Release versions come from the tag. The extension gets `X.Y.Z` through
   `BOOKSYNC_VERSION` (`extensionVersion()` in `scripts/manifest.mjs`). `package.json`'s
   version only covers builds that aren't from a tag.

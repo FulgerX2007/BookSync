@@ -5,9 +5,13 @@ name: Release
 #   * a GitHub Release with server archives for every OS/arch, both extension
 #     zips, a source archive and SHA256SUMS (`make dist`);
 #   * the server image ghcr.io/<owner>/booksync-server for linux/amd64 and arm64;
-#   * the Android APK, signed with the ANDROID_KEYSTORE_* secrets (skipped,
-#     with a warning, when they are not configured: an unsigned APK cannot be
-#     installed).
+#   * the Android APK and AAB, signed with the ANDROID_KEYSTORE_* secrets
+#     (skipped, with a warning, when they are not configured: an unsigned APK
+#     cannot be installed);
+#   * for final versions, after a person approves the `stores` environment:
+#     the store submissions (Firefox Add-ons, Chrome Web Store, Edge Add-ons,
+#     Google Play internal track), each one only when its keys are configured
+#     (docs/store-publishing.md).
 # The tag is the version: the server gets X.Y.Z[-suffix], the extension X.Y.Z
 # (stores need plain numbers). Creating a release in the GitHub UI pushes its
 # tag too; the workflow then attaches the artifacts to that release.
@@ -216,3 +220,80 @@ jobs:
             [[ "$PRERELEASE" == true ]] && flags+=(--prerelease)
             gh release create "$tag" dist/* "${flags[@]}"
           fi
+
+  stores:
+    name: Store submissions
+    needs: [version, release]
+    if: needs.version.outputs.prerelease != 'true'
+    runs-on: ubuntu-latest
+    # Waits for a reviewer of the `stores` environment to approve; its secrets
+    # and variables configure the stores (docs/store-publishing.md).
+    environment: stores
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      DIST: dist
+      HAS_FIREFOX: ${{ secrets.AMO_API_KEY != '' && secrets.AMO_API_SECRET != '' }}
+      HAS_CHROME: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON != '' && vars.CWS_PUBLISHER_ID != '' && vars.CWS_EXTENSION_ID != '' }}
+      HAS_EDGE: ${{ secrets.EDGE_API_KEY != '' && vars.EDGE_CLIENT_ID != '' && vars.EDGE_PRODUCT_ID != '' }}
+      HAS_PLAY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON != '' && vars.PLAY_PACKAGE_NAME != '' }}
+      STORE_REVIEWER_NOTES: ${{ secrets.STORE_REVIEWER_NOTES }}
+    steps:
+      - name: Configured stores
+        run: |
+          for s in FIREFOX CHROME EDGE PLAY; do
+            v="HAS_$s"
+            [[ "${!v}" == true ]] || echo "::warning::$s is not configured; skipped (docs/store-publishing.md)."
+          done
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        if: env.HAS_FIREFOX == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - name: Install web-ext
+        if: env.HAS_FIREFOX == 'true'
+        run: npm ci --no-audit --no-fund
+        working-directory: extension
+      # The files the GitHub Release just published.
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: '{dist,android}'
+          path: dist
+          merge-multiple: true
+      # Each store runs even when an earlier one failed; any failure fails the job.
+      - name: Firefox Add-ons
+        if: ${{ !cancelled() && env.HAS_FIREFOX == 'true' }}
+        env:
+          AMO_API_KEY: ${{ secrets.AMO_API_KEY }}
+          AMO_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+        run: scripts/publish-stores.sh firefox
+      - name: Chrome Web Store
+        if: ${{ !cancelled() && env.HAS_CHROME == 'true' }}
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+          CWS_EXTENSION_ID: ${{ vars.CWS_EXTENSION_ID }}
+        run: scripts/publish-stores.sh chrome
+      - name: Edge Add-ons
+        if: ${{ !cancelled() && env.HAS_EDGE == 'true' }}
+        env:
+          EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
+          EDGE_CLIENT_ID: ${{ vars.EDGE_CLIENT_ID }}
+          EDGE_PRODUCT_ID: ${{ vars.EDGE_PRODUCT_ID }}
+        run: scripts/publish-stores.sh edge
+      - name: Google Play (internal track)
+        if: ${{ !cancelled() && env.HAS_PLAY == 'true' }}
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          PLAY_PACKAGE_NAME: ${{ vars.PLAY_PACKAGE_NAME }}
+          PLAY_TRACK: internal
+          PLAY_RELEASE_STATUS: ${{ vars.PLAY_RELEASE_STATUS || 'completed' }}
+        run: |
+          if [[ ! -f "dist/booksync-android-$VERSION.aab" ]]; then
+            echo "::warning::No AAB in this release (Android signing is not configured); Google Play skipped."
+            exit 0
+          fi
+          scripts/publish-stores.sh play
