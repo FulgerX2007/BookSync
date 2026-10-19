@@ -14,6 +14,7 @@ test('opens from the popup and shows the synced roots as a tree', async ({ brows
   const manager = await opened;
   await manager.waitForURL(/manager\.html$/);
 
+  await expect(manager.locator('#manager-notice')).toBeHidden();
   // Roots are expanded, other folders collapsed.
   await expect(row(manager, ROOTS.bar)).toBeVisible();
   await expect(row(manager, ROOTS.other)).toBeVisible();

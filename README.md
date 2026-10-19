@@ -270,7 +270,10 @@ npm run build            # → dist/chromium and dist/firefox
   `xpinstall.signatures.required` set to `false`.
 
 `make package` builds store-ready zips in `extension/dist/packages/`. The
-[privacy policy](docs/privacy.md) covers the extension and the Android app.
+[privacy policy](docs/privacy.md) covers the extension and the Android app, and
+[docs/store-listing.md](docs/store-listing.md) holds the store texts. `cd extension &&
+npm run store:assets` regenerates the listing images in `extension/store/assets/` from
+the real extension.
 
 ### First use
 

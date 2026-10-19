@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "e2e": "npm run build:e2e && playwright test",
+    "store:assets": "npm run build:e2e && playwright test -c store.config.ts",
     "package": "npm run build && node scripts/package.mjs",
     "check": "tsc --noEmit && eslint . && vitest run",
     "conformance:gen": "CONFORMANCE_WRITE=1 vitest run test/conformance/generate.test.ts"
