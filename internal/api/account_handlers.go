@@ -122,9 +122,13 @@ type changePasswordRequest struct {
 // re-encrypted under a new vault key ("a device was lost").
 func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	var req changePasswordRequest
-	// Room for a base64url vault of up to MaxVaultBytes plus the JSON fields.
-	limit := maxJSONBody + (s.cfg.MaxVaultBytes*4+2)/3
-	if !decodeJSON(w, r, &req, limit) {
+	vaultLimit, err := s.vaultLimit(r, currentDevice(r).UserID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	// Room for a base64url vault of up to the account's limit plus the JSON fields.
+	if !decodeJSON(w, r, &req, maxJSONBody+(vaultLimit*4+2)/3) {
 		return
 	}
 	if err := auth.ValidateAuthKey(req.NewAuthKey); err != nil {
@@ -141,8 +145,8 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 	var rot *store.VaultRotation
 	if req.Rotation != nil {
-		if int64(len(req.Rotation.Vault)) > s.cfg.MaxVaultBytes {
-			writeError(w, http.StatusRequestEntityTooLarge, codeVaultTooLarge, "vault exceeds the server's size limit")
+		if int64(len(req.Rotation.Vault)) > vaultLimit {
+			writeError(w, http.StatusRequestEntityTooLarge, codeVaultTooLarge, vaultTooLargeMessage)
 			return
 		}
 		if !validVaultEnvelope(req.Rotation.Vault) || req.Rotation.ExpectedVersion < 0 {

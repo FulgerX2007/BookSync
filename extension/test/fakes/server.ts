@@ -15,6 +15,7 @@ import {
   type Session,
   type VersionInfo,
 } from '../../src/api/client';
+import type { Usage } from '../../src/api/usage';
 
 interface FUser {
   userId: string;
@@ -23,6 +24,8 @@ interface FUser {
   kdf: string;
   iterations: number;
   wrappedVaultKey: Uint8Array;
+  /** The account's own vault limit; unset means the server default. */
+  maxVaultBytes?: number;
 }
 
 interface FDevice {
@@ -52,10 +55,19 @@ export class FakeServer {
   readonly calls: string[] = [];
   /** Makes every request fail with a network error while true. */
   offline = false;
+  /** The server-wide vault limit (BOOKSYNC_MAX_VAULT_BYTES). */
+  maxVaultBytes = 10 << 20;
+  /** false: behaves like a server older than GET /v1/account/usage (404). */
+  supportsUsage = true;
   private seq = 0;
 
   clientFor(getToken: () => string | null | Promise<string | null>): ApiClient {
     return new FakeClient(this, getToken);
+  }
+
+  limitFor(userId: string): number {
+    const u = [...this.users.values()].find((x) => x.userId === userId);
+    return u?.maxVaultBytes ?? this.maxVaultBytes;
   }
 
   latest(userId: string): FVersion | undefined {
@@ -205,6 +217,13 @@ class FakeClient implements ApiClient {
     this.s.revokeAll(u.userId);
   }
 
+  async usage(): Promise<Usage> {
+    await this.enter('usage');
+    const [, me] = await this.device();
+    if (!this.s.supportsUsage) throw new ApiError('not_found', 'not found', 404);
+    return { vaultBytes: this.s.latest(me.userId)?.body.length ?? 0, maxVaultBytes: this.s.limitFor(me.userId) };
+  }
+
   async getVault(ifNoneMatch?: number | null): Promise<GetVaultResult> {
     await this.enter('getVault');
     const [, me] = await this.device();
@@ -218,6 +237,7 @@ class FakeClient implements ApiClient {
     await this.enter('putVault');
     const [, me] = await this.device();
     if (this.s.beforePut) await this.s.beforePut();
+    if (body.length > this.s.limitFor(me.userId)) throw new ApiError('too_large', "vault exceeds this account's size limit", 413);
     const cur = this.s.latest(me.userId)?.version ?? 0;
     if ((expected === 'none' && cur !== 0) || (expected !== 'none' && expected !== cur)) return { status: 'conflict', currentVersion: cur };
     return { status: 'ok', version: this.s.forcePut(me.userId, body, me.name) };

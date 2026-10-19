@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -159,4 +160,57 @@ func TestParseETag(t *testing.T) {
 			t.Errorf("parseETag(%q) accepted", bad)
 		}
 	}
+}
+
+// TestPerUserVaultLimit: an account's own limit replaces the server default
+// for uploads, rotations and the usage report; other accounts keep the default.
+func TestPerUserVaultLimit(t *testing.T) {
+	e := newTestEnv(t, func(c *config.Config) { c.MaxVaultBytes = 1024 })
+	alice := bearer(e.register("alice", authKey(1)).DeviceToken)
+	bob := bearer(e.register("bob", authKey(2)).DeviceToken)
+	big := envelope(string(make([]byte, 1500))) // over the default, under alice's limit
+
+	usage := func(auth []string) usageResponse {
+		t.Helper()
+		rec := e.do(http.MethodGet, "/v1/account/usage", nil, auth...)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("usage: %d %s", rec.Code, rec.Body.String())
+		}
+		return decodeBody[usageResponse](t, rec)
+	}
+	if got := usage(alice); got != (usageResponse{VaultBytes: 0, MaxVaultBytes: 1024}) {
+		t.Fatalf("empty vault usage = %+v", got)
+	}
+
+	expectError(t, e.do(http.MethodPut, "/v1/vault", big, append(alice, "If-None-Match", "*")...),
+		http.StatusRequestEntityTooLarge, codeVaultTooLarge)
+
+	if err := e.st.SetVaultLimit(context.Background(), "alice", 4096); err != nil {
+		t.Fatal(err)
+	}
+	rec := e.do(http.MethodPut, "/v1/vault", big, append(alice, "If-None-Match", "*")...)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("put under alice's own limit: %d %s", rec.Code, rec.Body.String())
+	}
+	if got := usage(alice); got != (usageResponse{VaultBytes: int64(len(big)), MaxVaultBytes: 4096}) {
+		t.Fatalf("alice usage = %+v, want %d of 4096", got, len(big))
+	}
+	expectError(t, e.do(http.MethodPut, "/v1/vault", envelope(string(make([]byte, 5000))), append(alice, "If-Match", `"1"`)...),
+		http.StatusRequestEntityTooLarge, codeVaultTooLarge)
+
+	// bob still has the server default.
+	expectError(t, e.do(http.MethodPut, "/v1/vault", big, append(bob, "If-None-Match", "*")...),
+		http.StatusRequestEntityTooLarge, codeVaultTooLarge)
+	if got := usage(bob); got.MaxVaultBytes != 1024 {
+		t.Fatalf("bob limit = %d, want the default 1024", got.MaxVaultBytes)
+	}
+
+	// A limit below the default applies too.
+	if err := e.st.SetVaultLimit(context.Background(), "bob", 100); err != nil {
+		t.Fatal(err)
+	}
+	expectError(t, e.do(http.MethodPut, "/v1/vault", envelope(string(make([]byte, 200))), append(bob, "If-None-Match", "*")...),
+		http.StatusRequestEntityTooLarge, codeVaultTooLarge)
+
+	expectError(t, e.do(http.MethodGet, "/v1/account/usage", nil), http.StatusUnauthorized, codeUnauthorized)
 }

@@ -55,3 +55,40 @@ test('asks before a mass deletion and applies it once confirmed', async ({ serve
   await expect(popup.locator('#popup-status')).toContainText('Up to date');
   expect(await browserA.badge()).toBe('');
 });
+
+test('shows server storage as a bar, and a warning card near the account limit', async ({ server, browserA }) => {
+  // Random URLs, so the compressed vault is large enough to fill a 1 KiB limit.
+  await browserA.bookmarks(async (b) => {
+    for (let i = 0; i < 30; i++) await b.create({ parentId: '1', title: `bulk ${i}`, url: `https://example.com/${crypto.randomUUID()}` });
+  });
+  const options = await browserA.openOptions();
+  await registerViaUi(options, server);
+
+  let popup = await browserA.openPopup();
+  await expect(popup.locator('#quota.quota')).toContainText('Storage');
+  await expect(popup.locator('#quota')).toContainText('of 10 MB');
+  const usage = (await popup.evaluate(() => chrome.runtime.sendMessage({ type: 'getUsage' }))) as { data: { vaultBytes: number; maxVaultBytes: number } };
+  const vaultBytes = usage.data.vaultBytes;
+  expect(vaultBytes).toBeGreaterThan(1024);
+  expect(server.quota('alice')).toContain('(server default)');
+
+  // 85 % of the account's own limit: the warning card.
+  server.quota('alice', String(Math.floor(vaultBytes / 0.85)));
+  await popup.close();
+  popup = await browserA.openPopup();
+  await expect(popup.locator('#quota.quota-card.warn')).toContainText('Server storage');
+  await expect(popup.locator('#quota')).toContainText('syncing stops');
+  await expect(popup.locator('#quota [role="progressbar"]')).toHaveAttribute('aria-valuenow', '85');
+
+  // At the limit: the red card.
+  server.quota('alice', String(Math.max(1024, Math.ceil(vaultBytes))));
+  await popup.close();
+  popup = await browserA.openPopup();
+  await expect(popup.locator('#quota.quota-card.full')).toContainText('may not sync');
+
+  // Back to the server default: the quiet bar again.
+  server.quota('alice', 'default');
+  await popup.close();
+  popup = await browserA.openPopup();
+  await expect(popup.locator('#quota.quota')).toContainText('of 10 MB');
+});

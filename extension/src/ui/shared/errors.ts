@@ -17,7 +17,7 @@ const MESSAGES: Record<string, string> = {
   sync_required: 'BookSync needs one successful sync first. Try again in a moment.',
   unauthorized: 'This browser was signed out by the server. Sign in again.',
   version_conflict: 'Another browser just changed your bookmarks. Try again.',
-  too_large: 'Your bookmarks exceed the server’s size limit.',
+  too_large: 'Your bookmarks exceed this account’s size limit on the server.',
 };
 
 export function errorText(e: unknown): string {

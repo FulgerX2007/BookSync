@@ -121,3 +121,47 @@ func count(t *testing.T, s *Store, query string, args ...any) int {
 	}
 	return n
 }
+
+func TestVaultLimitAndUsage(t *testing.T) {
+	ctx := context.Background()
+	s := openTestStore(t)
+	u, err := s.CreateUser(ctx, testNewUser("erin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	limit, size, err := s.VaultUsage(ctx, u.ID)
+	if err != nil || limit != 0 || size != 0 {
+		t.Fatalf("new user: limit %d size %d err %v; want the default and an empty vault", limit, size, err)
+	}
+
+	if err := s.SetVaultLimit(ctx, "erin", 5<<20); err != nil {
+		t.Fatalf("SetVaultLimit: %v", err)
+	}
+	got, err := s.UserByUsername(ctx, "erin")
+	if err != nil || got.MaxVaultBytes != 5<<20 {
+		t.Fatalf("UserByUsername: MaxVaultBytes %d err %v", got.MaxVaultBytes, err)
+	}
+	if _, err := s.PutVault(ctx, u.ID, "", nil, make([]byte, 300), Retention{KeepRecent: 5}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.PutVault(ctx, u.ID, "", ptr(int64(1)), make([]byte, 120), Retention{KeepRecent: 5}); err != nil {
+		t.Fatal(err)
+	}
+	limit, size, err = s.VaultUsage(ctx, u.ID)
+	if err != nil || limit != 5<<20 || size != 120 {
+		t.Fatalf("usage: limit %d size %d err %v; want 5 MiB and the newest version's 120 bytes", limit, size, err)
+	}
+
+	if err := s.SetVaultLimit(ctx, "erin", 0); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	if limit, _, _ := s.VaultUsage(ctx, u.ID); limit != 0 {
+		t.Fatalf("after reset limit = %d, want 0 (default)", limit)
+	}
+	if err := s.SetVaultLimit(ctx, "ghost", 1<<20); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown user: err = %v", err)
+	}
+	if _, _, err := s.VaultUsage(ctx, "nope"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("VaultUsage unknown: err = %v", err)
+	}
+}

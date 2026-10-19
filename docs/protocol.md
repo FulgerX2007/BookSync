@@ -192,7 +192,8 @@ let extensions set it).
     expiry slides forward, refreshed at most hourly.
 - **Body limits.** JSON bodies are capped at 64 KiB. Unknown fields and trailing data
   get `400`; an oversized body gets `413 request_too_large`. A password change that
-  carries a rotation may be up to `64 KiB + ⌈MAX_VAULT_BYTES × 4/3⌉`.
+  carries a rotation may be up to `64 KiB + ⌈limit × 4/3⌉`, where `limit` is the
+  account's vault limit (§3.3).
 - **Timestamps** in responses are RFC 3339.
 
 ### 3.2 Endpoints
@@ -201,7 +202,7 @@ let extensions set it).
 |---|---|---|---|
 | `GET /` | – | – | 200 HTML: a service-info page for people (status, version, how to connect, this table). Informational only; clients MUST NOT parse it. |
 | `GET /healthz` | – | – | 200 · 503 `unavailable` |
-| `GET /v1/info` | – | – | 200 `{service: "booksync", protocol: 1, version, status: "ok" \| "unavailable", registrationOpen, maxVaultBytes}`, also when storage is down. `protocol` is this document's major version. Servers older than this endpoint answer `404`; clients then fall back to `/healthz`. |
+| `GET /v1/info` | – | – | 200 `{service: "booksync", protocol: 1, version, status: "ok" \| "unavailable", registrationOpen, maxVaultBytes}`, also when storage is down. `maxVaultBytes` is the server default; an account may have its own limit (`GET /v1/account/usage`). `protocol` is this document's major version. Servers older than this endpoint answer `404`; clients then fall back to `/healthz`. |
 | `GET /v1/auth/prelogin?username=` | – | – | 200 `{kdf, iterations}`. An unknown username gets the defaults (`pbkdf2-sha256`, 600000), so prelogin does not reveal which accounts exist. |
 | `POST /v1/auth/register` | – | `{username, authKey, kdf, iterations, wrappedVaultKey, deviceName}` | 201 `{userId, deviceId, deviceToken}` · 400 `invalid_request` · 403 `registration_closed` · 409 `username_taken` |
 | `POST /v1/auth/login` | – | `{username, authKey, deviceName}` | 200 `{userId, deviceId, deviceToken, wrappedVaultKey, kdf, iterations}` · 401 `invalid_credentials` |
@@ -210,6 +211,7 @@ let extensions set it).
 | `DELETE /v1/devices/{id}` | device | – | 204 · 404 `not_found` (also for another user's device) |
 | `POST /v1/account/password` | device | `{currentAuthKey, newAuthKey, kdf, iterations, newWrappedVaultKey, rotation?: {expectedVersion, vault}}` | 204, or 200 `{version}` + `ETag` with `rotation` · 400 · 401 `invalid_credentials` · 412 `version_conflict` · 413 `vault_too_large` |
 | `POST /v1/account/delete` | device | `{authKey}` | 204 · 401 `invalid_credentials` |
+| `GET /v1/account/usage` | device | – | 200 `{vaultBytes, maxVaultBytes}`: the size of the current vault version (`0` when empty) and this account's limit (§3.3). Servers older than this endpoint answer `404`. |
 | `GET /v1/vault` | device | optional `If-None-Match: "<v>"` | 200 octet-stream + `ETag: "<v>"` · 304 · 404 `vault_empty` |
 | `PUT /v1/vault` | device | octet-stream envelope; `If-Match: "<v>"` **or** `If-None-Match: *` | 200 `{version}` + `ETag` · 400 `invalid_vault` / `invalid_request` · 412 `version_conflict` · 413 `vault_too_large` · 428 `precondition_required` |
 | `GET /v1/vault/versions` | device | – | 200 `[{version, createdAt, deviceName, size}]`, newest first |
@@ -246,6 +248,14 @@ let extensions set it).
     and, when a vault exists, `ETag: "N"`.
 - **Atomicity.** The compare, the insert of `v+1` and retention run in one immediate
   SQLite transaction, so concurrent writers serialize.
+- **Size limit.** Each account has a vault limit: its own, set by the operator with
+  `booksync-server quota`, or else the server default `BOOKSYNC_MAX_VAULT_BYTES`.
+  - An upload, or a rotation's vault, larger than the limit gets `413 vault_too_large`.
+  - Lowering a limit below the current vault keeps the stored versions; only the next
+    larger upload is refused.
+  - Clients show the use reported by `GET /v1/account/usage` and warn from 80 % of
+    the limit, since a refused upload stops syncing until bookmarks are removed or
+    the limit is raised.
 - **Retention.** After each write the server keeps the newest `BOOKSYNC_VAULT_KEEP_RECENT`
   versions (default 10), plus the newest version of each UTC day within the last
   `BOOKSYNC_VAULT_KEEP_DAYS` days (default 30). It deletes the rest.

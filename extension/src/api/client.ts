@@ -1,4 +1,5 @@
 // Typed client for the BookSync server API (docs/protocol.md §3).
+import { parseUsage, type Usage } from './usage';
 
 export type ApiErrorCode =
   | 'unauthorized' // device token missing, revoked or expired
@@ -87,6 +88,8 @@ export interface ApiClient {
   /** Resolves with the new vault version when the request carried a rotation. */
   changePassword(req: ChangePasswordRequest): Promise<{ version?: number }>;
   deleteAccount(authKey: Uint8Array): Promise<void>;
+  /** The current vault's size and this account's limit. */
+  usage(): Promise<Usage>;
   /** ifNoneMatch: the version this device already has. */
   getVault(ifNoneMatch?: number | null): Promise<GetVaultResult>;
   /** expected: the version merged against, or 'none' when creating the first vault. */
@@ -200,6 +203,13 @@ export class HttpApiClient implements ApiClient {
 
   async deleteAccount(authKey: Uint8Array): Promise<void> {
     await this.send('POST', '/v1/account/delete', { body: { authKey: toB64Url(authKey) } });
+  }
+
+  /** The vault's size and this account's limit; ApiError not_found on servers older than the endpoint. */
+  async usage(): Promise<Usage> {
+    const u = parseUsage(await this.json('GET', '/v1/account/usage'));
+    if (!u) throw new ApiError('server', 'malformed usage response');
+    return u;
   }
 
   async getVault(ifNoneMatch?: number | null): Promise<GetVaultResult> {

@@ -116,11 +116,17 @@ func (s *Server) handlePutVault(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, s.cfg.MaxVaultBytes))
+	d := currentDevice(r)
+	limit, err := s.vaultLimit(r, d.UserID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
 	if err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			writeError(w, http.StatusRequestEntityTooLarge, codeVaultTooLarge, "vault exceeds the server's size limit")
+			writeError(w, http.StatusRequestEntityTooLarge, codeVaultTooLarge, vaultTooLargeMessage)
 			return
 		}
 		writeError(w, http.StatusBadRequest, codeInvalidRequest, "could not read body")
@@ -131,7 +137,6 @@ func (s *Server) handlePutVault(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	d := currentDevice(r)
 	version, err := s.deps.Store.PutVault(r.Context(), d.UserID, d.ID, expected, body, s.retention())
 	var conflict *store.VersionConflictError
 	if errors.As(err, &conflict) {
@@ -151,6 +156,40 @@ func (s *Server) handlePutVault(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("ETag", etag(version))
 	writeJSON(w, http.StatusOK, putVaultResponse{Version: version})
+}
+
+const vaultTooLargeMessage = "vault exceeds this account's size limit"
+
+// vaultLimit is the user's own vault size limit, or the server default.
+func (s *Server) vaultLimit(r *http.Request, userID string) (int64, error) {
+	limit, _, err := s.deps.Store.VaultUsage(r.Context(), userID)
+	if err != nil {
+		return 0, err
+	}
+	return s.effectiveLimit(limit), nil
+}
+
+func (s *Server) effectiveLimit(own int64) int64 {
+	if own > 0 {
+		return own
+	}
+	return s.cfg.MaxVaultBytes
+}
+
+type usageResponse struct {
+	VaultBytes    int64 `json:"vaultBytes"`
+	MaxVaultBytes int64 `json:"maxVaultBytes"`
+}
+
+// handleUsage reports the size of the current vault version and the
+// account's limit, so clients can warn before an upload is refused.
+func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
+	own, size, err := s.deps.Store.VaultUsage(r.Context(), currentDevice(r).UserID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, usageResponse{VaultBytes: size, MaxVaultBytes: s.effectiveLimit(own)})
 }
 
 // validVaultEnvelope is a sanity check only; the server cannot decrypt.
