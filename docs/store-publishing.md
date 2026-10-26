@@ -58,8 +58,6 @@ consoles.
 
 The job runs `web-ext sign --channel listed` with the release's
 `booksync-X.Y.Z-source.tar.gz` as the source code, and doesn't wait for the review.
-Its AMO metadata marks the version compatible with desktop Firefox only
-(`compatibility: ["firefox"]`), because Firefox for Android has no bookmarks API.
 
 ## 3. Google service account (Chrome and Play)
 
