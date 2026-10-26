@@ -22,6 +22,10 @@ if (BROWSER !== 'chromium' && BROWSER !== 'msedge') throw new Error(`BOOKSYNC_E2
 /** The root folders' titles as the browser under test names them (the UI shows these). */
 export const ROOTS = BROWSER === 'msedge' ? { bar: 'Favorites bar', other: 'Other favorites' } : { bar: 'Bookmarks bar', other: 'Other bookmarks' };
 
+/** How the pages name the browser under test, and where its own bookmark sync is turned off. */
+export const BUILTIN_SYNC =
+  BROWSER === 'msedge' ? { owner: 'Edge’s', address: 'edge://settings/profiles/sync' } : { owner: 'Chrome’s', address: 'chrome://settings/syncSetup/advanced' };
+
 /** Use a preinstalled Chromium when Playwright's own download is not available. */
 function chromiumPath(): string | undefined {
   if (process.env.CHROMIUM_PATH) return process.env.CHROMIUM_PATH;

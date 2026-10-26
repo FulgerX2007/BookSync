@@ -1,6 +1,6 @@
 import { readFileSync, rmSync } from 'node:fs';
 import { formatSyncId, generateSyncId } from '../src/crypto/syncid';
-import { ExtBrowser, PASSWORD, expect, freePort, loginViaUi, registerViaUi, startServer, test, waitForVersionAbove } from './fixtures';
+import { BUILTIN_SYNC, ExtBrowser, PASSWORD, expect, freePort, loginViaUi, registerViaUi, startServer, test, waitForVersionAbove } from './fixtures';
 
 test('registers, shows the SyncID once and downloads the emergency kit', async ({ server, browserA }) => {
   const page = await browserA.openOptions();
@@ -144,10 +144,10 @@ test('keeps one version per day by default, listed under its day', async ({ serv
 test('asks to turn off the browser’s own bookmark sync until told it is off', async ({ server, browserA }) => {
   const page = await browserA.openOptions();
   await registerViaUi(page, server);
-  await expect(page.locator('#builtin-sync h2')).toHaveText('Turn off Chrome’s own bookmark sync');
-  await expect(page.locator('#builtin-sync-address')).toHaveText('chrome://settings/syncSetup/advanced');
+  await expect(page.locator('#builtin-sync h2')).toHaveText(`Turn off ${BUILTIN_SYNC.owner} own bookmark sync`);
+  await expect(page.locator('#builtin-sync-address')).toHaveText(BUILTIN_SYNC.address);
   const popup = await browserA.openPopup();
-  await expect(popup.locator('#builtin-sync-line')).toContainText('Turn off Chrome’s own bookmark sync');
+  await expect(popup.locator('#builtin-sync-line')).toContainText(`Turn off ${BUILTIN_SYNC.owner} own bookmark sync`);
 
   await page.click('#builtin-sync-off');
   await expect(page.locator('#builtin-sync')).toHaveCount(0);
