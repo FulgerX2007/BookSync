@@ -4,11 +4,12 @@ import type { EmergencyKit, StatusView } from '../../background/messages';
 import { normalizeServerUrl } from '../../api/client';
 import { checkServer, describeServerCheck, serverOrigin, type ServerCheck } from '../../api/server-check';
 import { parseSyncId } from '../../crypto/syncid';
-import { ext } from '../../platform/ext';
+import { ext, hasBookmarksApi } from '../../platform/ext';
 import { defaultDeviceName } from '../shared/device-name';
 import { byId, download, h, replace, timeAgo, value } from '../shared/dom';
 import { errorText } from '../shared/errors';
 import { onStatus, send } from '../shared/rpc';
+import { startFailure, unsupportedNotice } from '../shared/unsupported';
 
 const app = byId('app');
 const LAST_SERVER_KEY = 'booksync.lastServer';
@@ -617,6 +618,10 @@ function askRestore(button: HTMLButtonElement, version: number): void {
 }
 
 async function main(): Promise<void> {
+  if (!hasBookmarksApi()) {
+    replace(app, unsupportedNotice());
+    return;
+  }
   status = await send('getStatus');
   render();
   onStatus((s) => {
@@ -632,4 +637,4 @@ async function main(): Promise<void> {
   });
 }
 
-void main();
+main().catch((e: unknown) => replace(app, startFailure(errorText(e))));

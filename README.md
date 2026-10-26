@@ -295,6 +295,10 @@ npm run build            # → dist/chromium and dist/firefox
   Alternatively, use Firefox Developer Edition or Nightly with
   `xpinstall.signatures.required` set to `false`.
 
+**Firefox for Android** can't run the extension: it gives extensions no bookmarks API.
+Installed there anyway, the extension says so. Use the [Android app](#android-app)
+instead.
+
 `make package` builds store-ready zips in `extension/dist/packages/`. The
 [privacy policy](docs/privacy.md) covers the extension and the Android app, and
 [docs/store-listing.md](docs/store-listing.md) holds the store texts. `cd extension &&

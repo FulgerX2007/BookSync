@@ -18,6 +18,7 @@ const MESSAGES: Record<string, string> = {
   unauthorized: 'This browser was signed out by the server. Sign in again.',
   version_conflict: 'Another browser just changed your bookmarks. Try again.',
   too_large: 'Your bookmarks exceed this account’s size limit on the server.',
+  unsupported_browser: 'This browser doesn’t let extensions use bookmarks, so BookSync can’t run here. On Android, use the BookSync app.',
 };
 
 export function errorText(e: unknown): string {

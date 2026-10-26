@@ -18,9 +18,15 @@ export class RequestError extends Error {
 
 export class Router {
   private readonly handlers = new Map<string, (req: never) => Promise<unknown>>();
+  private refusal: { code: string; message: string } | null = null;
 
   register<K extends MessageType>(type: K, handler: Handler<K>): void {
     this.handlers.set(type, handler as (req: never) => Promise<unknown>);
+  }
+
+  /** Answers every well-formed message with this error: for a browser BookSync can't run in. */
+  refuseAll(code: string, message: string): void {
+    this.refusal = { code, message };
   }
 
   has(type: string): boolean {
@@ -31,6 +37,7 @@ export class Router {
     if (typeof message !== 'object' || message === null || typeof (message as { type?: unknown }).type !== 'string') {
       return { ok: false, error: { code: 'invalid_message', message: 'malformed message' } };
     }
+    if (this.refusal) return { ok: false, error: this.refusal };
     const handler = this.handlers.get((message as { type: string }).type);
     if (!handler) return { ok: false, error: { code: 'invalid_message', message: `unknown message type` } };
     try {

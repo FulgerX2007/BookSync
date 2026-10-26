@@ -3,11 +3,12 @@
 import type { MessageType, StatusView } from '../../background/messages';
 import { describeUsage } from '../../api/usage';
 import type { CachedUsage } from '../../storage/state';
-import { ext } from '../../platform/ext';
+import { ext, hasBookmarksApi } from '../../platform/ext';
 import { openBookmarks } from '../shared/bookmarks';
 import { byId, h, replace, timeAgo } from '../shared/dom';
 import { errorText } from '../shared/errors';
 import { onStatus, send } from '../shared/rpc';
+import { startFailure, unsupportedNotice } from '../shared/unsupported';
 import { mountSearch } from './search';
 import { mountThisPage } from './this-page';
 
@@ -125,6 +126,11 @@ function openManager(): void {
 }
 
 async function main(): Promise<void> {
+  if (!hasBookmarksApi()) {
+    for (const id of ['search', 'this-page', 'popup-nav']) byId(id).hidden = true;
+    replace(app, unsupportedNotice());
+    return;
+  }
   byId('open-manager').addEventListener('click', openManager);
   const bookmarks = openBookmarks();
   mountSearch(byId('search'), bookmarks);
@@ -150,4 +156,4 @@ async function refreshUsage(): Promise<void> {
   }
 }
 
-void main();
+main().catch((e: unknown) => replace(app, startFailure(errorText(e))));

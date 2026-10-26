@@ -108,6 +108,9 @@ reference client. The Android app uses three pieces:
   - Access them only through `ext()` (`src/platform/ext.ts`), never through a global
     `chrome` or `browser`. Tests install fakes there.
   - Build-time flags: `__BOOKSYNC_TARGET__` (`chromium`/`firefox`) and `__BOOKSYNC_E2E__`.
+  - Firefox for Android has no bookmarks API. The background and every page check
+    `hasBookmarksApi()` first and show `unsupportedNotice()` instead of starting; a
+    new page must do the same.
 - **The background is an MV3 service worker.**
   - Register every listener synchronously, in the first turn of the event loop. That is
     why `StateStore.lazy()` exists.

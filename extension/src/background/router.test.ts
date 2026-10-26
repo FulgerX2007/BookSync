@@ -29,6 +29,18 @@ describe('Router', () => {
     expect(await r.dispatch({ type: 'listVersions' })).toEqual({ ok: false, error: { code: 'internal', message: 'boom' } });
   });
 
+  it('refuses every well-formed message once refuseAll is set, registered or not', async () => {
+    const r = new Router();
+    r.register('getStatus', async () => {
+      throw new Error('must not run');
+    });
+    r.refuseAll('unsupported_browser', 'no bookmarks API');
+    const refused = { ok: false, error: { code: 'unsupported_browser', message: 'no bookmarks API' } };
+    expect(await r.dispatch({ type: 'getStatus' })).toEqual(refused);
+    expect(await r.dispatch({ type: 'nope' })).toEqual(refused);
+    expect(await r.dispatch(null)).toMatchObject({ ok: false, error: { code: 'invalid_message' } });
+  });
+
   it('only answers messages from its own extension', () => {
     const r = new Router();
     let listener!: (m: unknown, s: { id?: string }, respond: (x: unknown) => void) => boolean;

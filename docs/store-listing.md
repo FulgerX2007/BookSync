@@ -104,8 +104,12 @@ unrelated purposes, not used for creditworthiness.
 
 ## Firefox Add-ons
 
-- **Compatibility:** Firefox (desktop) only. **Untick Firefox for Android**: it has no
-  bookmarks API.
+- **Compatibility:** Firefox (desktop) only, because Firefox for Android has no
+  bookmarks API (installed there anyway, the extension says so instead of running).
+  - The release job uploads every version as compatible with desktop Firefox only.
+  - On a version uploaded by hand, or one uploaded before the job did this, **untick
+    Firefox for Android** in the Developer Hub. A version that still lists Android
+    stays on offer to Android users.
 - **Data collection:** the manifest declares `authenticationInfo` and `bookmarksInfo`
   as required, so Firefox shows them at install.
 - **Source code:** answer *Yes* (the code is bundled with esbuild) and upload the

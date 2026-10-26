@@ -10,6 +10,16 @@ export function ext(): typeof chrome {
   return api;
 }
 
+/**
+ * Whether this browser gives extensions the bookmarks API. Firefox for Android
+ * doesn't, so BookSync can't run there; the background and the pages check
+ * this first and say so instead of failing.
+ */
+export function hasBookmarksApi(): boolean {
+  const bookmarks = (ext() as { bookmarks?: { getTree?: unknown } }).bookmarks;
+  return typeof bookmarks?.getTree === 'function';
+}
+
 declare global {
   // Replaced at build time by esbuild's `define`.
   const __BOOKSYNC_TARGET__: 'chromium' | 'firefox';

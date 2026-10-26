@@ -93,12 +93,14 @@ firefox() {
   mkdir -p "$dir"
   unzip -q "$zip" -d "$dir"
   # The add-on id comes from the manifest; the listing and license stay as they are on AMO.
+  # Desktop Firefox only: Firefox for Android has no bookmarks API. Without an
+  # explicit list AMO derives the apps from the manifest, which may add Android
+  # (the manifest's gecko_android key exists only to keep web-ext lint clean).
+  jq -n --arg notes "${STORE_REVIEWER_NOTES:-}" \
+    '{version: ({compatibility: ["firefox"]} + if $notes == "" then {} else {approval_notes: $notes} end)}' \
+    >"$work/amo-metadata.json"
   args=(sign --source-dir "$dir" --artifacts-dir "$work/artifacts" --channel listed
-    --upload-source-code "$src" --approval-timeout 0 --no-input)
-  if [[ -n "${STORE_REVIEWER_NOTES:-}" ]]; then
-    jq -n --arg notes "$STORE_REVIEWER_NOTES" '{version: {approval_notes: $notes}}' >"$work/amo-metadata.json"
-    args+=(--amo-metadata "$work/amo-metadata.json")
-  fi
+    --upload-source-code "$src" --amo-metadata "$work/amo-metadata.json" --approval-timeout 0 --no-input)
   WEB_EXT_API_KEY="$AMO_API_KEY" WEB_EXT_API_SECRET="$AMO_API_SECRET" "$WEB_EXT" "${args[@]}"
   echo "Firefox: $VERSION submitted to AMO for review."
 }
