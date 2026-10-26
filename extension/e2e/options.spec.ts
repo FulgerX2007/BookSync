@@ -99,25 +99,64 @@ test('rotates keys on password change; only the new SyncID works afterwards', as
   expect(found).toHaveLength(1);
 });
 
-test('restores an earlier version from the history', async ({ server, browserA }) => {
+test('restores an earlier version from the history', async ({ browserA }) => {
+  // Several versions on one day: only kept when the operator raises KEEP_RECENT.
+  const server = await startServer({ BOOKSYNC_VAULT_KEEP_RECENT: '10' });
+  try {
+    const page = await browserA.openOptions();
+    await registerViaUi(page, server);
+    await browserA.bookmarks((b) => b.create({ parentId: '1', title: 'Keep', url: 'https://keep.example/' }));
+    await page.click('#sync-now');
+    const v2 = await waitForVersionAbove(page, 1);
+    await browserA.bookmarks((b) => b.create({ parentId: '1', title: 'Added later', url: 'https://later.example/' }));
+    await page.click('#sync-now');
+    await waitForVersionAbove(page, v2);
+    await page.reload();
+
+    await expect(page.locator('#history tr.day')).toHaveCount(1); // all today
+    const rows = page.locator('#history tr[data-version]');
+    await expect(rows).toHaveCount(3); // bootstrap, +Keep, +Added later
+    await rows.nth(1).locator('button.restore').click();
+    await rows.nth(1).locator('button.confirm-restore').click();
+
+    await expect(page.locator('#history tr[data-version]')).toHaveCount(4);
+    await expect.poll(async () => (await browserA.bookmarks((b) => b.search({ title: 'Added later' }))).length).toBe(0);
+    expect(await browserA.bookmarks((b) => b.search({ title: 'Keep' }))).toHaveLength(1);
+  } finally {
+    await server.stop();
+    rmSync(server.dir, { recursive: true, force: true });
+  }
+});
+
+test('keeps one version per day by default, listed under its day', async ({ server, browserA }) => {
   const page = await browserA.openOptions();
   await registerViaUi(page, server);
-  await browserA.bookmarks((b) => b.create({ parentId: '1', title: 'Keep', url: 'https://keep.example/' }));
+  await browserA.bookmarks((b) => b.create({ parentId: '1', title: 'One', url: 'https://one.example/' }));
   await page.click('#sync-now');
-  const v2 = await waitForVersionAbove(page, 1);
-  await browserA.bookmarks((b) => b.create({ parentId: '1', title: 'Added later', url: 'https://later.example/' }));
-  await page.click('#sync-now');
-  await waitForVersionAbove(page, v2);
+  await waitForVersionAbove(page, 1);
   await page.reload();
+  await expect(page.locator('#history tr.day')).toHaveCount(1);
+  await expect(page.locator('#history tr[data-version]')).toHaveCount(1);
+  await expect(page.locator('#history tr[data-version] .badge')).toHaveText('current');
+  await expect(page.locator('#history th', { hasText: 'By' })).toHaveCount(0);
+});
 
-  const rows = page.locator('#history tbody tr');
-  await expect(rows).toHaveCount(3); // bootstrap, +Keep, +Added later
-  await rows.nth(1).locator('button.restore').click();
-  await rows.nth(1).locator('button.confirm-restore').click();
+test('asks to turn off the browser’s own bookmark sync until told it is off', async ({ server, browserA }) => {
+  const page = await browserA.openOptions();
+  await registerViaUi(page, server);
+  await expect(page.locator('#builtin-sync h2')).toHaveText('Turn off Chrome’s own bookmark sync');
+  await expect(page.locator('#builtin-sync-address')).toHaveText('chrome://settings/syncSetup/advanced');
+  const popup = await browserA.openPopup();
+  await expect(popup.locator('#builtin-sync-line')).toContainText('Turn off Chrome’s own bookmark sync');
 
-  await expect(page.locator('#history tbody tr')).toHaveCount(4);
-  await expect.poll(async () => (await browserA.bookmarks((b) => b.search({ title: 'Added later' }))).length).toBe(0);
-  expect(await browserA.bookmarks((b) => b.search({ title: 'Keep' }))).toHaveLength(1);
+  await page.click('#builtin-sync-off');
+  await expect(page.locator('#builtin-sync')).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator('#account-username')).toHaveText('alice');
+  await expect(page.locator('#builtin-sync')).toHaveCount(0);
+  await popup.reload();
+  await expect(popup.locator('#popup-status')).toBeVisible();
+  await expect(popup.locator('#builtin-sync-line')).toHaveCount(0);
 });
 
 test('tests the connection before continuing', async ({ server, browserA }) => {

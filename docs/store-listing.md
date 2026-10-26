@@ -104,8 +104,17 @@ unrelated purposes, not used for creditworthiness.
 
 ## Firefox Add-ons
 
-- **Compatibility:** Firefox (desktop) only. **Untick Firefox for Android**: it has no
-  bookmarks API.
+- **Compatibility:** Firefox (desktop) only, because Firefox for Android has no
+  bookmarks API (installed there anyway, the extension says so instead of running).
+  - The manifest has no `browser_specific_settings.gecko_android` key, so AMO lists
+    the add-on for desktop Firefox only. Never add that key: it marks the add-on as
+    Android-compatible and locks that setting in the Developer Hub.
+  - `web-ext lint` therefore warns `KEY_FIREFOX_ANDROID_UNSUPPORTED_BY_MIN_VERSION`
+    (`data_collection_permissions` needs Firefox for Android 142). That warning is
+    expected; it is about Android, which BookSync doesn't target.
+  - Versions up to 1.2.0 carried the key, so their Android compatibility is locked. The
+    first version without it replaces them as the current version, and AMO then stops
+    offering BookSync on Android.
 - **Data collection:** the manifest declares `authenticationInfo` and `bookmarksInfo`
   as required, so Firefox shows them at install.
 - **Source code:** answer *Yes* (the code is bundled with esbuild) and upload the

@@ -147,3 +147,10 @@ a.settings {
   font-size: 12px;
   color: var(--muted);
 }
+
+.builtin-sync {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--warn);
+  font-size: 12px;
+}

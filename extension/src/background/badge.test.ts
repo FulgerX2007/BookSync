@@ -15,6 +15,7 @@ const base: StatusView = {
   nextAttemptAt: 0,
   pendingConfirmation: null,
   nativeSyncAck: false,
+  builtinSyncOff: false,
 };
 
 describe('badgeFor', () => {

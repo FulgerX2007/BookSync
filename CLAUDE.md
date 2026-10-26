@@ -13,6 +13,8 @@ reference client. The Android app uses three pieces:
 - [README.md](README.md) covers what the project is and how to self-host it.
 - [docs/protocol.md](docs/protocol.md) is the normative spec. Update it together with
   any change to crypto, the vault format, the API or the sync rules.
+- [SECURITY.md](SECURITY.md) is the vulnerability-reporting policy. Keep its scope and
+  "Not vulnerabilities" list in step with the README's Security model.
 - `docs/plans/completed/` holds the original implementation plan and its deviation notes.
 
 ## Commands
@@ -106,6 +108,9 @@ reference client. The Android app uses three pieces:
   - Access them only through `ext()` (`src/platform/ext.ts`), never through a global
     `chrome` or `browser`. Tests install fakes there.
   - Build-time flags: `__BOOKSYNC_TARGET__` (`chromium`/`firefox`) and `__BOOKSYNC_E2E__`.
+  - Firefox for Android has no bookmarks API. The background and every page check
+    `hasBookmarksApi()` first and show `unsupportedNotice()` instead of starting; a
+    new page must do the same.
 - **The background is an MV3 service worker.**
   - Register every listener synchronously, in the first turn of the event loop. That is
     why `StateStore.lazy()` exists.

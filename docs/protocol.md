@@ -257,8 +257,10 @@ let extensions set it).
     the limit, since a refused upload stops syncing until bookmarks are removed or
     the limit is raised.
 - **Retention.** After each write the server keeps the newest `BOOKSYNC_VAULT_KEEP_RECENT`
-  versions (default 10), plus the newest version of each UTC day within the last
-  `BOOKSYNC_VAULT_KEEP_DAYS` days (default 30). It deletes the rest.
+  versions (default 1: the current one), plus the newest version of each UTC day within
+  the last `BOOKSYNC_VAULT_KEEP_DAYS` days (default 30). It deletes the rest. With the
+  defaults, history is one version per day: every sync from every browser writes a
+  version, so keeping the newest few would hold only the last minutes.
 
 ### 3.4 Password change and key rotation
 

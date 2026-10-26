@@ -198,6 +198,7 @@ export async function statusView(state: Pick<StateStore, 'getSync' | 'getSession
     nextAttemptAt: st.nextAttemptAt,
     pendingConfirmation: st.pendingConfirmation,
     nativeSyncAck: st.nativeSyncAck,
+    builtinSyncOff: st.builtinSyncOff,
   };
 }
 
@@ -226,6 +227,11 @@ export function registerSyncHandlers(router: Router, scheduler: SyncScheduler, s
   router.register('useLocalVersion', () => run({ recovery: 'use_local' }));
   router.register('acceptServerVersion', () => run({ recovery: 'accept_remote' }));
   router.register('rejoin', () => run({ rejoin: true }));
+  router.register('confirmBuiltinSyncOff', async () => {
+    await state.updateSync({ builtinSyncOff: true });
+    await scheduler.publish();
+    return view();
+  });
   router.register('acknowledgeNativeSync', async () => {
     await state.updateSync({ nativeSyncAck: true });
     return run({});

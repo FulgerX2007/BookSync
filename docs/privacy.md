@@ -25,7 +25,7 @@ can't see your account.
 | Username | To identify the account |
 | A hash of a key derived from your password (Argon2id) | To check sign-ins; it can't be turned back into the password |
 | Your vault key, encrypted with your keys | So your other devices can decrypt your bookmarks |
-| Your bookmarks, encrypted (current copy plus recent versions) | To sync them; the server can't read them |
+| Your bookmarks, encrypted (current copy plus one version per day for the last month) | To sync them; the server can't read them |
 | Device names, and when each device was created and last seen | To list and sign out your devices |
 | A hash of each device's session token | To recognize signed-in devices |
 

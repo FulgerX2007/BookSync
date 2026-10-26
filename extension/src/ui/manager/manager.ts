@@ -11,11 +11,12 @@ import { createSearchIndex, search, type SearchIndex } from '../../bookmarks/sea
 import { emptySelection, pruneSelection, select, type Selection } from '../../bookmarks/selection';
 import { countSubtree, isRootId, normalizeSelection, rootIds, visibleOrder } from '../../bookmarks/tree';
 import { ROOT_OTHER } from '../../model/vault';
-import { ext } from '../../platform/ext';
+import { ext, hasBookmarksApi } from '../../platform/ext';
 import { openBookmarks } from '../shared/bookmarks';
 import { byId, h, replace } from '../shared/dom';
 import { errorText } from '../shared/errors';
 import { RpcError } from '../shared/rpc';
+import { unsupportedNotice } from '../shared/unsupported';
 import { bookmarkDialog, confirmDialog } from './dialogs';
 
 const bookmarks = openBookmarks();
@@ -493,9 +494,14 @@ main.addEventListener('dragend', () => {
   drag = null;
 });
 
-updateToolbar();
-bookmarks.onChange(() => gate.notify());
-void load().then(() => {
-  const target = new URLSearchParams(location.search).get('reveal');
-  if (target) reveal(target);
-});
+if (hasBookmarksApi()) {
+  updateToolbar();
+  bookmarks.onChange(() => gate.notify());
+  void load().then(() => {
+    const target = new URLSearchParams(location.search).get('reveal');
+    if (target) reveal(target);
+  });
+} else {
+  replace(toolbar);
+  replace(main, unsupportedNotice());
+}

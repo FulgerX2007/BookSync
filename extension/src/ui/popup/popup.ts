@@ -3,11 +3,13 @@
 import type { MessageType, StatusView } from '../../background/messages';
 import { describeUsage } from '../../api/usage';
 import type { CachedUsage } from '../../storage/state';
-import { ext } from '../../platform/ext';
+import { ext, hasBookmarksApi } from '../../platform/ext';
 import { openBookmarks } from '../shared/bookmarks';
 import { byId, h, replace, timeAgo } from '../shared/dom';
 import { errorText } from '../shared/errors';
 import { onStatus, send } from '../shared/rpc';
+import { thisBrowserSyncHelp } from '../shared/builtin-sync';
+import { startFailure, unsupportedNotice } from '../shared/unsupported';
 import { mountSearch } from './search';
 import { mountThisPage } from './this-page';
 
@@ -87,6 +89,17 @@ function view(): { tone: Tone; text: string; detail?: string; buttons: HTMLEleme
   }
 }
 
+/** Until the user says the browser's own bookmark sync is off (details in settings). */
+function builtinSyncLine(): HTMLElement | false {
+  if (!status.signedIn || status.builtinSyncOff || status.status === 'native_sync_detected') return false;
+  return h(
+    'p',
+    { class: 'builtin-sync', id: 'builtin-sync-line' },
+    `Turn off ${thisBrowserSyncHelp().owner} own bookmark sync. `,
+    h('a', { href: '#', onclick: (ev: Event) => (ev.preventDefault(), openSettings()) }, 'How'),
+  );
+}
+
 /** Storage use: a quiet bar, or a warning card from 80 % of the account's limit. */
 function usageBlock(): HTMLElement | false {
   if (!status.signedIn || !usage) return false;
@@ -113,6 +126,7 @@ function render(): void {
     h('div', { class: 'top' }, h('h1', {}, 'BookSync'), status.username && h('span', { class: 'muted' }, status.username)),
     h('div', { class: 'status' }, h('span', { class: `dot ${v.tone}` }), h('div', {}, h('div', { id: 'popup-status' }, h('strong', {}, v.text)), v.detail && h('div', { class: 'muted', id: 'popup-detail' }, v.detail))),
     usageBlock(),
+    builtinSyncLine(),
     h('div', { class: 'row' }, ...v.buttons),
     h('div', { id: 'popup-error', class: 'error', role: 'alert' }),
     status.signedIn && h('a', { href: '#', class: 'settings', onclick: (ev: Event) => (ev.preventDefault(), openSettings()) }, 'Settings'),
@@ -125,6 +139,11 @@ function openManager(): void {
 }
 
 async function main(): Promise<void> {
+  if (!hasBookmarksApi()) {
+    for (const id of ['search', 'this-page', 'popup-nav']) byId(id).hidden = true;
+    replace(app, unsupportedNotice());
+    return;
+  }
   byId('open-manager').addEventListener('click', openManager);
   const bookmarks = openBookmarks();
   mountSearch(byId('search'), bookmarks);
@@ -150,4 +169,4 @@ async function refreshUsage(): Promise<void> {
   }
 }
 
-void main();
+main().catch((e: unknown) => replace(app, startFailure(errorText(e))));

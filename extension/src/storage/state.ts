@@ -54,6 +54,8 @@ export interface SyncState {
   nextAttemptAt: number;
   rootPins: RootPins | null;
   nativeSyncAck: boolean;
+  /** The user confirmed the browser's own bookmark sync is off (a notice, not a gate). */
+  builtinSyncOff: boolean;
 }
 
 export function defaultSyncState(): SyncState {
@@ -71,6 +73,7 @@ export function defaultSyncState(): SyncState {
     nextAttemptAt: 0,
     rootPins: null,
     nativeSyncAck: false,
+    builtinSyncOff: false,
   };
 }
 

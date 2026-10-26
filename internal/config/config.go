@@ -30,7 +30,7 @@ func Default() Config {
 		DBPath:            "/data/booksync.db",
 		AllowRegistration: true,
 		MaxVaultBytes:     10 << 20,
-		VaultKeepRecent:   10,
+		VaultKeepRecent:   1, // history is kept per day (VaultKeepDays); see docs/protocol.md §3.3
 		VaultKeepDays:     30,
 		TokenTTL:          90 * 24 * time.Hour,
 		TrustProxyHeaders: false,

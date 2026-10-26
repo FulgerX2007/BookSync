@@ -35,6 +35,13 @@ describe('buildManifest', () => {
     expect(m.browser_specific_settings.gecko.data_collection_permissions).toBeDefined();
   });
 
+  it('does not declare Firefox for Android, which has no bookmarks API', () => {
+    // A gecko_android key makes AMO list the add-on for Android and locks that
+    // setting in the Developer Hub; without it AMO lists desktop Firefox only.
+    const m = buildManifest('firefox') as { browser_specific_settings: Record<string, unknown> };
+    expect(m.browser_specific_settings).not.toHaveProperty('gecko_android');
+  });
+
   it('only grants the test host permission in e2e builds', () => {
     expect(buildManifest('chromium').host_permissions).toBeUndefined();
     expect(buildManifest('chromium', { e2e: true }).host_permissions).toEqual([E2E_HOST_PERMISSION]);
