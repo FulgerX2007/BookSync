@@ -31,7 +31,7 @@ services:
       BOOKSYNC_ALLOW_REGISTRATION: "true"
       # Other settings, with their defaults (see deploy/.env.example):
       # BOOKSYNC_MAX_VAULT_BYTES: "10485760"
-      # BOOKSYNC_VAULT_KEEP_RECENT: "10"
+      # BOOKSYNC_VAULT_KEEP_RECENT: "1"
       # BOOKSYNC_VAULT_KEEP_DAYS: "30"
       # BOOKSYNC_TOKEN_TTL: "2160h"
       # BOOKSYNC_LOG_LEVEL: "info"

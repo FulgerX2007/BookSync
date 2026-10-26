@@ -54,6 +54,11 @@ table.history th {
   border-bottom: 1px solid var(--border);
   font-size: 13px;
 }
+table.history tr.day th {
+  padding-top: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
 
 /* A server check result: a coloured dot and one line of text. */
 .check {

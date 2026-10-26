@@ -18,6 +18,7 @@ export interface StatusView {
   nextAttemptAt: number;
   pendingConfirmation: PendingConfirmation | null;
   nativeSyncAck: boolean;
+  builtinSyncOff: boolean;
 }
 
 export interface EmergencyKit {
@@ -38,6 +39,8 @@ export interface Protocol {
   acceptServerVersion: { req: object; res: StatusView };
   rejoin: { req: object; res: StatusView };
   acknowledgeNativeSync: { req: object; res: StatusView };
+  /** Hides the "turn off the browser's own bookmark sync" notice. */
+  confirmBuiltinSyncOff: { req: object; res: StatusView };
 
   register: { req: { serverUrl: string; username: string; password: string; deviceName: string }; res: EmergencyKit };
   login: { req: { serverUrl: string; username: string; password: string; syncId: string; deviceName: string }; res: StatusView };

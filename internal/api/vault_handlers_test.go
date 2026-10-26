@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/FulgerX2007/BookSync/internal/config"
 )
@@ -40,6 +42,8 @@ func TestVaultFlow(t *testing.T) {
 		t.Fatalf("content-type = %q", ct)
 	}
 
+	// The next day, so the default retention (one version per day) keeps both.
+	e.now = e.now.Add(24 * time.Hour)
 	rec = e.do(http.MethodPut, "/v1/vault", envelope("two"), append(auth, "If-Match", `"1"`)...)
 	if rec.Code != http.StatusOK || rec.Header().Get("ETag") != `"2"` {
 		t.Fatalf("second put: %d %s", rec.Code, rec.Body.String())
@@ -69,6 +73,47 @@ func TestVaultFlow(t *testing.T) {
 	rec = e.do(http.MethodGet, "/v1/vault/versions/1", nil, auth...)
 	if rec.Code != http.StatusOK || !bytes.Equal(rec.Body.Bytes(), envelope("one")) {
 		t.Fatalf("get version 1: %d", rec.Code)
+	}
+}
+
+func TestDefaultRetentionKeepsOneVersionPerDay(t *testing.T) {
+	e := newTestEnv(t)
+	auth := bearer(e.register("alice", authKey(1)).DeviceToken)
+	put := func(body string, match string) {
+		t.Helper()
+		h := append(auth, "If-Match", match)
+		if match == "" {
+			h = append(auth, "If-None-Match", "*")
+		}
+		if rec := e.do(http.MethodPut, "/v1/vault", envelope(body), h...); rec.Code != http.StatusOK {
+			t.Fatalf("put %s: %d %s", body, rec.Code, rec.Body.String())
+		}
+	}
+	versions := func() []int64 {
+		t.Helper()
+		var out []int64
+		for _, v := range decodeBody[[]vaultVersionResponse](t, e.do(http.MethodGet, "/v1/vault/versions", nil, auth...)) {
+			out = append(out, v.Version)
+		}
+		return out
+	}
+
+	// Day 1: three syncs, as several browsers would make; only the newest stays.
+	put("a", "")
+	e.now = e.now.Add(time.Minute)
+	put("b", `"1"`)
+	e.now = e.now.Add(time.Minute)
+	put("c", `"2"`)
+	if got := versions(); !slices.Equal(got, []int64{3}) {
+		t.Fatalf("day 1 versions = %v, want [3]", got)
+	}
+	// Day 2: day 1's last version stays as its restore point.
+	e.now = e.now.Add(24 * time.Hour)
+	put("d", `"3"`)
+	e.now = e.now.Add(time.Minute)
+	put("e", `"4"`)
+	if got := versions(); !slices.Equal(got, []int64{5, 3}) {
+		t.Fatalf("day 2 versions = %v, want [5 3]", got)
 	}
 }
 

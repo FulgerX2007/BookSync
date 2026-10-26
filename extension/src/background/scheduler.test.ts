@@ -230,6 +230,14 @@ describe('sync message handlers', () => {
     expect(calls).toEqual([{ force: true }]);
   });
 
+  it('records that the browser’s own bookmark sync is off, without starting a sync', async () => {
+    const { router, state, calls } = handlers();
+    expect(await router.dispatch({ type: 'getStatus' })).toMatchObject({ ok: true, data: { builtinSyncOff: false } });
+    expect(await router.dispatch({ type: 'confirmBuiltinSyncOff' })).toMatchObject({ ok: true, data: { builtinSyncOff: true } });
+    expect(state.sync.builtinSyncOff).toBe(true);
+    expect(calls).toEqual([]);
+  });
+
   it('passes the stored pending confirmation and recovery choices to the engine', async () => {
     const { router, state, calls } = handlers();
     const pending = { remoteVersion: 4, deletionsToLocal: 0, deletionsToRemote: 25 };

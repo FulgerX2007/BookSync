@@ -9,6 +9,8 @@ import { defaultDeviceName } from '../shared/device-name';
 import { byId, download, h, replace, timeAgo, value } from '../shared/dom';
 import { errorText } from '../shared/errors';
 import { onStatus, send } from '../shared/rpc';
+import { thisBrowserSyncHelp } from '../shared/builtin-sync';
+import { groupByDay } from '../shared/history';
 import { startFailure, unsupportedNotice } from '../shared/unsupported';
 
 const app = byId('app');
@@ -351,6 +353,7 @@ function renderSignedIn(): void {
       h('div', { id: 'kit-reveal' }),
     ),
     actionCard(),
+    builtinSyncCard(),
     h('section', { class: 'card', id: 'server-card' }, ...serverCardBody()),
     h('section', { class: 'card', id: 'devices-card' }, h('h2', {}, 'Devices'), h('ul', { class: 'devices', id: 'devices' }, h('li', { class: 'muted' }, 'Loading…')), h('div', { id: 'devices-error', class: 'error' })),
     h('section', { class: 'card', id: 'history-card' }),
@@ -438,6 +441,28 @@ function onCheckServer(): void {
 function statusLine(): string {
   const text = STATUS_TEXT[status.status] ?? status.status;
   return status.status === 'ok' ? `${text} (last synced ${timeAgo(status.lastSyncAt)})` : status.lastError && status.status === 'error' ? `${text}: ${status.lastError}` : text;
+}
+
+/**
+ * Asks every browser to turn off its own bookmark sync until the user says it
+ * is off. Only Chrome's can be detected (native_sync_detected has its own card).
+ */
+function builtinSyncCard(): HTMLElement | null {
+  if (status.builtinSyncOff || status.status === 'native_sync_detected') return null;
+  const help = thisBrowserSyncHelp();
+  return h(
+    'section',
+    { class: 'card warn', id: 'builtin-sync' },
+    h('h2', {}, `Turn off ${help.owner} own bookmark sync`),
+    h('p', {}, `BookSync already syncs your bookmarks. If the browser also syncs them through its ${help.account}, the two fight: bookmarks you delete come back, and others get duplicated.`),
+    h('p', {}, help.address ? h('span', {}, 'Paste ', h('span', { class: 'mono', id: 'builtin-sync-address' }, help.address), ' into the address bar. ') : '', help.step),
+    h(
+      'div',
+      { class: 'row' },
+      h('button', { id: 'builtin-sync-off', class: 'primary', onclick: (ev: Event) => void busy(ev.currentTarget as HTMLButtonElement, 'builtin-sync-error', async () => void ((status = await send('confirmBuiltinSyncOff')), render())) }, 'Done, it’s off'),
+    ),
+    h('div', { id: 'builtin-sync-error', class: 'error', role: 'alert' }),
+  );
 }
 
 /** Explains states that need a decision, with the matching action. */
@@ -567,7 +592,7 @@ function renderHistorySlot(): void {
   replace(
     slot,
     h('h2', {}, 'History'),
-    h('p', { class: 'muted' }, 'The server keeps recent versions and one per day for a month. Restoring makes an old version current again on every browser. Versions from before a key rotation are not available.'),
+    h('p', { class: 'muted' }, 'The server keeps the current version and the last version of each day for a month. Restoring makes an old version current again on every browser. Versions from before a key rotation are not available.'),
     h('div', { id: 'history' }, h('p', { class: 'muted' }, 'Loading…')),
     h('div', { id: 'history-error', class: 'error', role: 'alert' }),
   );
@@ -577,18 +602,21 @@ function renderHistorySlot(): void {
 async function loadHistory(): Promise<void> {
   try {
     const versions = await send('listVersions');
-    const rows = versions.map((v, i) =>
-      h(
-        'tr',
-        { 'data-version': v.version },
-        h('td', {}, String(v.version)),
-        h('td', {}, new Date(v.createdAt).toLocaleString()),
-        h('td', {}, v.deviceName || '—'),
-        h('td', {}, `${Math.max(1, Math.round(v.size / 1024))} KB`),
-        h('td', {}, i === 0 ? h('span', { class: 'badge ok' }, 'current') : h('button', { class: 'restore', onclick: (ev: Event) => askRestore(ev.currentTarget as HTMLButtonElement, v.version) }, 'Restore')),
+    const newest = Math.max(...versions.map((v) => v.version));
+    const dayLabel = (day: string) => new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const rows = groupByDay(versions).flatMap((g) => [
+      h('tr', { class: 'day' }, h('th', { colspan: 3 }, dayLabel(g.day))),
+      ...g.versions.map((v) =>
+        h(
+          'tr',
+          { 'data-version': v.version },
+          h('td', {}, new Date(v.createdAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })),
+          h('td', {}, `${Math.max(1, Math.round(v.size / 1024))} KB`),
+          h('td', {}, v.version === newest ? h('span', { class: 'badge ok' }, 'current') : h('button', { class: 'restore', onclick: (ev: Event) => askRestore(ev.currentTarget as HTMLButtonElement, v.version) }, 'Restore')),
+        ),
       ),
-    );
-    replace(byId('history'), h('table', { class: 'history' }, h('thead', {}, h('tr', {}, h('th', {}, '#'), h('th', {}, 'Saved'), h('th', {}, 'By'), h('th', {}, 'Size'), h('th', {}))), h('tbody', {}, ...rows)));
+    ]);
+    replace(byId('history'), h('table', { class: 'history' }, h('tbody', {}, ...rows)));
   } catch (e) {
     byId('history-error').textContent = errorText(e);
   }

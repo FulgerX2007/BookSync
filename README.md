@@ -23,7 +23,7 @@ title, a URL or your folder structure.
   - Caddy terminates TLS and gets certificates automatically.
 - **Safe by default:**
   - a sync that would delete many bookmarks asks first;
-  - the server keeps a version history you can restore from;
+  - the server keeps a daily version history you can restore from;
   - a server restored from an old backup is detected, not silently trusted.
 
 ## How it works
@@ -183,7 +183,7 @@ Every setting is an environment variable in `deploy/.env`
 | `BOOKSYNC_DOMAIN` | — | public DNS name; Caddy gets its certificate |
 | `BOOKSYNC_ALLOW_REGISTRATION` | `true` | allow new accounts |
 | `BOOKSYNC_MAX_VAULT_BYTES` | `10485760` | default encrypted vault limit per account (10 MiB holds tens of thousands of bookmarks); see [per-account limits](#per-account-storage-limits) |
-| `BOOKSYNC_VAULT_KEEP_RECENT` | `10` | newest versions always kept |
+| `BOOKSYNC_VAULT_KEEP_RECENT` | `1` | newest versions always kept; `1` keeps only the current one, so history is one version per day |
 | `BOOKSYNC_VAULT_KEEP_DAYS` | `30` | also keep the newest version of each day for this many days (`0` disables) |
 | `BOOKSYNC_TOKEN_TTL` | `2160h` | a device is signed out after this long without syncing |
 | `BOOKSYNC_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
@@ -344,7 +344,9 @@ or Firefox account) before using BookSync. Running both duplicates bookmarks. Bo
 detects it only in Chrome 134+, through the `syncing` flag Chrome sets on bookmark
 folders that belong to a Google account, and pauses until you acknowledge it. It does
 not detect Firefox Sync, and Microsoft Edge sync has not been confirmed to set that
-flag. In those browsers, turning it off is up to you.
+flag. So every browser shows, in settings and in the popup, where to turn its own
+bookmark sync off (Edge: `edge://settings/profiles/sync` → Favorites), until you
+choose **Done, it's off**. Left on, it fights BookSync: bookmarks you delete come back.
 
 ## Finding and organizing bookmarks
 
