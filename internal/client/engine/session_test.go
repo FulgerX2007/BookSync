@@ -43,6 +43,13 @@ func TestLoginFailures(t *testing.T) {
 	phone := newDevice(t, "phone")
 	kit := mustRegister(t, phone, srv.URL, "alice")
 	other, _ := crypto.FormatSyncID(make([]byte, 16))
+	// A one-character typo; the replacement must differ from the original
+	// last character, which is random (a fixed "Z" failed 1 run in 32).
+	last := "0"
+	if strings.HasSuffix(kit.SyncID, "0") {
+		last = "1"
+	}
+	typo := kit.SyncID[:len(kit.SyncID)-1] + last
 
 	tests := []struct {
 		name, url, user, pw, syncID, code string
@@ -50,7 +57,7 @@ func TestLoginFailures(t *testing.T) {
 		{"wrong password", srv.URL, "alice", "wrong password!", kit.SyncID, api.CodeInvalidCredentials},
 		{"wrong SyncID", srv.URL, "alice", password, other, api.CodeInvalidCredentials},
 		{"unknown user", srv.URL, "nobody", password, kit.SyncID, api.CodeInvalidCredentials},
-		{"SyncID typo", srv.URL, "alice", password, kit.SyncID[:len(kit.SyncID)-1] + "Z", crypto.CodeInvalidChecksum},
+		{"SyncID typo", srv.URL, "alice", password, typo, crypto.CodeInvalidChecksum},
 		{"bad username", srv.URL, "a", password, kit.SyncID, CodeInvalidUsername},
 		{"plain http", "http://sync.example.com", "alice", password, kit.SyncID, api.CodeInsecureURL},
 	}
