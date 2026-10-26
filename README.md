@@ -92,6 +92,9 @@ is in [docs/protocol.md](docs/protocol.md).
 - **Password change.** It re-wraps the vault key and signs out your other devices. Your
   SyncID stays the same unless you also rotate.
 
+Found a vulnerability? Report it privately, as [SECURITY.md](SECURITY.md) describes. Don't
+open a public issue.
+
 ## Self-hosting
 
 You need:

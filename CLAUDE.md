@@ -13,6 +13,8 @@ reference client. The Android app uses three pieces:
 - [README.md](README.md) covers what the project is and how to self-host it.
 - [docs/protocol.md](docs/protocol.md) is the normative spec. Update it together with
   any change to crypto, the vault format, the API or the sync rules.
+- [SECURITY.md](SECURITY.md) is the vulnerability-reporting policy. Keep its scope and
+  "Not vulnerabilities" list in step with the README's Security model.
 - `docs/plans/completed/` holds the original implementation plan and its deviation notes.
 
 ## Commands
