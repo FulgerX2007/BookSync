@@ -2,7 +2,7 @@
 #
 # DSM already owns ports 80/443 and manages Let's Encrypt certificates, so this
 # bundle has no Caddy: the server listens on the NAS loopback only and DSM's
-# reverse proxy terminates TLS in front of it. Setup is in README.md
+# reverse proxy terminates TLS in front of it. Setup is in docs/self-hosting.md
 # ("Synology NAS"). In short:
 #   1. File Station: create docker/booksync/data, and put this file in
 #      docker/booksync.

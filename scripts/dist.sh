@@ -37,6 +37,7 @@ for t in "${targets[@]}"; do
 	CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w -X main.version=$version" \
 		-o "$work/$name/$exe" ./cmd/booksync-server
 	cp README.md "$work/$name/"
+	cp docs/self-hosting.md "$work/$name/SELF-HOSTING.md"
 	if [[ "$os" == windows ]]; then
 		(cd "$work" && zip -qr "$out/$name.zip" "$name")
 	else

@@ -3,7 +3,7 @@
 // hasBookmarksApi() before touching bookmarks or the background.
 import { h } from './dom';
 
-const ANDROID_APP_URL = 'https://github.com/FulgerX2007/BookSync#android-app';
+const ANDROID_APP_URL = 'https://github.com/FulgerX2007/BookSync/blob/main/docs/android.md';
 
 export function unsupportedNotice(): HTMLElement {
   return h(

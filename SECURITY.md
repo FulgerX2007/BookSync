@@ -50,7 +50,7 @@ security fixes. Fixes are not backported.
 
 | Component | How a fix reaches you |
 |---|---|
-| Server: the `ghcr.io/fulgerx2007/booksync-server` image, a release binary or a source build | **You update it yourself.** Move to the new image tag, or `git pull` and rebuild (README, [Self-hosting](README.md#self-hosting)). |
+| Server: the `ghcr.io/fulgerx2007/booksync-server` image, a release binary or a source build | **You update it yourself.** Move to the new image tag, or `git pull` and rebuild ([self-hosting guide](docs/self-hosting.md)). |
 | Browser extension | A store install updates automatically. A release zip or an unpacked build must be replaced by hand. |
 | Android app | Install the new APK from the release. |
 
