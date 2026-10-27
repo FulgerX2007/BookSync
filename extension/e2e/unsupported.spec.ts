@@ -22,7 +22,7 @@ for (const file of ['options.html', 'popup.html', 'manager.html']) {
   test(`${file} says BookSync can't run in a browser without a bookmarks API`, async ({ browserA }) => {
     const page = await openWithoutBookmarksApi(browserA, file);
     await expect(page.locator('#unsupported-browser')).toContainText('BookSync can’t run in this browser');
-    await expect(page.locator('#unsupported-browser a')).toHaveAttribute('href', /#android-app$/);
+    await expect(page.locator('#unsupported-browser a')).toHaveAttribute('href', /\/docs\/android\.md$/);
     await expect(page.getByText('Loading…')).toHaveCount(0);
   });
 }

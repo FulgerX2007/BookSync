@@ -200,9 +200,9 @@ jobs:
           notes="$(cat <<EOF
           **Server image:** \`$IMAGE:$VERSION\` (linux/amd64, linux/arm64). Set \`BOOKSYNC_IMAGE\` in \`deploy/.env\` to use it with the compose bundle.
 
-          **Extension:** \`booksync-chromium-${VERSION%%-*}.zip\` and \`booksync-firefox-${VERSION%%-*}.zip\` (stores need a plain X.Y.Z version); see "Installing the extension" in the README.
+          **Extension:** \`booksync-chromium-${VERSION%%-*}.zip\` and \`booksync-firefox-${VERSION%%-*}.zip\` (stores need a plain X.Y.Z version); see docs/user-guide.md.
 
-          **Android:** \`booksync-android-$VERSION.apk\` to install directly, and \`booksync-android-$VERSION.aab\` for Google Play, when attached; see "Android app" in the README.
+          **Android:** \`booksync-android-$VERSION.apk\` to install directly, and \`booksync-android-$VERSION.aab\` for Google Play, when attached; see docs/android.md.
 
           Verify downloads with \`sha256sum -c SHA256SUMS\`.
           EOF

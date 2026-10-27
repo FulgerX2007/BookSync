@@ -100,7 +100,7 @@ visibility in the dashboard, publish once by hand before the API can publish aga
 2. Under **App permissions** add BookSync and grant **Release apps to testing tracks**.
    **Release to production** isn't needed for the internal track.
 3. Set the variable `PLAY_PACKAGE_NAME` to `io.booksync.android`.
-4. Android signing must be configured (`ANDROID_KEYSTORE_*` secrets, see the README).
+4. Android signing must be configured (`ANDROID_KEYSTORE_*` secrets, see [Releasing](development.md#releasing)).
    Without it the release has no AAB, and Play is skipped.
 
 The job uploads `booksync-android-X.Y.Z.aab` to the **internal** track as a

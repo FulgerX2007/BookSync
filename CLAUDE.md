@@ -10,7 +10,9 @@ reference client. The Android app uses three pieces:
 - `android/`, a Kotlin + Compose app. It is its own bookmark store, because Android
   browsers don't expose their bookmarks.
 
-- [README.md](README.md) covers what the project is and how to self-host it.
+- [README.md](README.md) covers what the project is, the security model and a quick start.
+  The rest of the user documentation is in `docs/`: `user-guide.md`, `android.md`,
+  `self-hosting.md`, `development.md` and `comparison.md`.
 - [docs/protocol.md](docs/protocol.md) is the normative spec. Update it together with
   any change to crypto, the vault format, the API or the sync rules.
 - [SECURITY.md](SECURITY.md) is the vulnerability-reporting policy. Keep its scope and
