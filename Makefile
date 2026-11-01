@@ -3,7 +3,7 @@ GOLANGCI_LINT ?= golangci-lint
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build run test test-go test-mobile test-ext lint fmt e2e e2e-edge package dist docker-smoke android-aar android-test android-apk android-aab
+.PHONY: build run test test-go test-mobile test-ext lint fmt e2e e2e-edge package dist docker-smoke android-aar android-test android-apk android-aab android-store-shots
 
 build:
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/booksync-server ./cmd/booksync-server
@@ -73,3 +73,8 @@ android-apk: android-aar
 # The Play Store upload format (signed with the upload key when ANDROID_KEYSTORE_* is set).
 android-aab: android-aar
 	cd android && ./gradlew --console=plain bundleRelease
+
+# Google Play phone screenshots (android/store/screenshots), rendered by Robolectric.
+android-store-shots: android-aar
+	cd android && BOOKSYNC_STORE_SHOTS=$(CURDIR)/android/store/screenshots \
+		./gradlew --console=plain testDebugUnitTest --tests 'io.booksync.android.store.*' --rerun
