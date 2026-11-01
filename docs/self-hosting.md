@@ -1,7 +1,7 @@
 # Self-hosting BookSync
 
 Running your own BookSync server: the Docker bundle, a released image, a Synology NAS,
-settings, storage limits, backups and recovery.
+any other reverse proxy, settings, storage limits, backups and recovery.
 
 ## Docker Compose bundle
 
@@ -81,6 +81,33 @@ HTTPS. It needs DSM 7.2+ with Container Manager.
 - **Settings** are environment variables in the compose file (table below);
   `BOOKSYNC_DOMAIN` and the port variables don't apply here.
 
+## Behind another reverse proxy
+
+Nginx Proxy Manager, Traefik, a TrueNAS or Unraid app, or any proxy of your own that
+terminates TLS works the same way as DSM above. Start from
+[deploy/synology/docker-compose.yml](../deploy/synology/docker-compose.yml). It
+bind-mounts `./data`, so set `user:` to that folder's owner, or switch to a named volume
+and drop `user:` (the image's `nonroot` user owns `/data` there). Then check three
+things:
+
+1. **Trust the proxy's headers.** Set `BOOKSYNC_TRUST_PROXY_HEADERS=true`. Without it
+   the server ignores what the proxy tells it:
+   - the status page shows an `http://` address and an HTTPS warning, even though
+     clients reach it over HTTPS;
+   - every client seems to come from the proxy's IP, so they all share one rate-limit
+     bucket: a few sign-ins from one browser make everyone else wait up to a minute.
+2. **Send the headers.** The proxy must set `X-Forwarded-Proto` to the scheme the
+   client used, and append the client address to `X-Forwarded-For` (nginx:
+   `$proxy_add_x_forwarded_for`). Nginx Proxy Manager, Traefik and Caddy do both by
+   default. The server takes the **rightmost** `X-Forwarded-For` entry, so it sees the
+   last proxy hop: put only one proxy in front of it.
+3. **Make the proxy the only way in.** Anyone who can reach the server directly can
+   forge both headers. Publish its port on `127.0.0.1` only (`"127.0.0.1:8080:8080"`),
+   or put the server and the proxy on one Docker network and publish no port at all.
+
+Then open `https://booksync.example.com/`: the status page should show the `https://`
+address to enter in the extension.
+
 ## Configuration
 
 Every setting is an environment variable in `deploy/.env`
@@ -95,6 +122,7 @@ Every setting is an environment variable in `deploy/.env`
 | `BOOKSYNC_VAULT_KEEP_DAYS` | `30` | also keep the newest version of each day for this many days (`0` disables) |
 | `BOOKSYNC_TOKEN_TTL` | `2160h` | a device is signed out after this long without syncing |
 | `BOOKSYNC_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
+| `BOOKSYNC_TRUST_PROXY_HEADERS` | `false` (`true` in both compose files) | read the client IP and scheme from `X-Forwarded-For` / `X-Forwarded-Proto`; only behind a proxy that is the sole way in, see [another reverse proxy](#behind-another-reverse-proxy) |
 | `BOOKSYNC_HTTP_PORT` / `BOOKSYNC_HTTPS_PORT` | `80` / `443` | host ports Caddy listens on |
 
 ## Per-account storage limits

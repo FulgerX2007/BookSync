@@ -513,11 +513,18 @@ async function onShowKit(): Promise<void> {
   }
 }
 
+// The page can change while a load is in flight: a re-render, the SyncID kit
+// after registering, or signing out. Each load writes only into the elements
+// it started with, and drops its result once they have left the page.
+
 async function loadDevices(): Promise<void> {
+  const list = byId('devices');
+  const error = byId('devices-error');
   try {
     const devices = await send('listDevices');
+    if (!list.isConnected) return;
     replace(
-      byId('devices'),
+      list,
       ...devices.map((d) =>
         h(
           'li',
@@ -528,7 +535,7 @@ async function loadDevices(): Promise<void> {
       ),
     );
   } catch (e) {
-    byId('devices-error').textContent = errorText(e);
+    if (error.isConnected) error.textContent = errorText(e);
   }
 }
 
@@ -600,8 +607,11 @@ function renderHistorySlot(): void {
 }
 
 async function loadHistory(): Promise<void> {
+  const table = byId('history');
+  const error = byId('history-error');
   try {
     const versions = await send('listVersions');
+    if (!table.isConnected) return;
     const newest = Math.max(...versions.map((v) => v.version));
     const dayLabel = (day: string) => new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     const rows = groupByDay(versions).flatMap((g) => [
@@ -616,9 +626,9 @@ async function loadHistory(): Promise<void> {
         ),
       ),
     ]);
-    replace(byId('history'), h('table', { class: 'history' }, h('tbody', {}, ...rows)));
+    replace(table, h('table', { class: 'history' }, h('tbody', {}, ...rows)));
   } catch (e) {
-    byId('history-error').textContent = errorText(e);
+    if (error.isConnected) error.textContent = errorText(e);
   }
 }
 
