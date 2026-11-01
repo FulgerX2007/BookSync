@@ -37,8 +37,8 @@ title, a URL or your folder structure.
    docker compose -f deploy/docker-compose.yml up -d --build
    ```
 
-   [Self-hosting](docs/self-hosting.md) covers released images, Synology, settings and
-   backups.
+   [Self-hosting](docs/self-hosting.md) covers released images, Synology, other reverse
+   proxies, settings and backups.
 2. **Install the extension** in each browser from the
    [releases](https://github.com/FulgerX2007/BookSync/releases), as the
    [user guide](docs/user-guide.md#installing-the-extension) describes.
@@ -134,7 +134,7 @@ The full comparison is in [docs/comparison.md](docs/comparison.md).
 |---|---|
 | [User guide](docs/user-guide.md) | Installing the extension, first use, finding and organizing bookmarks |
 | [Android app](docs/android.md) | The phone app: install, sync, security |
-| [Self-hosting](docs/self-hosting.md) | Running a server: Docker, Synology, settings, storage limits, backups |
+| [Self-hosting](docs/self-hosting.md) | Running a server: Docker, Synology, other reverse proxies, settings, storage limits, backups |
 | [Protocol](docs/protocol.md) | The normative spec: cryptography, vault format, API, sync rules |
 | [Development](docs/development.md) | Repository layout, building, tests, releasing |
 | [Comparison](docs/comparison.md) | BookSync next to xBrowserSync and Floccus |

@@ -109,11 +109,16 @@ export async function startServer(env: Record<string, string> = {}): Promise<Syn
 }
 
 export class ExtBrowser {
+  /** Uncaught errors from any page in this browser; the fixture fails the test on any. */
+  readonly pageErrors: string[] = [];
+
   private constructor(
     readonly context: BrowserContext,
     readonly extensionId: string,
     private readonly userDataDir: string,
-  ) {}
+  ) {
+    context.on('page', (page) => page.on('pageerror', (e) => this.pageErrors.push(`${page.url()}: ${e.message}`)));
+  }
 
   static async launch(): Promise<ExtBrowser> {
     const userDataDir = mkdtempSync(join(tmpdir(), 'booksync-e2e-profile-'));
@@ -281,6 +286,7 @@ export const test = base.extend<{ server: SyncServer; browserA: ExtBrowser }>({
     const b = await ExtBrowser.launch();
     await use(b);
     await b.close();
+    expect(b.pageErrors, 'uncaught errors in extension pages').toEqual([]);
   },
 });
 
