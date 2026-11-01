@@ -2,7 +2,7 @@
 //   npm run store:assets   -> store/assets/*.png
 // Raw captures of the popup, the manager and the options page are laid out
 // on 1280×800 slides (Chrome Web Store, Edge Add-ons, AMO), plus the promo
-// tiles and the Edge logo.
+// tiles, the Edge logo and Google Play's feature graphic (android/store/).
 import type { Page } from '@playwright/test';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -11,6 +11,7 @@ import { PASSWORD, connect, expect, managerRow, test } from '../e2e/fixtures';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const out = join(here, 'assets');
+const play = join(here, '../../android/store');
 const SHOWN_SERVER = 'https://bookmarks.example.com';
 
 test.use({ colorScheme: 'light' });
@@ -60,7 +61,7 @@ async function slide(page: Page, file: string, title: string, text: string, shot
   await page.screenshot({ path: join(out, file) });
 }
 
-async function tile(page: Page, file: string, width: number, height: number, big: boolean): Promise<void> {
+async function tile(page: Page, path: string, width: number, height: number, big: boolean): Promise<void> {
   await page.setViewportSize({ width, height });
   const s = big ? { icon: 200, title: 84, text: 30, gap: 56 } : { icon: 96, title: 40, text: 17, gap: 24 };
   await page.setContent(`<style>${STYLE}
@@ -69,7 +70,7 @@ async function tile(page: Page, file: string, width: number, height: number, big
     .tile h1 { font-size: ${s.title}px; margin-bottom: ${big ? 12 : 6}px; }
     .tile p { font-size: ${s.text}px; color: #c9d4f2; }
   </style><div class="tile"><img src="${icon()}"><div><h1>BookSync</h1><p>Encrypted bookmark sync,<br>on your own server.</p></div></div>`);
-  await page.screenshot({ path: join(out, file) });
+  await page.screenshot({ path });
 }
 
 test('store listing images', async ({ server, browserA }) => {
@@ -146,8 +147,9 @@ test('store listing images', async ({ server, browserA }) => {
   await slide(page, 'screenshot-2-manager.png', 'A full bookmark <em>manager</em>', 'Organize folders with drag and drop, rename, move and delete. Changes reach your other browsers within a minute.', managerShot);
   await slide(page, 'screenshot-3-account.png', 'Your server, <em>your data</em>', 'Sync through a BookSync server you run yourself. See your devices and sign any of them out.', account);
   await slide(page, 'screenshot-4-encryption.png', '<em>End-to-end</em> encrypted', 'Bookmarks are encrypted in the browser with your password and SyncID. The server can never read them.', kit);
-  await tile(page, 'promo-small-440x280.png', 440, 280, false);
-  await tile(page, 'promo-marquee-1400x560.png', 1400, 560, true);
+  await tile(page, join(out, 'promo-small-440x280.png'), 440, 280, false);
+  await tile(page, join(out, 'promo-marquee-1400x560.png'), 1400, 560, true);
+  await tile(page, join(play, 'feature-graphic-1024x500.png'), 1024, 500, true);
   await page.setViewportSize({ width: 300, height: 300 });
   await page.setContent(`<style>*{margin:0}body{background:transparent}</style><img src="${icon()}" style="width:300px;height:300px">`);
   await page.screenshot({ path: join(out, 'logo-300.png'), omitBackground: true });

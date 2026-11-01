@@ -95,12 +95,60 @@ visibility in the dashboard, publish once by hand before the API can publish aga
 
 ## 6. Google Play (internal track)
 
+### First publication (once, by hand)
+
+1. **Upload key.** Create it once and keep a backup of the file and both passwords
+   outside the repository (a password manager). Losing it means asking Google for an
+   upload key reset.
+
+   ```bash
+   keytool -genkeypair -v -keystore booksync-upload.jks -alias upload \
+     -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=BookSync"
+   ```
+
+   Add four **repository** secrets (Settings → Secrets and variables → Actions; the
+   build job is not in the `stores` environment):
+
+   | Secret | Value |
+   |---|---|
+   | `ANDROID_KEYSTORE_BASE64` | `base64 -w0 booksync-upload.jks` |
+   | `ANDROID_KEYSTORE_PASSWORD` | the keystore password |
+   | `ANDROID_KEY_ALIAS` | `upload` |
+   | `ANDROID_KEY_PASSWORD` | the key password (with PKCS12, the same as the keystore's) |
+
+   The next release then attaches `booksync-android-X.Y.Z.apk` and `.aab`.
+2. **Developer account.** https://play.google.com/console/signup (one-time $25, plus
+   identity verification, which can take a few days). An *organization* account needs
+   a D-U-N-S number; a *personal* one doesn't, but see step 6.
+3. **Create the app.** Play Console → **Create app**: name *BookSync*, default language
+   English (United States), *App*, *Free*. Accept the declarations.
+4. **Store listing and App content.** Fill them in from
+   [store-listing.md](store-listing.md#google-play-android-app): texts, graphics in
+   `android/store/`, privacy policy, Data safety, content rating, target audience, app
+   access with the reviewer account.
+5. **First upload.** **Test and release → Testing → Internal testing → Create new
+   release**. Accept **Play App Signing** (Google keeps the app signing key; yours is
+   the upload key). Upload the AAB from the GitHub release and roll it out. The package
+   name `io.booksync.android` is fixed from now on.
+6. **Production access.** A *personal* account created after November 2023 must run a
+   **closed test** with at least 12 opted-in testers for 14 consecutive days before
+   **Apply for production** unlocks. Create a closed testing track, add the testers'
+   Google accounts (or a Google Group), promote the internal release to it, and keep
+   it running. Organization accounts skip this step.
+7. **Production.** **Production → Create new release**, promote the tested build and
+   send it for review. The first review usually takes a few days.
+
+Then set up the automation below; each later release reaches the internal track on
+its own, and you promote it from the console.
+
+### Automation
+
 1. Play Console → **Users and permissions → Invite new users**: the service account's
    email.
 2. Under **App permissions** add BookSync and grant **Release apps to testing tracks**.
    **Release to production** isn't needed for the internal track.
 3. Set the variable `PLAY_PACKAGE_NAME` to `io.booksync.android`.
-4. Android signing must be configured (`ANDROID_KEYSTORE_*` secrets, see [Releasing](development.md#releasing)).
+4. Android signing must be configured (`ANDROID_KEYSTORE_*` secrets, step 1 above).
    Without it the release has no AAB, and Play is skipped.
 
 The job uploads `booksync-android-X.Y.Z.aab` to the **internal** track as a

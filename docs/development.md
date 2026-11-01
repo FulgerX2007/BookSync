@@ -68,6 +68,7 @@ Plain HTTP is accepted only for `localhost` and `127.0.0.1`.
 | `make android-test` | the AAR, then the Android version tests, JVM unit and UI tests (Robolectric) and lint |
 | `make android-apk` | the AAR, then the release APK (signed when the `ANDROID_KEYSTORE_*` variables are set) |
 | `make android-aab` | the AAR, then the release App Bundle for Google Play (signed the same way) |
+| `make android-store-shots` | the AAR, then the Google Play phone screenshots in `android/store/screenshots/` |
 | `make e2e` | Playwright: two Chromium profiles syncing through a real server built from this repo |
 | `make e2e-edge` | the same suite in the installed Microsoft Edge (`npx playwright install msedge` installs it) |
 | `make docker-smoke` | builds the image, starts the compose stack and checks TLS, health and registration |
