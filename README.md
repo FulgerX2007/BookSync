@@ -45,7 +45,8 @@ title, a URL or your folder structure.
 3. **Register** in the first browser and keep the emergency kit it shows. **Sign in** in
    the others with the same username, password and SyncID.
 4. **Turn off each browser's own bookmark sync.** BookSync shows where.
-5. On the phone, use the [Android app](docs/android.md).
+5. On the phone, use the [Android app](docs/android.md): join the
+   [Google Play test](https://play.google.com/apps/internaltest/4700222310509032740), or install the APK from the releases.
 
 ## How it works
 
