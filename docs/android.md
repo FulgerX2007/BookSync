@@ -6,9 +6,16 @@ Android's add-ons have no bookmarks API. So the app doesn't sync a phone browser
 Instead **it is a BookSync device of its own**: it keeps your bookmarks, opens them in
 whichever browser you like, and syncs them with your desktop browsers.
 
-- **Install.** Download `booksync-android-X.Y.Z.apk` from the
-  [releases](https://github.com/FulgerX2007/BookSync/releases) when one is attached, or
-  build it yourself (see [Development](development.md)). It needs Android 8.0 or newer.
+- **Install.** It needs Android 8.0 or newer.
+  - **Google Play (testing):** open the [test invitation](https://play.google.com/apps/internaltest/4700222310509032740) on the phone, accept
+    it, then install BookSync from Play. Testing is invite-only for now: the link works
+    only for Google accounts the maintainer has added as testers, so ask in the
+    [issues](https://github.com/FulgerX2007/BookSync/issues) to join. Play then keeps the
+    app updated.
+  - **APK:** download `booksync-android-X.Y.Z.apk` from the
+    [releases](https://github.com/FulgerX2007/BookSync/releases), or build it yourself
+    (see [Development](development.md)). Play and the APK are signed differently, so
+    uninstall one before installing the other.
 - **Sign in or register.**
   - Sign in with the same server, username, password and SyncID as your browsers.
   - Or create the account on the phone and save the emergency kit it shows. The kit
