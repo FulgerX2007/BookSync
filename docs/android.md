@@ -25,6 +25,8 @@ whichever browser you like, and syncs them with your desktop browsers.
   - The four top-level folders hold your synced bookmarks.
   - Tap a folder to open it, or a bookmark to open it in your browser (http and https
     links only).
+  - Tap the copy icon on a bookmark, in a folder or in search results, to copy its URL
+    without opening it.
   - Long-press for **Rename**, **Edit URL**, **Move** and **Delete**, and use **+** to
     add a bookmark or folder.
   - **Search** works like the extension's: any part of a title or URL, ignoring case

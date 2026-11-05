@@ -1,5 +1,7 @@
 package io.booksync.android.ui.bookmarks
 
+import android.content.ClipData
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -37,9 +39,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -51,6 +56,8 @@ import io.booksync.android.core.NodeKind
 import io.booksync.android.core.Roots
 import io.booksync.android.core.VNode
 import io.booksync.android.ui.common.messageFor
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 /** Localized titles for the four roots. */
 @Composable
@@ -88,6 +95,7 @@ fun BookmarksScreen(
         }
     }
     BackHandler { if (!vm.up()) onLeave() }
+    val copyUrl = rememberUrlCopier(snackbar)
 
     Scaffold(
         topBar = { BrowserTopBar(state, vm, titles, onSignOut, onDeleteAccount) },
@@ -98,9 +106,9 @@ fun BookmarksScreen(
             banner()
             PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize().testTag("pullToRefresh")) {
                 when {
-                    state.searching -> SearchResults(state, vm, onOpenUrl)
+                    state.searching -> SearchResults(state, vm, onOpenUrl, copyUrl)
                     state.folder == null -> RootList(state, vm, titles)
-                    else -> FolderList(state.items, vm, onOpenUrl)
+                    else -> FolderList(state.items, vm, onOpenUrl, copyUrl)
                 }
             }
         }
@@ -192,11 +200,44 @@ private fun RootList(state: BrowserState, vm: BookmarksViewModel, titles: (Strin
     }
 }
 
+/**
+ * Copies a bookmark URL. Android 13+ confirms clipboard writes itself, so the
+ * snackbar only says "URL copied" on older versions; a failure always shows.
+ */
+@Composable
+private fun rememberUrlCopier(snackbar: SnackbarHostState): (String) -> Unit {
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
+    val copied = stringResource(R.string.url_copied)
+    val failed = stringResource(R.string.cannot_copy)
+    return { url ->
+        scope.launch {
+            val ok = try {
+                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Bookmark URL", url)))
+                true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                false
+            }
+            if (!ok) snackbar.showSnackbar(failed)
+            else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) snackbar.showSnackbar(copied)
+        }
+    }
+}
+
+@Composable
+private fun CopyUrlButton(guid: String, url: String, onCopy: (String) -> Unit) {
+    IconButton(onClick = { onCopy(url) }, modifier = Modifier.testTag("copy-$guid")) {
+        Icon(painterResource(R.drawable.ic_copy), contentDescription = stringResource(R.string.copy_url))
+    }
+}
+
 @Composable
 private fun pluralItems(n: Int): String = androidx.compose.ui.res.pluralStringResource(R.plurals.items, n, n)
 
 @Composable
-private fun FolderList(items: List<VNode>, vm: BookmarksViewModel, onOpenUrl: (String) -> Unit) {
+private fun FolderList(items: List<VNode>, vm: BookmarksViewModel, onOpenUrl: (String) -> Unit, onCopy: (String) -> Unit) {
     if (items.isEmpty()) {
         // A scrollable empty state, so pull-to-refresh still works here.
         LazyColumn(Modifier.fillMaxSize()) {
@@ -205,12 +246,12 @@ private fun FolderList(items: List<VNode>, vm: BookmarksViewModel, onOpenUrl: (S
         return
     }
     LazyColumn(Modifier.fillMaxSize()) {
-        items(items, key = { it.guid }) { node -> NodeRow(node, vm, onOpenUrl) }
+        items(items, key = { it.guid }) { node -> NodeRow(node, vm, onOpenUrl, onCopy) }
     }
 }
 
 @Composable
-private fun NodeRow(node: VNode, vm: BookmarksViewModel, onOpenUrl: (String) -> Unit, path: List<String> = emptyList()) {
+private fun NodeRow(node: VNode, vm: BookmarksViewModel, onOpenUrl: (String) -> Unit, onCopy: (String) -> Unit, path: List<String> = emptyList()) {
     val folder = node.kind == NodeKind.FOLDER
     ListItem(
         headlineContent = { Text(node.title.ifEmpty { node.url.orEmpty() }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -222,6 +263,11 @@ private fun NodeRow(node: VNode, vm: BookmarksViewModel, onOpenUrl: (String) -> 
             if (sub.isNotEmpty()) Text(sub, maxLines = 1, overflow = TextOverflow.Ellipsis)
         },
         leadingContent = { Icon(painterResource(if (folder) R.drawable.ic_folder else R.drawable.ic_bookmark), contentDescription = null) },
+        trailingContent = if (!folder && !node.url.isNullOrEmpty()) {
+            { CopyUrlButton(node.guid, node.url, onCopy) }
+        } else {
+            null
+        },
         modifier = Modifier.combinedClickableRow(
             onClick = { if (folder) vm.open(node.guid) else vm.urlToOpen(node.url)?.let(onOpenUrl) },
             onLongClick = { vm.showActions(node) },
@@ -230,7 +276,7 @@ private fun NodeRow(node: VNode, vm: BookmarksViewModel, onOpenUrl: (String) -> 
 }
 
 @Composable
-private fun SearchResults(state: BrowserState, vm: BookmarksViewModel, onOpenUrl: (String) -> Unit) {
+private fun SearchResults(state: BrowserState, vm: BookmarksViewModel, onOpenUrl: (String) -> Unit, onCopy: (String) -> Unit) {
     if (state.query.isNotBlank() && state.results.isEmpty()) {
         Text(stringResource(R.string.no_results), modifier = Modifier.padding(24.dp))
         return
@@ -248,6 +294,11 @@ private fun SearchResults(state: BrowserState, vm: BookmarksViewModel, onOpenUrl
                     )
                 },
                 leadingContent = { Icon(painterResource(if (r.kind == NodeKind.FOLDER) R.drawable.ic_folder else R.drawable.ic_bookmark), contentDescription = null) },
+                trailingContent = if (r.kind != NodeKind.FOLDER && !node.url.isNullOrEmpty()) {
+                    { CopyUrlButton(r.guid, node.url, onCopy) }
+                } else {
+                    null
+                },
                 modifier = Modifier.combinedClickableRow(
                     onClick = { vm.openResult(r)?.let(onOpenUrl) },
                     onLongClick = { vm.showActions(node) },
