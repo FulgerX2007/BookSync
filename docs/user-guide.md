@@ -97,7 +97,8 @@ your other browsers through the normal sync.
   - case and accents don't matter (`cafe` finds *Café*);
   - several words must all match;
   - each result shows its folder;
-  - use ↑/↓ and Enter, or click, to open a result in a new tab.
+  - use ↑/↓ and Enter, or click, to open a result in a new tab;
+  - click ⧉ on a result to copy its URL instead.
 - **Bookmark this page.** In the popup, pick a folder and a name. If the page is
   already bookmarked, the popup says where. This uses the `activeTab` permission, which
   only applies when you open the popup.
@@ -107,6 +108,8 @@ your other browsers through the normal sync.
   - **Editing.** Use **New folder**, **New bookmark**, **Edit** and **Delete**, or the
     ✎ and 🗑 buttons on each row. Deleting a folder, or several items, asks first and
     names the counts.
+  - **Copy URLs.** The ⧉ button on a bookmark's row, or on a search result, copies its
+    URL. Ctrl/⌘+C copies the URLs of all selected bookmarks, one per line.
   - **Search.** The search box lists matching bookmarks and folders; click a result to
     jump to it in the tree.
   - **Drag and drop.** Drop an item near the top or bottom edge of a row to place it

@@ -25,8 +25,8 @@ whichever browser you like, and syncs them with your desktop browsers.
   - The four top-level folders hold your synced bookmarks.
   - Tap a folder to open it, or a bookmark to open it in your browser (http and https
     links only).
-  - Long-press for **Rename**, **Edit URL**, **Move** and **Delete**, and use **+** to
-    add a bookmark or folder.
+  - Long-press for **Rename**, **Edit URL**, **Copy URL**, **Move** and **Delete**, and
+    use **+** to add a bookmark or folder. Long-press works on search results too.
   - **Search** works like the extension's: any part of a title or URL, ignoring case
     and accents.
 - **Save from any app.** In a browser or any other app, choose **Share → Save to
