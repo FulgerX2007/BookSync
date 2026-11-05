@@ -173,16 +173,16 @@
 - Create: `extension/src/ui/shared/clipboard.ts`
 - Create: `extension/src/ui/shared/clipboard.test.ts`
 
-- [ ] create `copyText(text, write?)` returning `CopyResult`. `defaultWrite` calls
+- [x] create `copyText(text, write?)` returning `CopyResult`. `defaultWrite` calls
       `navigator.clipboard.writeText(t)` as a method; `write` is invoked synchronously
-- [ ] map a synchronous throw or a rejection through `errorText`; handle a missing
+- [x] map a synchronous throw or a rejection through `errorText`; handle a missing
       clipboard API and empty text
-- [ ] write tests: success calls the writer with the exact text
-- [ ] write tests: the writer is called before the returned promise is awaited
+- [x] write tests: success calls the writer with the exact text
+- [x] write tests: the writer is called before the returned promise is awaited
       (synchronous call)
-- [ ] write tests: writer rejects, writer throws synchronously, clipboard API missing
+- [x] write tests: writer rejects, writer throws synchronously, clipboard API missing
       (default writer with no `navigator.clipboard`), empty text (writer not called)
-- [ ] run `cd extension && npm run check` - must pass before task 2
+- [x] run `cd extension && npm run check` - must pass before task 2
 
 ### Task 2: Copy button in popup search results
 
@@ -191,24 +191,28 @@
 - Modify: `extension/src/ui/popup/popup.css`
 - Modify: `extension/e2e/popup-search.spec.ts`
 
-- [ ] spike: grant clipboard permissions for the extension origin and read the
+- [x] spike: grant clipboard permissions for the extension origin and read the
       clipboard back in the popup page. If that fails, use the wrap-and-record
       fallback (Testing Strategy) and note it here with ⚠️
-- [ ] append the `aria-hidden` and `tabindex="-1"` copy button to each result `<li>`.
+  - ⚠️ `grantPermissions` fails: "Permission can't be granted to opaque origins".
+    Using the fallback, `recordClipboard(page, fail?)` in `e2e/fixtures.ts` (both
+    specs use it). The real write still runs and resolves in headless Chromium, so
+    "Copied" proves it succeeded.
+- [x] append the `aria-hidden` and `tabindex="-1"` copy button to each result `<li>`.
       `onmousedown` calls `preventDefault()`; `onclick` calls `stopPropagation()` and
       then `copyText(r.url)` directly
-- [ ] on success, clear `#popup-search-error` and show `✓`/"Copied" for `COPIED_MS`;
+- [x] on success, clear `#popup-search-error` and show `✓`/"Copied" for `COPIED_MS`;
       on failure, write to `#popup-search-error`
-- [ ] style it: `.result` as a flex row, the button visible on hover and on
+- [x] style it: `.result` as a flex row, the button visible on hover and on
       `[aria-selected='true']`
-- [ ] e2e: clicking `.copy` puts the bookmark URL on the clipboard (asserted first),
+- [x] e2e: clicking `.copy` puts the bookmark URL on the clipboard (asserted first),
       then shows "Copied". The popup is not closed and the tab count is unchanged
-- [ ] e2e: after a copy, `#popup-search` is still focused and ArrowDown still moves
+- [x] e2e: after a copy, `#popup-search` is still focused and ArrowDown still moves
       `aria-selected`
-- [ ] e2e: a rejected `writeText` shows the error in `#popup-search-error`, and nothing
+- [x] e2e: a rejected `writeText` shows the error in `#popup-search-error`, and nothing
       opens
-- [ ] e2e: clicking the row elsewhere still opens the bookmark (regression)
-- [ ] run `npm run check` and `make e2e` - must pass before task 3
+- [x] e2e: clicking the row elsewhere still opens the bookmark (regression)
+- [x] run `npm run check` and `make e2e` - must pass before task 3
 
 ### Task 3: Copy action on manager tree rows
 
@@ -218,19 +222,21 @@
 - Modify: `extension/src/ui/manager/manager.css` (if needed)
 - Modify: `extension/e2e/manager.spec.ts`
 
-- [ ] add the `#manager-live` polite, visually hidden live region
-- [ ] add the single copy branch at the top of the `main` click handler:
+- [x] add the `#manager-live` polite, visually hidden live region
+- [x] ➕ add a `.visually-hidden` utility to `src/ui/shared/base.css`, and
+      `showCopied(button)` to `clipboard.ts` (shared by both pages)
+- [x] add the single copy branch at the top of the `main` click handler:
       `closest('[data-action="copy"]')`, then `data-id`, then `tree.nodes.get(id)?.url`,
       then `copyText`, then `return`. Show button feedback and the live-region text on
       success, and `setMessage` on failure
-- [ ] in `nodeItem()`, add the `data-action="copy"` `data-id` `.act` button for
+- [x] in `nodeItem()`, add the `data-action="copy"` `data-id` `.act` button for
       bookmarks only, before `✎`
-- [ ] e2e: copying a bookmark row puts its URL on the clipboard, shows "Copied", and
+- [x] e2e: copying a bookmark row puts its URL on the clipboard, shows "Copied", and
       leaves the selection unchanged
-- [ ] e2e: folders and roots show no copy button
-- [ ] e2e: a rejected `writeText` shows the error through the manager notice, and the
+- [x] e2e: folders and roots show no copy button
+- [x] e2e: a rejected `writeText` shows the error through the manager notice, and the
       selection is unchanged
-- [ ] run `npm run check` and `make e2e` - must pass before task 4
+- [x] run `npm run check` and `make e2e` - must pass before task 4
 
 ### Task 4: Copy button on manager search results
 
@@ -239,32 +245,32 @@
 - Modify: `extension/src/ui/manager/manager.css`
 - Modify: `extension/e2e/manager.spec.ts`
 
-- [ ] in `renderResults()`, add the same copy `.act` button (`data-id`) to bookmark
+- [x] in `renderResults()`, add the same copy `.act` button (`data-id`) to bookmark
       results. Task 3's top-of-handler branch already handles it, before
       `[data-reveal]`
-- [ ] show the button on `.result:hover` / `:focus-within`
-- [ ] e2e: searching, then copying a result, puts its URL on the clipboard, keeps the
+- [x] show the button on `.result:hover` / `:focus-within`
+- [x] e2e: searching, then copying a result, puts its URL on the clipboard, keeps the
       result list (no reveal), and shows "Copied"
-- [ ] e2e: clicking the result elsewhere still reveals it (regression)
-- [ ] run `npm run check` and `make e2e` - must pass before task 5
+- [x] e2e: clicking the result elsewhere still reveals it (regression)
+- [x] run `npm run check` and `make e2e` - must pass before task 5
 
 ### Task 5: Verify acceptance criteria
-- [ ] verify the popup search, manager tree and manager search all copy the exact vault
+- [x] verify the popup search, manager tree and manager search all copy the exact vault
       URL
-- [ ] verify copy never opens, reveals or selects, the popup stays open, and popup focus
+- [x] verify copy never opens, reveals or selects, the popup stays open, and popup focus
       stays in the search box
-- [ ] verify no manifest permission changed (`scripts/manifest.mjs` diff is empty)
-- [ ] run the full suite: `make test`
-- [ ] run e2e: `make e2e`
-- [ ] verify coverage: `npx vitest run --coverage` (thresholds unchanged; `src/ui` is
+- [x] verify no manifest permission changed (`scripts/manifest.mjs` diff is empty)
+- [x] run the full suite: `make test`
+- [x] run e2e: `make e2e`
+- [x] verify coverage: `npx vitest run --coverage` (thresholds unchanged; `src/ui` is
       excluded)
 
 ### Task 6: [Final] Update documentation
-- [ ] mention copying URLs in `docs/user-guide.md` (popup search and manager sections)
-- [ ] add a CLAUDE.md note: "clipboard writes go through `ui/shared/clipboard.ts`,
+- [x] mention copying URLs in `docs/user-guide.md` (popup search and manager sections)
+- [x] add a CLAUDE.md note: "clipboard writes go through `ui/shared/clipboard.ts`,
       called synchronously in the click; a button inside `role=option` is
       `aria-hidden`, mouse-only and `mousedown`-`preventDefault`"
-- [ ] move this plan to `docs/plans/completed/`
+- [x] move this plan to `docs/plans/completed/`
 
 ## Post-Completion
 *Items requiring manual intervention or external systems - no checkboxes, informational only*

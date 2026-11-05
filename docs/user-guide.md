@@ -97,7 +97,8 @@ your other browsers through the normal sync.
   - case and accents don't matter (`cafe` finds *Café*);
   - several words must all match;
   - each result shows its folder;
-  - use ↑/↓ and Enter, or click, to open a result in a new tab.
+  - use ↑/↓ and Enter, or click, to open a result in a new tab;
+  - click ⧉ on a result to copy its URL without opening it.
 - **Bookmark this page.** In the popup, pick a folder and a name. If the page is
   already bookmarked, the popup says where. This uses the `activeTab` permission, which
   only applies when you open the popup.
@@ -105,10 +106,10 @@ your other browsers through the normal sync.
   - **The tree.** It shows your synced folders. Double-click a bookmark to open it, or
     a folder name to rename it.
   - **Editing.** Use **New folder**, **New bookmark**, **Edit** and **Delete**, or the
-    ✎ and 🗑 buttons on each row. Deleting a folder, or several items, asks first and
+    ✎ and 🗑 buttons on each row. ⧉ copies a bookmark's URL. Deleting a folder, or several items, asks first and
     names the counts.
   - **Search.** The search box lists matching bookmarks and folders; click a result to
-    jump to it in the tree.
+    jump to it in the tree, or click its ⧉ to copy its URL.
   - **Drag and drop.** Drop an item near the top or bottom edge of a row to place it
     before or after that row, or onto the middle of a folder to move it inside.
   - **Multi-select.** Ctrl/⌘-click or Shift-click selects several items, which you can

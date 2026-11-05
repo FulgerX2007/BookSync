@@ -273,6 +273,24 @@ export async function waitForVersionAbove(page: Page, than: number): Promise<num
   return v;
 }
 
+/**
+ * Records what the page writes to the clipboard, then calls the real write. Playwright
+ * can't grant clipboard-read to an extension origin, so tests can't read it back.
+ * `fail` makes every write reject with that message instead.
+ */
+export async function recordClipboard(page: Page, fail?: string): Promise<() => Promise<string[]>> {
+  await page.evaluate((fail) => {
+    const w = window as unknown as { __copied: string[] };
+    w.__copied = [];
+    const real = navigator.clipboard.writeText.bind(navigator.clipboard);
+    navigator.clipboard.writeText = (text: string) => {
+      w.__copied.push(text);
+      return fail === undefined ? real(text) : Promise.reject(new Error(fail));
+    };
+  }, fail);
+  return () => page.evaluate(() => (window as unknown as { __copied: string[] }).__copied);
+}
+
 export const test = base.extend<{ server: SyncServer; browserA: ExtBrowser }>({
   // eslint-disable-next-line no-empty-pattern
   server: async ({}, use) => {

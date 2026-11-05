@@ -28,9 +28,34 @@ main {
   overflow-y: auto;
 }
 .result {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 8px;
   border-radius: 6px;
   cursor: pointer;
+}
+.result-body {
+  flex: 1;
+  min-width: 0;
+}
+.result .copy {
+  visibility: hidden;
+  flex: none;
+  padding: 2px 6px;
+  border: 0;
+  background: none;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1;
+}
+.result .copy:hover {
+  background: var(--card);
+}
+.result:hover .copy,
+.result[aria-selected='true'] .copy,
+.result .copy.copied {
+  visibility: visible;
 }
 .result:hover {
   background: color-mix(in srgb, var(--accent) 8%, transparent);

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { ROOTS, expect, managerRow as row, test } from './fixtures';
+import { ROOTS, expect, managerRow as row, recordClipboard, test } from './fixtures';
 
 test('opens from the popup and shows the synced roots as a tree', async ({ browserA }) => {
   await browserA.bookmarks(async (b) => {
@@ -304,4 +304,68 @@ test('refuses to drop a folder into its own child', async ({ browserA }) => {
   await manager.waitForTimeout(500);
   expect(await titles(browserA, ids.parent)).toEqual(['Child']);
   expect(await titles(browserA, '1')).toEqual(['List', 'Box', 'Parent']);
+});
+
+test('copies a bookmark URL from its row, leaving the selection alone', async ({ browserA }) => {
+  await browserA.bookmarks(async (b) => {
+    await b.create({ parentId: '1', title: 'Work' });
+    await b.create({ parentId: '1', title: 'One', url: 'https://one.example/a?b#c' });
+    await b.create({ parentId: '1', title: 'Two', url: 'https://two.example/' });
+  });
+  const manager = await browserA.openManager();
+  const copied = await recordClipboard(manager);
+  await row(manager, 'Two').click();
+  await expect(row(manager, 'Two')).toHaveClass(/selected/);
+
+  const copy = row(manager, 'One').locator('[data-action=copy]');
+  await copy.click();
+  await expect.poll(copied).toEqual(['https://one.example/a?b#c']);
+  await expect(copy).toHaveAttribute('title', 'Copied');
+  await expect(manager.locator('#manager-live')).toHaveText('Copied');
+  await expect(row(manager, 'Two')).toHaveClass(/selected/);
+  await expect(row(manager, 'One')).not.toHaveClass(/selected/);
+  await expect(manager.locator('#manager-notice')).toBeHidden();
+
+  // Folders and roots have nothing to copy.
+  await expect(row(manager, 'Work').locator('[data-action=copy]')).toHaveCount(0);
+  await expect(row(manager, ROOTS.bar).locator('[data-action=copy]')).toHaveCount(0);
+});
+
+test('shows a failed copy in the notice', async ({ browserA }) => {
+  await browserA.bookmarks(async (b) => {
+    await b.create({ parentId: '1', title: 'One', url: 'https://one.example/' });
+  });
+  const manager = await browserA.openManager();
+  await recordClipboard(manager, 'Write blocked');
+  await row(manager, 'One').locator('[data-action=copy]').click();
+  await expect(manager.locator('#manager-notice')).toContainText('Cannot copy https://one.example/: Write blocked');
+  await expect(manager.locator('.node-row.selected')).toHaveCount(0);
+});
+
+test('copies a search result URL without revealing it', async ({ browserA }) => {
+  await browserA.bookmarks(async (b) => {
+    const deep = await b.create({ parentId: '1', title: 'Deep' });
+    await b.create({ parentId: deep.id, title: 'Needle', url: 'https://needle.example/x' });
+  });
+  const manager = await browserA.openManager();
+  const copied = await recordClipboard(manager);
+  await manager.fill('#manager-search', 'needle');
+  const results = manager.locator('#results .result');
+  await expect(results).toHaveCount(1);
+  // Folder results have no copy button.
+  await manager.fill('#manager-search', 'deep');
+  await expect(manager.locator('#results .result [data-action=copy]')).toHaveCount(0);
+  await manager.fill('#manager-search', 'needle');
+
+  const copy = results.first().locator('[data-action=copy]');
+  await copy.click();
+  await expect.poll(copied).toEqual(['https://needle.example/x']);
+  await expect(copy).toHaveAttribute('title', 'Copied');
+  await expect(manager.locator('#manager-search')).toHaveValue('needle');
+  await expect(results).toHaveCount(1);
+
+  // Clicking the result elsewhere still reveals it.
+  await results.first().locator('.title').click();
+  await expect(manager.locator('#manager-search')).toHaveValue('');
+  await expect(row(manager, 'Needle')).toHaveClass(/selected/);
 });

@@ -130,6 +130,13 @@ reference client. The Android app uses three pieces:
   - Anything that edits holds the refresh gate, so a live refresh never destroys an
     inline rename, a dialog or a drag.
   - Popup status re-renders must stay inside `#status-app`.
+  - Clipboard writes go through `copyText` (`ui/shared/clipboard.ts`), called directly
+    in the click with no `await` before it: Firefox drops the gesture otherwise. A
+    button inside a `role="option"` is `aria-hidden`, `tabindex="-1"`, and
+    `preventDefault`s `mousedown` so focus stays in the search box.
+  - e2e can't grant clipboard permissions to an extension origin. Use
+    `recordClipboard(page)` from `e2e/fixtures.ts`, which records what is written and
+    still calls the real write.
 - **Probing a server** from a UI page goes through `checkServer` / `serverOrigin`
   (`src/api/server-check.ts`); its wording comes from `describeServerCheck`, so it is
   unit-tested. Host permissions are requested synchronously in the click: Firefox drops
