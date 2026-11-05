@@ -1,4 +1,4 @@
-import { ROOTS, expect, registerViaUi, status, test, waitForVersionAbove } from './fixtures';
+import { ROOTS, expect, recordClipboard, registerViaUi, status, test, waitForVersionAbove } from './fixtures';
 
 // Bookmarks point at the test server, so opening one loads a real page.
 
@@ -117,4 +117,46 @@ test('bookmarks the current page into a chosen folder and says where it already 
   await expect(again.locator('#this-page-hint')).toHaveText(`Already bookmarked in ${ROOTS.bar} › Dev › Reading`);
   // The search box still has the focus, not the form.
   await expect(again.locator('#popup-search')).toBeFocused();
+});
+
+test('copies a result URL without opening it or leaving the search box', async ({ server, browserA }) => {
+  const url = `${server.url}/healthz?copy-me`;
+  await browserA.bookmarks(async (b, u) => {
+    await b.create({ parentId: '1', title: 'Copy me', url: u });
+    await b.create({ parentId: '1', title: 'Copy two', url: `${u}2` });
+  }, url);
+  const popup = await browserA.openPopup();
+  const copied = await recordClipboard(popup);
+  const search = popup.locator('#popup-search');
+  await search.fill('copy');
+  const results = popup.locator('#popup-results [role=option]');
+  await expect(results).toHaveCount(2);
+  const pages = browserA.context.pages().length;
+
+  const copy = results.first().locator('.copy');
+  await copy.click();
+  await expect.poll(copied).toEqual([url]);
+  // Shown only once the real clipboard write resolved.
+  await expect(copy).toHaveAttribute('title', 'Copied');
+  await expect(popup.locator('#popup-search-error')).toHaveText('');
+  expect(popup.isClosed()).toBe(false);
+  expect(browserA.context.pages()).toHaveLength(pages);
+
+  // The focus stayed in the search box, so the arrow keys still work.
+  await expect(search).toBeFocused();
+  await search.press('ArrowDown');
+  await expect(popup.locator('#popup-result-1')).toHaveAttribute('aria-selected', 'true');
+});
+
+test('shows a failed copy as an error', async ({ server, browserA }) => {
+  await browserA.bookmarks(async (b, base) => {
+    await b.create({ parentId: '1', title: 'No clipboard', url: `${base}/healthz?nope` });
+  }, server.url);
+  const popup = await browserA.openPopup();
+  await recordClipboard(popup, 'Write blocked');
+  const pages = browserA.context.pages().length;
+  await popup.locator('#popup-search').fill('clipboard');
+  await popup.locator('#popup-results [role=option] .copy').click();
+  await expect(popup.locator('#popup-search-error')).toContainText('Write blocked');
+  expect(browserA.context.pages()).toHaveLength(pages);
 });

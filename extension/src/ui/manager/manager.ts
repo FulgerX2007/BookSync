@@ -13,6 +13,7 @@ import { countSubtree, isRootId, normalizeSelection, rootIds, visibleOrder } fro
 import { ROOT_OTHER } from '../../model/vault';
 import { ext, hasBookmarksApi } from '../../platform/ext';
 import { openBookmarks } from '../shared/bookmarks';
+import { copyText, showCopied } from '../shared/clipboard';
 import { byId, h, replace } from '../shared/dom';
 import { errorText } from '../shared/errors';
 import { RpcError } from '../shared/rpc';
@@ -23,6 +24,7 @@ const bookmarks = openBookmarks();
 const main = byId('manager-main');
 const notice = byId('manager-notice');
 const toolbar = byId('manager-toolbar');
+const live = byId('manager-live');
 
 let tree: LocalTree | null = null;
 let index: SearchIndex | null = null;
@@ -66,6 +68,10 @@ function displayTitle(t: LocalTree, id: string): string {
   return n.title || (n.kind === 'folder' ? 'Untitled folder' : (n.url ?? ''));
 }
 
+/** The copy action for a bookmark; the click handler reads its URL from the tree. */
+const copyButton = (id: string, title: string) =>
+  h('button', { type: 'button', class: 'act', 'data-action': 'copy', 'data-id': id, 'aria-label': `Copy URL of ${title}`, title: 'Copy URL' }, '⧉');
+
 function nodeItem(t: LocalTree, id: string): HTMLLIElement {
   const n = t.nodes.get(id)!;
   const folder = n.kind === 'folder';
@@ -93,6 +99,7 @@ function nodeItem(t: LocalTree, id: string): HTMLLIElement {
       : h(
           'span',
           { class: 'actions' },
+          folder ? null : copyButton(id, title),
           h('button', { type: 'button', class: 'act', 'data-action': 'edit', 'aria-label': `${folder ? 'Rename' : 'Edit'} ${title}`, title: folder ? 'Rename' : 'Edit' }, '✎'),
           h('button', { type: 'button', class: 'act', 'data-action': 'delete', 'aria-label': `Delete ${title}`, title: 'Delete' }, '🗑'),
         ),
@@ -117,6 +124,7 @@ function renderResults(): void {
               h('span', { class: 'title' }, r.title || r.url || 'Untitled folder'),
               h('span', { class: 'path muted' }, r.path.join(' › ')),
               r.url !== undefined ? h('span', { class: 'url' }, r.url) : null,
+              r.kind === 'bookmark' && r.url ? h('span', { class: 'actions' }, copyButton(r.id, r.title || r.url)) : null,
             ),
           ),
         ),
@@ -384,8 +392,29 @@ function updateToolbar(): void {
 
 // ---- events ---------------------------------------------------------------------
 
+/** Copies the bookmark's current URL. Called directly in the click: no await before the write. */
+function copyUrl(button: HTMLElement): void {
+  const url = tree?.nodes.get(button.dataset.id!)?.url;
+  if (!url) return;
+  live.textContent = '';
+  void copyText(url).then((res) => {
+    if (res.ok) {
+      showCopied(button);
+      live.textContent = 'Copied';
+    } else {
+      setMessage(`Cannot copy ${url}: ${res.error}`);
+    }
+  });
+}
+
 main.addEventListener('click', (ev) => {
   const target = ev.target as HTMLElement;
+  // Before reveal and selection: copying leaves both alone.
+  const copy = target.closest<HTMLElement>('[data-action="copy"]');
+  if (copy) {
+    copyUrl(copy);
+    return;
+  }
   const result = target.closest<HTMLElement>('[data-reveal]');
   if (result) {
     reveal(result.dataset.reveal!);

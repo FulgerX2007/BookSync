@@ -109,7 +109,9 @@ main {
 }
 .node-row:hover .actions,
 .node-row.selected .actions,
-.actions:focus-within {
+.result:hover .actions,
+.actions:focus-within,
+.actions:has(.copied) {
   opacity: 1;
 }
 .act {
@@ -176,6 +178,9 @@ dialog::backdrop {
 }
 .result:hover {
   background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.result .actions {
+  align-self: center;
 }
 .result .path {
   flex: none;

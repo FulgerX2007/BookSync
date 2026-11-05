@@ -4,6 +4,7 @@ import { createRefreshGate } from '../../bookmarks/refresh';
 import { createSearchIndex, search, type SearchIndex, type SearchResult } from '../../bookmarks/search';
 import { ext } from '../../platform/ext';
 import type { Bookmarks } from '../shared/bookmarks';
+import { copyText, showCopied } from '../shared/clipboard';
 import { h, replace } from '../shared/dom';
 import { errorText } from '../shared/errors';
 
@@ -48,6 +49,31 @@ export function mountSearch(container: HTMLElement, bookmarks: Bookmarks): void 
     }
   };
 
+  // Inside role=option a button is presentational, so this one is aria-hidden and
+  // mouse-only; mousedown keeps the focus (and arrow keys) in the search box.
+  const copyButton = (url: string) => {
+    const button = h('button', {
+      type: 'button',
+      class: 'copy',
+      tabindex: '-1',
+      'aria-hidden': 'true',
+      title: 'Copy URL',
+      onmousedown: (ev) => ev.preventDefault(),
+      onclick: (ev) => {
+        ev.stopPropagation();
+        void copyText(url).then((res) => {
+          if (res.ok) {
+            error.textContent = '';
+            showCopied(button);
+          } else {
+            error.textContent = `Cannot copy ${url}: ${res.error}`;
+          }
+        });
+      },
+    }, '⧉');
+    return button;
+  };
+
   const render = () => {
     const query = input.value;
     results = index && query.trim() ? search(index, query, { limit: LIMIT, kinds: ['bookmark'] }) : [];
@@ -65,8 +91,13 @@ export function mountSearch(container: HTMLElement, bookmarks: Bookmarks): void 
             title: `${r.title}\n${r.url ?? ''}`,
             onclick: () => void open(r),
           },
-          h('div', { class: 'result-title' }, r.title || r.url || ''),
-          h('div', { class: 'result-meta muted' }, [host(r.url), r.path.join(' › ')].filter(Boolean).join(' · ')),
+          h(
+            'div',
+            { class: 'result-body' },
+            h('div', { class: 'result-title' }, r.title || r.url || ''),
+            h('div', { class: 'result-meta muted' }, [host(r.url), r.path.join(' › ')].filter(Boolean).join(' · ')),
+          ),
+          r.url ? copyButton(r.url) : null,
         ),
       ),
     );
