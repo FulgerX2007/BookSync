@@ -148,6 +148,7 @@ class FolderScreenTest {
     fun showsAFailedCopy() {
         show(
             object : Clipboard {
+                @Suppress("OVERRIDE_DEPRECATION") // still abstract, so a fake must implement it
                 override suspend fun getClipEntry(): ClipEntry? = null
                 override suspend fun setClipEntry(clipEntry: ClipEntry?) = throw SecurityException("denied")
                 override val nativeClipboard get() = error("unused")
