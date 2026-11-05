@@ -78,6 +78,8 @@
     <string name="empty_folder">This folder is empty.</string>
     <string name="no_results">No bookmarks match.</string>
     <string name="cannot_open">This link cannot be opened in a browser.</string>
+    <string name="copy_url">Copy URL</string>
+    <string name="url_copied">URL copied.</string>
     <plurals name="items">
         <item quantity="one">%d item</item>
         <item quantity="other">%d items</item>

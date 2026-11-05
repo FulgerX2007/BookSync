@@ -31,6 +31,21 @@ class BookmarksViewModelTest {
     }
 
     @Test
+    fun copiedClosesTheSheetAndAnnouncesOnlyWhenAsked() {
+        val (_, vm, _) = setup()
+        vm.open(Roots.TOOLBAR)
+        val news = vm.state.value.items.last()
+        vm.showActions(news)
+        vm.copied(announce = false)
+        assertNull(vm.state.value.dialog)
+        assertNull(vm.state.value.message)
+        vm.showActions(news)
+        vm.copied(announce = true)
+        assertNull(vm.state.value.dialog)
+        assertEquals("url_copied", vm.state.value.message)
+    }
+
+    @Test
     fun navigationStack() {
         val (_, vm, _) = setup()
         assertNull(vm.state.value.folder)

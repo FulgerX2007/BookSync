@@ -250,42 +250,44 @@
 - Modify: `android/app/src/test/java/io/booksync/android/ui/bookmarks/FolderScreenTest.kt`
 - Modify: `android/app/src/test/java/io/booksync/android/ui/bookmarks/BookmarksViewModelTest.kt`
 
-- [ ] add the `copy_url` and `url_copied` strings
-- [ ] special-case `url_copied` in `BookmarksScreen.kt`, next to `cannot_open` (as a
+- [x] add the `copy_url` and `url_copied` strings
+- [x] special-case `url_copied` in `BookmarksScreen.kt`, next to `cannot_open` (as a
       `when`)
-- [ ] hoist `rememberCoroutineScope()` and `LocalClipboard.current` to the top of
+- [x] hoist `rememberCoroutineScope()` and `LocalClipboard.current` to the top of
       `BrowserDialogs`
-- [ ] in the `Actions` sheet, when `node.url != null`, add
+- [x] in the `Actions` sheet, when `node.url != null`, add
       `SheetAction(R.string.copy_url, "action-copy")`. Its coroutine runs `setClipEntry`
       first, then `vm.copied(announce = Build.VERSION.SDK_INT < 33)`
-- [ ] add `vm.copied(announce)`: dismiss the dialog, and set `message = "url_copied"` when
+- [x] add `vm.copied(announce)`: dismiss the dialog, and set `message = "url_copied"` when
       `announce` is true
-- [ ] VM test (plain JUnit): `copied(true)` dismisses and sets the message; `copied(false)`
+- [x] VM test (plain JUnit): `copied(true)` dismisses and sets the message; `copied(false)`
       dismisses without one
-- [ ] Robolectric (default sdk 35):
+- [x] Robolectric (default sdk 35):
       - long-press a bookmark row → Copy URL → the system clipboard (via
         `ClipboardManager`) holds the URL, and no snackbar shows;
       - the same from a search result;
       - folders show no Copy URL item
-- [ ] Robolectric: one `@Config(sdk = [32])` case asserts the "URL copied" snackbar
-- [ ] run `make android-test` (lint is `warningsAsErrors`) - must pass before next task
+- [x] Robolectric: one `@Config(sdk = [32])` case asserts the "URL copied" snackbar
+- [x] run `make android-test` (lint is `warningsAsErrors`) - must pass before next task
+      (77 tests, 0 failures; lintDebug clean. Maven Central rate-limited, so the run used
+      the Google Central mirror init script described in CLAUDE.md)
 
 ### Task 5: Verify acceptance criteria
-- [ ] verify that copy works in the popup search, the manager tree, the manager search and
+- [x] verify that copy works in the popup search, the manager tree, the manager search and
       Android (folders and search)
-- [ ] verify the edge cases: folders and roots never offer copy, a copy click never
+- [x] verify the edge cases: folders and roots never offer copy, a copy click never
       opens, selects or reveals, and Ctrl+C in a text field copies text as usual
-- [ ] run the full test suite: `make test` and `make lint`
-- [ ] run the e2e tests: `make e2e`
-- [ ] verify coverage: `npx vitest run --coverage` (≥ 90 % for `src/bookmarks`)
+- [x] run the full test suite: `make test` and `make lint`
+- [x] run the e2e tests: `make e2e`
+- [x] verify coverage: `npx vitest run --coverage` (≥ 90 % for `src/bookmarks`)
 
 ### Task 6: [Final] Update documentation
-- [ ] `docs/user-guide.md`: mention the copy button in popup search and in the manager,
+- [x] `docs/user-guide.md`: mention the copy button in popup search and in the manager,
       and Ctrl/Cmd+C on the selection
-- [ ] `docs/android.md:28`: add **Copy URL** to "Rename, Edit URL, Move and Delete"
-- [ ] update CLAUDE.md only if a new pattern emerged (for example the clipboard helper
-      location)
-- [ ] move this plan to `docs/plans/completed/`
+- [x] `docs/android.md:28`: add **Copy URL** to "Rename, Edit URL, Move and Delete"
+- [x] update CLAUDE.md only if a new pattern emerged: nothing new, so CLAUDE.md is
+      unchanged
+- [x] move this plan to `docs/plans/completed/`
 
 ## Post-Completion
 *Items requiring manual intervention or external systems - no checkboxes, informational only*

@@ -1,5 +1,7 @@
 package io.booksync.android.ui.bookmarks
 
+import android.content.ClipData
+import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,9 +20,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -28,10 +33,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import io.booksync.android.R
 import io.booksync.android.core.VNode
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrowserDialogs(state: BrowserState, vm: BookmarksViewModel) {
+    // Hoisted out of the sheet: copied() closes it, which would cancel a scope created inside.
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     when (val d = state.dialog) {
         null -> Unit
         is BrowserDialog.Actions -> ModalBottomSheet(onDismissRequest = vm::dismissDialog) {
@@ -39,6 +48,15 @@ fun BrowserDialogs(state: BrowserState, vm: BookmarksViewModel) {
                 Text(d.node.title, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
                 SheetAction(R.string.rename, "action-rename") { vm.show(BrowserDialog.Rename(d.node)) }
                 if (!d.node.isFolder) SheetAction(R.string.edit_url, "action-url") { vm.show(BrowserDialog.EditUrl(d.node)) }
+                d.node.url?.takeIf { !d.node.isFolder }?.let { url ->
+                    SheetAction(R.string.copy_url, "action-copy") {
+                        scope.launch {
+                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(d.node.title, url)))
+                            // Android 13+ confirms clipboard writes itself.
+                            vm.copied(announce = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU)
+                        }
+                    }
+                }
                 SheetAction(R.string.move, "action-move") { vm.show(BrowserDialog.Move(d.node)) }
                 SheetAction(R.string.delete, "action-delete") { vm.requestDelete(d.node) }
             }

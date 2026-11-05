@@ -80,7 +80,15 @@ fun BookmarksScreen(
     val titles = rootTitles()
     vm.rootTitle = titles
     val snackbar = remember { SnackbarHostState() }
-    val messageText = state.message?.let { stringResource(if (it == "cannot_open") R.string.cannot_open else messageFor(it)) }
+    val messageText = state.message?.let {
+        stringResource(
+            when (it) {
+                "cannot_open" -> R.string.cannot_open
+                "url_copied" -> R.string.url_copied
+                else -> messageFor(it)
+            },
+        )
+    }
     LaunchedEffect(state.message) {
         if (messageText != null) {
             snackbar.showSnackbar(messageText)

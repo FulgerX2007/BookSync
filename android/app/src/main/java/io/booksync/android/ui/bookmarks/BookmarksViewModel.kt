@@ -134,6 +134,9 @@ class BookmarksViewModel(
 
     fun show(dialog: BrowserDialog) = _state.update { it.copy(dialog = dialog) }
 
+    /** After Copy URL: closes the sheet, and says so when the system won't ([announce]). */
+    fun copied(announce: Boolean) = _state.update { it.copy(dialog = null, message = if (announce) "url_copied" else it.message) }
+
     fun requestDelete(node: VNode) {
         viewModelScope.launch {
             val count = core.countSubtree(node.guid)
