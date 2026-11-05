@@ -75,6 +75,9 @@
   - Readback is the only check that the user-activation path works. If it is still
     flaky, stub `navigator.clipboard.writeText` with `addInitScript`, as
     `unsupported.spec.ts` does, and record the argument. Note the deviation here (⚠️).
+  - ⚠️ An origin-scoped grant fails ("Permission can't be granted to opaque origins").
+    The unscoped grant works and is in `ExtBrowser.clipboard()`. It runs only after the
+    copy click, so the copy itself is tested without any granted permission.
   - To check that no tab opened, assert `context.pages().length` is unchanged.
 
 ## Progress Tracking
@@ -172,14 +175,14 @@
 - Modify: `extension/src/bookmarks/tree.ts`
 - Modify: `extension/src/bookmarks/tree.test.ts`
 
-- [ ] add `selectedUrls(t, ids)`: `treeOrder(t)` filtered to selected bookmarks with a URL
-- [ ] write tests: a single bookmark; a multi-selection in tree order, regardless of
+- [x] add `selectedUrls(t, ids)`: `treeOrder(t)` filtered to selected bookmarks with a URL
+- [x] write tests: a single bookmark; a multi-selection in tree order, regardless of
       selection order; folders skipped
-- [ ] write tests for edge cases:
+- [x] write tests for edge cases:
       - an empty selection or only folders → `[]`;
       - an unknown id is ignored;
       - selecting a folder doesn't copy the bookmarks inside it
-- [ ] run `cd extension && npm run check` (keep `src/bookmarks` coverage ≥ 90 %) - must
+- [x] run `cd extension && npm run check` (keep `src/bookmarks` coverage ≥ 90 %) - must
       pass before next task
 
 ### Task 2: Shared clipboard helper and popup search copy button
@@ -190,20 +193,20 @@
 - Modify: `extension/src/ui/popup/popup.css`
 - Modify: `extension/e2e/popup-search.spec.ts`
 
-- [ ] create `flashCopied` in `ui/shared/clipboard.ts`
-- [ ] add a copy button to each result in `search.ts`:
+- [x] create `flashCopied` in `ui/shared/clipboard.ts`
+- [x] add a copy button to each result in `search.ts`:
       - `tabindex="-1"`, with `aria-label` "Copy URL of `${r.title || r.url}`";
       - `mousedown` calls `preventDefault()`, so focus stays in the input;
       - the click calls `stopPropagation`, so the result doesn't open and the popup
         doesn't close, then `navigator.clipboard.writeText(r.url)`;
       - a failure is shown in `#popup-search-error`
-- [ ] style `.result .copy` in `popup.css`. Keyboard ↑/↓/Enter behavior must not change
-- [ ] e2e: clicking copy puts the URL on the clipboard (read back after
+- [x] style `.result .copy` in `popup.css`. Keyboard ↑/↓/Enter behavior must not change
+- [x] e2e: clicking copy puts the URL on the clipboard (read back after
       `bringToFront()`) and shows ✓
-- [ ] e2e: after the copy click, no tab has opened (`context.pages().length` unchanged),
+- [x] e2e: after the copy click, no tab has opened (`context.pages().length` unchanged),
       the popup is still open, and ArrowDown still moves the active result
-- [ ] e2e: Enter on the active result still opens it (existing test stays green)
-- [ ] run `npm run check` and `make e2e` - must pass before next task
+- [x] e2e: Enter on the active result still opens it (existing test stays green)
+- [x] run `npm run check` and `make e2e` - must pass before next task
 
 ### Task 3: Manager copy (row button, search results, Ctrl/Cmd+C)
 
@@ -212,29 +215,30 @@
 - Modify: `extension/src/ui/manager/manager.css`
 - Modify: `extension/e2e/manager.spec.ts`
 
-- [ ] in `nodeItem()`, add `button.act[data-action="copy"]` before ✎, for bookmarks
+- [x] in `nodeItem()`, add `button.act[data-action="copy"]` before ✎, for bookmarks
       only (not folders, not roots)
-- [ ] in `renderResults()`, add `button.copy[data-action="copy"][data-url]` for results
+- [x] in `renderResults()`, add `button.copy[data-action="copy"][data-url]` for results
       with a URL
-- [ ] in the delegated `main` click listener, add a first branch for
+- [x] in the delegated `main` click listener, add a first branch for
       `[data-action="copy"]`, ahead of `[data-reveal]`. It copies `data-url`, or the
       row's `tree.nodes.get(id).url`, flashes ✓ and returns
-- [ ] add a `keydown` handler:
+- [x] add a `keydown` handler:
       - it fires only when the key check matches, `query.trim() === ''`,
         `document.activeElement` is `body` or inside `main`, and there is no text
         selection;
       - it copies `selectedUrls(tree, selection.selected).join('\n')` when that's
         non-empty, and calls `preventDefault`; otherwise the browser's default applies;
       - route failures through `setMessage`
-- [ ] e2e: the row button copies the URL without changing the selection, and folders have
+      - ➕ on success, the notice says "Copied N URLs." (there's no button to flash)
+- [x] e2e: the row button copies the URL without changing the selection, and folders have
       no copy button
-- [ ] e2e: extend the existing test "deletes a single bookmark without asking, and never
+- [x] e2e: extend the existing test "deletes a single bookmark without asking, and never
       offers to edit or delete a root" to assert that roots have no copy button either
-- [ ] e2e: the search result button copies without revealing
-- [ ] e2e: Ctrl+C with a two-bookmark selection plus a folder copies two lines in order
-- [ ] e2e: Ctrl+C in `#manager-search` copies the query text, and Ctrl+C in search mode
+- [x] e2e: the search result button copies without revealing
+- [x] e2e: Ctrl+C with a two-bookmark selection plus a folder copies two lines in order
+- [x] e2e: Ctrl+C in `#manager-search` copies the query text, and Ctrl+C in search mode
       doesn't copy the hidden selection
-- [ ] run `npm run check` and `make e2e` - must pass before next task
+- [x] run `npm run check` and `make e2e` - must pass before next task
 
 ### Task 4: Android "Copy URL" sheet action
 

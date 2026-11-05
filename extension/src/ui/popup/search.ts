@@ -4,6 +4,7 @@ import { createRefreshGate } from '../../bookmarks/refresh';
 import { createSearchIndex, search, type SearchIndex, type SearchResult } from '../../bookmarks/search';
 import { ext } from '../../platform/ext';
 import type { Bookmarks } from '../shared/bookmarks';
+import { flashCopied } from '../shared/clipboard';
 import { h, replace } from '../shared/dom';
 import { errorText } from '../shared/errors';
 
@@ -48,6 +49,38 @@ export function mountSearch(container: HTMLElement, bookmarks: Bookmarks): void 
     }
   };
 
+  const copy = async (r: SearchResult, button: HTMLElement) => {
+    if (!r.url) return;
+    error.textContent = '';
+    try {
+      await navigator.clipboard.writeText(r.url);
+      flashCopied(button);
+    } catch (e) {
+      error.textContent = `Cannot copy ${r.url}: ${errorText(e)}`;
+    }
+  };
+
+  const copyButton = (r: SearchResult) => {
+    const button = h(
+      'button',
+      {
+        type: 'button',
+        class: 'copy',
+        tabindex: '-1',
+        title: 'Copy URL',
+        'aria-label': `Copy URL of ${r.title || r.url || ''}`,
+        // Keep focus in the search box, so the arrow keys and Enter still work.
+        onmousedown: (ev: Event) => ev.preventDefault(),
+        onclick: (ev: Event) => {
+          ev.stopPropagation();
+          void copy(r, button);
+        },
+      },
+      '⧉',
+    );
+    return button;
+  };
+
   const render = () => {
     const query = input.value;
     results = index && query.trim() ? search(index, query, { limit: LIMIT, kinds: ['bookmark'] }) : [];
@@ -65,8 +98,13 @@ export function mountSearch(container: HTMLElement, bookmarks: Bookmarks): void 
             title: `${r.title}\n${r.url ?? ''}`,
             onclick: () => void open(r),
           },
-          h('div', { class: 'result-title' }, r.title || r.url || ''),
-          h('div', { class: 'result-meta muted' }, [host(r.url), r.path.join(' › ')].filter(Boolean).join(' · ')),
+          h(
+            'div',
+            { class: 'result-text' },
+            h('div', { class: 'result-title' }, r.title || r.url || ''),
+            h('div', { class: 'result-meta muted' }, [host(r.url), r.path.join(' › ')].filter(Boolean).join(' · ')),
+          ),
+          copyButton(r),
         ),
       ),
     );

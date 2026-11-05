@@ -166,6 +166,16 @@ export class ExtBrowser {
     return page;
   }
 
+  /**
+   * The clipboard as `page` sees it. Reading needs the page in front: with
+   * several tabs open, readText() otherwise fails with "Document is not focused".
+   */
+  async clipboard(page: Page): Promise<string> {
+    await this.context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.bringToFront();
+    return page.evaluate(() => navigator.clipboard.readText());
+  }
+
   /** The id of the tab showing `url` (the e2e build may read 127.0.0.1 tab URLs). */
   async tabIdOf(url: string): Promise<number> {
     const w = await this.worker();

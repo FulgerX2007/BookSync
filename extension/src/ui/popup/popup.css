@@ -28,9 +28,30 @@ main {
   overflow-y: auto;
 }
 .result {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 8px;
   border-radius: 6px;
   cursor: pointer;
+}
+.result-text {
+  flex: 1;
+  min-width: 0;
+}
+.result .copy {
+  flex: none;
+  padding: 2px 6px;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.5;
+}
+.result:hover .copy,
+.result[aria-selected='true'] .copy,
+.result .copy.copied {
+  opacity: 1;
 }
 .result:hover {
   background: color-mix(in srgb, var(--accent) 8%, transparent);

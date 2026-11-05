@@ -56,6 +56,30 @@ test('opens the selected result in a new tab with the keyboard', async ({ server
   await expect.poll(() => popup.isClosed()).toBe(true);
 });
 
+test('copies a result URL without opening it, keeping the keyboard in the search box', async ({ server, browserA }) => {
+  await browserA.bookmarks(async (b, base) => {
+    await b.create({ parentId: '1', title: 'Alpha one', url: `${base}/healthz?one` });
+    await b.create({ parentId: '1', title: 'Alpha two', url: `${base}/healthz?two` });
+  }, server.url);
+  const popup = await browserA.openPopup();
+  const search = popup.locator('#popup-search');
+  await search.fill('alpha');
+  await expect(popup.locator('#popup-results [role=option]')).toHaveCount(2);
+  const pages = browserA.context.pages().length;
+
+  const copy = popup.locator('#popup-result-1').getByRole('button', { name: 'Copy URL of Alpha two' });
+  await copy.click();
+  await expect(copy).toHaveText('✓');
+  expect(await browserA.clipboard(popup)).toBe(`${server.url}/healthz?two`);
+  expect(popup.isClosed()).toBe(false);
+  expect(browserA.context.pages()).toHaveLength(pages);
+
+  await expect(search).toBeFocused();
+  await search.press('ArrowDown');
+  await expect(popup.locator('#popup-result-1')).toHaveAttribute('aria-selected', 'true');
+  await expect(copy).toHaveText('⧉');
+});
+
 test('shows a URL the browser refuses to open as an error', async ({ browserA }) => {
   await browserA.bookmarks(async (b) => {
     await b.create({ parentId: '1', title: 'Bookmarklet', url: 'javascript:void(0)' });

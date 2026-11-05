@@ -72,6 +72,19 @@ export function normalizeSelection(t: LocalTree, ids: Iterable<string>): string[
   });
 }
 
+/**
+ * The URLs of the selected bookmarks, in tree order (what Ctrl/Cmd+C copies).
+ * Folders are skipped, and selecting one doesn't copy the bookmarks inside it.
+ */
+export function selectedUrls(t: LocalTree, ids: ReadonlySet<string>): string[] {
+  const out: string[] = [];
+  for (const id of treeOrder(t)) {
+    const n = t.nodes.get(id);
+    if (ids.has(id) && n?.kind === 'bookmark' && n.url) out.push(n.url);
+  }
+  return out;
+}
+
 export interface FolderOption {
   id: string;
   title: string;

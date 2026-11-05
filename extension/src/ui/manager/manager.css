@@ -121,6 +121,10 @@ main {
 .act:hover {
   background: var(--card);
 }
+.result .act {
+  flex: none;
+  margin-left: auto;
+}
 input.rename {
   flex: 1;
   min-width: 120px;

@@ -174,6 +174,68 @@ test('deletes a single bookmark without asking, and never offers to edit or dele
   await expect(manager.locator('#edit-selected')).toBeDisabled();
   await expect(manager.locator('#delete-selected')).toBeDisabled();
   await expect(row(manager, ROOTS.bar).locator('.actions')).toHaveCount(0);
+  await expect(row(manager, ROOTS.bar).locator('[data-action="copy"]')).toHaveCount(0);
+});
+
+test('copies a bookmark URL from its row without changing the selection; folders have no copy button', async ({ browserA }) => {
+  await browserA.bookmarks(async (b) => {
+    await b.create({ parentId: '1', title: 'Work' });
+    await b.create({ parentId: '1', title: 'One', url: 'https://one.example/' });
+    await b.create({ parentId: '1', title: 'Two', url: 'https://two.example/' });
+  });
+  const manager = await browserA.openManager();
+  await row(manager, 'One').click();
+  const copy = row(manager, 'Two').getByRole('button', { name: 'Copy URL of Two' });
+  await row(manager, 'Two').hover();
+  await copy.click();
+  await expect(copy).toHaveText('✓');
+  expect(await browserA.clipboard(manager)).toBe('https://two.example/');
+  await expect(row(manager, 'One')).toHaveClass(/selected/);
+  await expect(row(manager, 'Two')).not.toHaveClass(/selected/);
+  await expect(row(manager, 'Work').locator('[data-action="copy"]')).toHaveCount(0);
+});
+
+test('copies from a search result without revealing it', async ({ browserA }) => {
+  await deepTree(browserA);
+  const manager = await browserA.openManager();
+  await manager.fill('#manager-search', 'needle');
+  const result = manager.locator('#results .result').first();
+  const copy = result.getByRole('button', { name: 'Copy URL of Deep' });
+  await copy.click();
+  await expect(copy).toHaveText('✓');
+  expect(await browserA.clipboard(manager)).toBe('https://deep.example/needle/path');
+  await expect(manager.locator('#manager-search')).toHaveValue('needle');
+  await expect(manager.locator('#results')).toBeVisible();
+  // Folders in the results have no copy button.
+  await manager.fill('#manager-search', 'receip');
+  await expect(manager.locator('#results .result [data-action="copy"]')).toHaveCount(0);
+});
+
+test('Ctrl+C copies the selected bookmarks in order, but leaves the search box and search mode alone', async ({ browserA }) => {
+  await browserA.bookmarks(async (b) => {
+    await b.create({ parentId: '1', title: 'One', url: 'https://one.example/' });
+    await b.create({ parentId: '1', title: 'Work' });
+    await b.create({ parentId: '1', title: 'Two', url: 'https://two.example/' });
+  });
+  const manager = await browserA.openManager();
+  await row(manager, 'Two').click();
+  await row(manager, 'Work').click({ modifiers: ['ControlOrMeta'] });
+  await row(manager, 'One').click({ modifiers: ['ControlOrMeta'] });
+  await manager.keyboard.press('ControlOrMeta+KeyC');
+  await expect(manager.locator('#manager-notice')).toContainText('Copied 2 URLs.');
+  expect(await browserA.clipboard(manager)).toBe('https://one.example/\nhttps://two.example/');
+
+  // In the search box, Ctrl+C copies the query text as usual...
+  const search = manager.locator('#manager-search');
+  await search.fill('two');
+  await search.selectText();
+  await search.press('ControlOrMeta+KeyC');
+  expect(await browserA.clipboard(manager)).toBe('two');
+  // ...and with the results shown, the hidden selection is not copied.
+  await search.blur();
+  await expect(manager.locator('#results')).toBeVisible();
+  await manager.keyboard.press('ControlOrMeta+KeyC');
+  expect(await browserA.clipboard(manager)).toBe('two');
 });
 
 /** Bookmarks bar: A/B/C/{Deep}, Receipts/{}, Filler 0..39 (so Deep is far down). */

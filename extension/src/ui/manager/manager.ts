@@ -9,10 +9,11 @@ import { createBookmark, createFolder, deleteMany, moveMany, rename, setUrl, typ
 import { createRefreshGate, type Release } from '../../bookmarks/refresh';
 import { createSearchIndex, search, type SearchIndex } from '../../bookmarks/search';
 import { emptySelection, pruneSelection, select, type Selection } from '../../bookmarks/selection';
-import { countSubtree, isRootId, normalizeSelection, rootIds, visibleOrder } from '../../bookmarks/tree';
+import { countSubtree, isRootId, normalizeSelection, rootIds, selectedUrls, visibleOrder } from '../../bookmarks/tree';
 import { ROOT_OTHER } from '../../model/vault';
 import { ext, hasBookmarksApi } from '../../platform/ext';
 import { openBookmarks } from '../shared/bookmarks';
+import { flashCopied } from '../shared/clipboard';
 import { byId, h, replace } from '../shared/dom';
 import { errorText } from '../shared/errors';
 import { RpcError } from '../shared/rpc';
@@ -93,11 +94,16 @@ function nodeItem(t: LocalTree, id: string): HTMLLIElement {
       : h(
           'span',
           { class: 'actions' },
+          n.url ? copyButton(title, n.url) : null,
           h('button', { type: 'button', class: 'act', 'data-action': 'edit', 'aria-label': `${folder ? 'Rename' : 'Edit'} ${title}`, title: folder ? 'Rename' : 'Edit' }, '✎'),
           h('button', { type: 'button', class: 'act', 'data-action': 'delete', 'aria-label': `Delete ${title}`, title: 'Delete' }, '🗑'),
         ),
   );
   return h('li', { class: root ? 'root' : '' }, row, open && kids.length > 0 ? h('ul', {}, ...kids.map((c) => nodeItem(t, c))) : null);
+}
+
+function copyButton(title: string, url: string): HTMLElement {
+  return h('button', { type: 'button', class: 'act', 'data-action': 'copy', 'data-url': url, 'aria-label': `Copy URL of ${title || url}`, title: 'Copy URL' }, '⧉');
 }
 
 function renderResults(): void {
@@ -117,6 +123,7 @@ function renderResults(): void {
               h('span', { class: 'title' }, r.title || r.url || 'Untitled folder'),
               h('span', { class: 'path muted' }, r.path.join(' › ')),
               r.url !== undefined ? h('span', { class: 'url' }, r.url) : null,
+              r.url ? copyButton(r.title, r.url) : null,
             ),
           ),
         ),
@@ -384,8 +391,23 @@ function updateToolbar(): void {
 
 // ---- events ---------------------------------------------------------------------
 
+async function copyUrls(text: string, button?: HTMLElement): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    if (button) flashCopied(button);
+  } catch (e) {
+    setMessage(`Cannot copy: ${errorText(e)}`);
+  }
+}
+
 main.addEventListener('click', (ev) => {
   const target = ev.target as HTMLElement;
+  // First: a copy button sits inside a search result, which would otherwise reveal it.
+  const copy = target.closest<HTMLElement>('[data-action="copy"]');
+  if (copy) {
+    void copyUrls(copy.dataset.url!, copy);
+    return;
+  }
   const result = target.closest<HTMLElement>('[data-reveal]');
   if (result) {
     reveal(result.dataset.reveal!);
@@ -405,6 +427,24 @@ main.addEventListener('click', (ev) => {
   // On click, not mousedown: starting a drag must not collapse a multi-selection.
   selection = select(selection, id, { ctrl: ev.ctrlKey || ev.metaKey, shift: ev.shiftKey }, visibleOrder(tree, expanded));
   paintSelection();
+});
+
+// Ctrl/Cmd+C copies the URLs of the selected bookmarks, but only where the
+// browser's own copy has nothing to do: the tree is shown, focus is on the page
+// or the tree (not the search box or a dialog) and no text is selected.
+document.addEventListener('keydown', (ev) => {
+  if (ev.key.toLowerCase() !== 'c' || !(ev.ctrlKey || ev.metaKey) || ev.shiftKey || ev.altKey) return;
+  if (!tree || query.trim() !== '') return;
+  const focus = document.activeElement;
+  if (focus && focus !== document.body && !main.contains(focus)) return;
+  if (focus instanceof HTMLElement && (focus.isContentEditable || focus instanceof HTMLInputElement)) return;
+  if (!(document.getSelection()?.isCollapsed ?? true)) return;
+  const urls = selectedUrls(tree, selection.selected);
+  if (urls.length === 0) return;
+  ev.preventDefault();
+  void copyUrls(urls.join('\n')).then(() => {
+    if (navigator.clipboard) setMessage(urls.length === 1 ? 'Copied 1 URL.' : `Copied ${urls.length} URLs.`);
+  });
 });
 
 main.addEventListener('dblclick', (ev) => {

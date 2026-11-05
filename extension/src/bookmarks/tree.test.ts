@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { browser, idOf } from '../../test/bookmark-trees';
 import { MENU_FOLDER_TITLE } from '../browser/chromium';
-import { countSubtree, folderOptions, isAncestor, isRootId, normalizeSelection, pathOf, rootIds, treeOrder, visibleOrder } from './tree';
+import { countSubtree, folderOptions, isAncestor, isRootId, normalizeSelection, pathOf, rootIds, selectedUrls, treeOrder, visibleOrder } from './tree';
 
 /** Toolbar: Work/{Docs, Deep/{Deeper/{Bottom}}}, Example; Other: Misc */
 async function sample(flavor: 'chromium' | 'firefox' = 'chromium') {
@@ -110,6 +110,25 @@ describe('normalizeSelection', () => {
     expect(normalizeSelection(t, [misc, docs, work, bottom, '1', 'nope', misc, example])).toEqual([work, example, misc]);
     expect(normalizeSelection(t, [misc, docs])).toEqual([docs, misc]);
     expect(normalizeSelection(t, ['1', '2'])).toEqual([]);
+  });
+});
+
+describe('selectedUrls', () => {
+  it('lists the selected bookmarks in tree order, whatever the selection order', async () => {
+    const { t } = await sample();
+    expect(selectedUrls(t, new Set([idOf(t, 'Example')]))).toEqual(['https://example.com/']);
+    expect(selectedUrls(t, new Set([idOf(t, 'Misc'), idOf(t, 'Bottom'), idOf(t, 'Docs')]))).toEqual([
+      'https://docs.example/',
+      'https://bottom.example/',
+      'https://misc.example/',
+    ]);
+  });
+
+  it('skips folders, roots and unknown ids, and a selected folder copies nothing inside it', async () => {
+    const { t } = await sample();
+    expect(selectedUrls(t, new Set())).toEqual([]);
+    expect(selectedUrls(t, new Set([idOf(t, 'Work'), idOf(t, 'Deep'), '1', 'nope']))).toEqual([]);
+    expect(selectedUrls(t, new Set([idOf(t, 'Work'), idOf(t, 'Example')]))).toEqual(['https://example.com/']);
   });
 });
 
